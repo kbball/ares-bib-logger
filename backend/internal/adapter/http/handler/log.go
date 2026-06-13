@@ -24,11 +24,13 @@ func (h *Handler) logBib(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"runner":       result.Runner,
 		"log":          result.Log,
 		"is_duplicate": result.IsDuplicate,
-	})
+	}
+	h.stream.Publish("bib_logged", payload)
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (h *Handler) logStatus(w http.ResponseWriter, r *http.Request) {

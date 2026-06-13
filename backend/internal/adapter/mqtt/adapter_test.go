@@ -78,6 +78,20 @@ func (m *mockPublisher) Publish(topic string, payload []byte) error {
 	return m.err
 }
 
+type mockSSEPublisher struct {
+	events []struct {
+		eventType string
+		payload   any
+	}
+}
+
+func (m *mockSSEPublisher) Publish(eventType string, payload any) {
+	m.events = append(m.events, struct {
+		eventType string
+		payload   any
+	}{eventType, payload})
+}
+
 // --- helpers ---
 
 func testCfg() config.MQTTConfig {
@@ -91,7 +105,7 @@ func testCfg() config.MQTTConfig {
 
 // newTestAdapter builds an adapter with mock publisher (bypasses paho entirely).
 func newTestAdapter(svc *mockLogService, pub *mockPublisher) *Adapter {
-	return newAdapter(pub, func() {}, testCfg(), svc)
+	return newAdapter(pub, &mockSSEPublisher{}, func() {}, testCfg(), svc)
 }
 
 // envelope serialises a ServiceEnvelope for use in processMessage tests.
@@ -106,21 +120,21 @@ func envelope(typ string, text string) []byte {
 
 func TestNewFromClient_Success(t *testing.T) {
 	paho := &mockPahoClient{}
-	a, err := newFromClient(paho, testCfg(), &mockLogService{})
+	a, err := newFromClient(paho, testCfg(), &mockLogService{}, &mockSSEPublisher{})
 	require.NoError(t, err)
 	assert.NotNil(t, a)
 }
 
 func TestNewFromClient_ConnectError(t *testing.T) {
 	paho := &mockPahoClient{connectErr: errors.New("connection refused")}
-	_, err := newFromClient(paho, testCfg(), &mockLogService{})
+	_, err := newFromClient(paho, testCfg(), &mockLogService{}, &mockSSEPublisher{})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "connecting")
 }
 
 func TestNewFromClient_SubscribeError(t *testing.T) {
 	paho := &mockPahoClient{subscribeErr: errors.New("bad topic")}
-	_, err := newFromClient(paho, testCfg(), &mockLogService{})
+	_, err := newFromClient(paho, testCfg(), &mockLogService{}, &mockSSEPublisher{})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "subscribing")
 	assert.True(t, paho.disconnected, "should disconnect on subscribe failure")
@@ -134,7 +148,7 @@ func TestPahoPublisher_CoversPublish(t *testing.T) {
 		IsDuplicate: true,
 	}}
 	paho := &mockPahoClient{}
-	a, err := newFromClient(paho, testCfg(), svc)
+	a, err := newFromClient(paho, testCfg(), svc, &mockSSEPublisher{})
 	require.NoError(t, err)
 
 	a.processMessage(context.Background(), envelope("text", "42\n"))
@@ -286,7 +300,7 @@ func TestParseBibs_SingleBib(t *testing.T) {
 
 func TestStop_CallsStopFn(t *testing.T) {
 	called := false
-	a := newAdapter(&mockPublisher{}, func() { called = true }, testCfg(), &mockLogService{})
+	a := newAdapter(&mockPublisher{}, &mockSSEPublisher{}, func() { called = true }, testCfg(), &mockLogService{})
 	a.Stop()
 	assert.True(t, called)
 }

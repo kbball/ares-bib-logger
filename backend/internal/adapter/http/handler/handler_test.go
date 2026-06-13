@@ -7,6 +7,11 @@ import (
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
+// noopPublisher satisfies sse.Publisher for tests that don't assert SSE output.
+type noopPublisher struct{}
+
+func (noopPublisher) Publish(_ string, _ any) {}
+
 // --- mock services ---
 
 type mockEventService struct {

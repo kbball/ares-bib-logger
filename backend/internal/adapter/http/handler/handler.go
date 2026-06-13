@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
@@ -15,6 +16,7 @@ type Handler struct {
 	checkpointLogs portsvc.CheckpointLogService
 	session        portsvc.SessionService
 	winlink        portsvc.WinlinkService
+	stream         sse.Publisher
 }
 
 func New(
@@ -25,6 +27,7 @@ func New(
 	checkpointLogs portsvc.CheckpointLogService,
 	session portsvc.SessionService,
 	winlink portsvc.WinlinkService,
+	stream sse.Publisher,
 ) *Handler {
 	return &Handler{
 		events:         events,
@@ -34,10 +37,11 @@ func New(
 		checkpointLogs: checkpointLogs,
 		session:        session,
 		winlink:        winlink,
+		stream:         stream,
 	}
 }
 
-// Register wires all API routes onto mux.
+// Register wires all API routes onto mux. broker is registered separately as GET /api/stream.
 func (h *Handler) Register(mux *http.ServeMux) {
 	// Events
 	mux.HandleFunc("GET /api/events", h.listEvents)

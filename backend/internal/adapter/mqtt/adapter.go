@@ -11,6 +11,7 @@ import (
 
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
@@ -44,23 +45,24 @@ func (p *pahoPublisher) Publish(topic string, payload []byte) error {
 // Adapter is the MQTT driven adapter for Meshtastic bib input.
 type Adapter struct {
 	publisher mqttPublisher
+	stream    sse.Publisher
 	stopFn    func()
 	cfg       config.MQTTConfig
 	svc       portsvc.CheckpointLogService
 }
 
-func newAdapter(publisher mqttPublisher, stopFn func(), cfg config.MQTTConfig, svc portsvc.CheckpointLogService) *Adapter {
-	return &Adapter{publisher: publisher, stopFn: stopFn, cfg: cfg, svc: svc}
+func newAdapter(publisher mqttPublisher, stream sse.Publisher, stopFn func(), cfg config.MQTTConfig, svc portsvc.CheckpointLogService) *Adapter {
+	return &Adapter{publisher: publisher, stream: stream, stopFn: stopFn, cfg: cfg, svc: svc}
 }
 
 // newFromClient wires up subscription on an already-constructed paho client.
 // It is the testable inner constructor; New() is the public convenience wrapper.
-func newFromClient(client pahoClient, cfg config.MQTTConfig, svc portsvc.CheckpointLogService) (*Adapter, error) {
+func newFromClient(client pahoClient, cfg config.MQTTConfig, svc portsvc.CheckpointLogService, stream sse.Publisher) (*Adapter, error) {
 	if tok := client.Connect(); tok.Wait() && tok.Error() != nil {
 		return nil, fmt.Errorf("connecting to MQTT broker: %w", tok.Error())
 	}
 
-	a := newAdapter(&pahoPublisher{client: client}, func() { client.Disconnect(250) }, cfg, svc)
+	a := newAdapter(&pahoPublisher{client: client}, stream, func() { client.Disconnect(250) }, cfg, svc)
 
 	topic := cfg.SubscribeTopic()
 	tok := client.Subscribe(topic, 0, func(_ pahomqtt.Client, msg pahomqtt.Message) {
@@ -76,12 +78,12 @@ func newFromClient(client pahoClient, cfg config.MQTTConfig, svc portsvc.Checkpo
 }
 
 // New connects to the MQTT broker and returns a running Adapter. Call Stop() to disconnect.
-func New(cfg config.MQTTConfig, svc portsvc.CheckpointLogService) (*Adapter, error) {
+func New(cfg config.MQTTConfig, svc portsvc.CheckpointLogService, stream sse.Publisher) (*Adapter, error) {
 	opts := pahomqtt.NewClientOptions().
 		AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port)).
 		SetClientID("ares-bib-logger").
 		SetCleanSession(true)
-	return newFromClient(pahomqtt.NewClient(opts), cfg, svc)
+	return newFromClient(pahomqtt.NewClient(opts), cfg, svc, stream)
 }
 
 // Stop disconnects from the MQTT broker.
@@ -132,6 +134,11 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 			continue
 		}
 
+		a.stream.Publish("bib_logged", map[string]any{
+			"runner":       result.Runner,
+			"log":          result.Log,
+			"is_duplicate": result.IsDuplicate,
+		})
 		if result.IsDuplicate {
 			slog.Info("mqtt: duplicate bib, alerting mesh", "bib", bib)
 			a.publishDuplicateAlert(bib)

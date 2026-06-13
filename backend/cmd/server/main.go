@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	httphandler "github.com/kevinball/ares-bib-logger/backend/internal/adapter/http/handler"
 	mqttadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/mqtt"
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
+	sseadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/application/service"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 )
@@ -57,11 +59,14 @@ func main() {
 	checkpointLogRepo := repository.NewCheckpointLogRepo(db)
 	sessionRepo := repository.NewActiveSessionRepo(db)
 
+	// SSE broker — shared by HTTP handler and MQTT adapter
+	broker := sseadapter.NewBroker()
+
 	// Application services
 	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointLogRepo, sessionRepo)
 
 	if cfg.MQTT.Enabled {
-		mqttA, err := mqttadapter.New(cfg.MQTT, checkpointLogSvc)
+		mqttA, err := mqttadapter.New(cfg.MQTT, checkpointLogSvc, broker)
 		if err != nil {
 			slog.Error("failed to start MQTT adapter", "error", err)
 			os.Exit(1)
@@ -83,11 +88,14 @@ func main() {
 		checkpointLogSvc,
 		service.NewSessionService(sessionRepo),
 		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo),
+		broker,
 	)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
+	mux.Handle("GET /api/stream", broker)
 	h.Register(mux)
+	mux.Handle("/", serveSPA("frontend/dist"))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
@@ -181,4 +189,20 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// serveSPA serves a directory of static files and falls back to index.html
+// for any path that doesn't match a real file (SPA client-side routing).
+func serveSPA(dir string) http.Handler {
+	root := os.DirFS(dir)
+	fileServer := http.FileServerFS(root)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := fs.Stat(root, r.URL.Path[1:])
+		if err != nil {
+			// Not a real file — serve index.html so the SPA router handles it.
+			http.ServeFileFS(w, r, root, "index.html")
+			return
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 }

@@ -26,6 +26,7 @@ func (h *Handler) setSessionEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
+	h.publishSession(r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -43,6 +44,7 @@ func (h *Handler) setSessionCheckpoint(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
+	h.publishSession(r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -57,5 +59,14 @@ func (h *Handler) clearSessionCheckpoint(w http.ResponseWriter, r *http.Request)
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
+	h.publishSession(r)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) publishSession(r *http.Request) {
+	sess, err := h.session.Get(r.Context())
+	if err != nil {
+		return
+	}
+	h.stream.Publish("session_changed", sess)
 }
