@@ -17,12 +17,23 @@ services:
       timeout: 5s
       retries: 5
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "${MQTT_PORT}:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+
   app:
     build: .
     restart: unless-stopped
     env_file: .env
     environment:
       DB_HOST: db
+      MQTT_HOST: mosquitto
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     depends_on:
@@ -31,3 +42,5 @@ services:
 
 volumes:
   postgres_data:
+  mosquitto_data:
+  mosquitto_logs:

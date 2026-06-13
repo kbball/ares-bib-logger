@@ -45,7 +45,7 @@ help:
 # ── Dev ──────────────────────────────────────────────────────────────────────
 
 db-up:
-	docker-compose up -d db
+	docker-compose up -d db mosquitto
 
 db-down:
 	docker-compose down

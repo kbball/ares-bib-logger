@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS active_session_checkpoints;
+DROP TABLE IF EXISTS active_session;
+DROP TABLE IF EXISTS checkpoint_logs;
+DROP TABLE IF EXISTS runners;
+DROP TABLE IF EXISTS checkpoints;
+DROP TABLE IF EXISTS races;
+DROP TABLE IF EXISTS events;
+DROP TYPE IF EXISTS log_source;
+DROP TYPE IF EXISTS runner_status;
