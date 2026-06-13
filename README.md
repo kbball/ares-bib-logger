@@ -120,8 +120,15 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `DB_USER` | `postgres` | Database user |
 | `DB_PASSWORD` | `postgres` | Database password |
 | `DB_SSL_MODE` | `disable` | SSL mode (`disable` / `require` / `verify-full`) |
+| `MQTT_HOST` | `localhost` | Mosquitto broker host |
+| `MQTT_PORT` | `1883` | Mosquitto broker port |
+| `MQTT_REGION` | `US` | Meshtastic region prefix (e.g. `US`) |
+| `MQTT_CHANNEL_NUM` | `2` | Channel number in topic path |
+| `MQTT_CHANNEL_NAME` | `LongFast` | Channel name in topic path |
+| `MQTT_GATEWAY_NODE_ID` | — | Gateway node ID in hex without `!` (e.g. `a3b4c5d6`); required for publishing alerts back to mesh |
 
-MQTT configuration will be added once Meshtastic message format is confirmed.
+Subscribe topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#`
+Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQTT_GATEWAY_NODE_ID}`
 
 ## Development Guidelines
 

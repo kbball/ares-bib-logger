@@ -168,12 +168,50 @@ ActiveSession  (one row, updated in place — survives restarts)
 ## Features
 
 ### 1. MQTT / Meshtastic Integration
-- Local Mosquitto MQTT broker runs in Docker
-- Backend subscribes on startup
-- Parse incoming messages: one bib per line
-- Look up runner by bib → determine race → apply active checkpoint for that race
-- Store raw payload; detect and alert on duplicates
-- Optionally publish duplicate warning back to MQTT
+
+**Topic structure:** `msh/{region}/{channel_num}/{enc}/{channel_name}/{node_id}`
+- Subscribe: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#`
+- Publish (alerts back to mesh): `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQTT_GATEWAY_NODE_ID}`
+- `e` in the topic path = gateway-decrypted (plaintext). No encryption — operating under Part 97 amateur radio rules; PSK is `none` on all nodes. Do not add any encryption/decryption logic.
+
+**Inbound message format (JSON `ServiceEnvelope`):**
+```json
+{
+  "from": 2748556758,
+  "to": 4294967295,
+  "channel": 0,
+  "id": 1327955852,
+  "rxTime": 1714500000,
+  "type": "text",
+  "payload": { "text": "101\n202\n303" }
+}
+```
+- Only process messages where `type == "text"`
+- `to: 4294967295` (0xffffffff) = broadcast
+- `payload.text` contains bib numbers, one per line (`\n` delimited)
+- `from` is a uint32 decimal node ID; hex form is `!{hex}` (same value)
+
+**Outbound alert format (published back to gateway topic):**
+```json
+{
+  "channel_id": "LongFast",
+  "gateway_id": "!{gateway_node_id}",
+  "packet": {
+    "from": "{gateway_node_id_as_uint32}",
+    "to": 4294967295,
+    "decoded": { "portnum": 1, "payload": "DUPLICATE BIB: 101" }
+  }
+}
+```
+- Gateway must have `downlink_enabled = true` on the channel to forward to RF
+- `from` must be the gateway node's actual node ID
+
+**Processing:**
+- Local Mosquitto broker runs in Docker; backend subscribes on startup
+- Parse `payload.text`: split on `\n`, strip whitespace, discard non-numeric lines
+- Look up each bib → race → active checkpoint → create CheckpointLog
+- Store raw JSON payload for audit
+- Detect duplicates (same bib, same checkpoint, same session); alert in UI and publish warning back to mesh
 
 ### 2. Admin Panel (UI)
 Three sections:
@@ -250,8 +288,8 @@ Three sections:
 |---|----------|--------|
 | 1 | GA Jewel bib ranges | **Resolved** — largely non-overlapping; roster is authoritative |
 | 2 | GA Jewel tab/checkpoint structure | **Resolved** — see analysis above |
-| 3 | Meshtastic message format | **Open** — free-form text, one bib per line? Any prefix/channel info? |
-| 4 | MQTT topic | **Open** — what topic does Meshtastic bridge publish to? |
+| 3 | Meshtastic message format | **Resolved** — JSON ServiceEnvelope; `type=text`, bibs in `payload.text` one per `\n` |
+| 4 | MQTT topic | **Resolved** — `msh/{region}/{channel_num}/e/{channel_name}/#`; all parts configurable via env |
 | 5 | Roster import format | **Resolved** — TSV paste into text box in admin panel; 2 or 3 columns auto-detected |
 
 ---
