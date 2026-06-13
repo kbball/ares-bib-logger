@@ -20,7 +20,6 @@ func TestLoad_Defaults(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	assert.Equal(t, "development", cfg.Env)
 	assert.Equal(t, 8080, cfg.ServerPort)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "localhost", cfg.DB.Host)
@@ -38,7 +37,6 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_Overrides(t *testing.T) {
 	setRequired(t)
-	t.Setenv("ENV", "production")
 	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("DB_HOST", "db-host")
@@ -55,7 +53,6 @@ func TestLoad_Overrides(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	assert.Equal(t, "production", cfg.Env)
 	assert.Equal(t, 9090, cfg.ServerPort)
 	assert.Equal(t, "debug", cfg.LogLevel)
 	assert.Equal(t, "db-host", cfg.DB.Host)

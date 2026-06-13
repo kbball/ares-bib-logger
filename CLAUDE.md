@@ -51,13 +51,12 @@ The frontend mirrors this structure under `frontend/src/` with `domain/`, `appli
 ## Logging
 
 - Use `log/slog` (stdlib). No third-party logging libraries.
-- JSON handler in production (`ENV=production`), text handler otherwise.
-- Log level set via `LOG_LEVEL` env var (`debug`, `info`, `warn`, `error`). Default: `info`.
+- Always use the JSON handler. Log level set via `LOG_LEVEL` env var (`debug`, `info`, `warn`, `error`). Default: `info`.
 - Never log sensitive data (passwords, tokens, PII).
 
 ## Testing
 
-- Every package must have tests. Target: **>80% coverage**.
+- Every package must have tests. Target: **>90% coverage**.
 - Backend: `testing` stdlib + `testify/assert` + `testify/require` + `testify/mock`. Use `mockery` to generate mocks from port interfaces.
 - Frontend: Vitest + React Testing Library + MSW for API mocking.
 - Domain and application layers must be unit tested in isolation — no DB, no HTTP.

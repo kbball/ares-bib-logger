@@ -73,6 +73,10 @@ test: test-backend test-frontend
 test-backend:
 	cd backend && go test ./...
 
+# Runs repository integration tests against the local DB (requires make db-up first).
+test-integration:
+	cd backend && DB_TEST_DSN="host=$(DB_HOST) port=$(DB_PORT) dbname=$(DB_NAME) user=$(DB_USER) password=$(DB_PASSWORD) sslmode=$(DB_SSL_MODE)" go test ./internal/adapter/repository/... -v
+
 test-frontend:
 	cd frontend && npm test
 

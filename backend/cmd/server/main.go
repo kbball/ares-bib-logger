@@ -17,7 +17,10 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 
+	httphandler "github.com/kevinball/ares-bib-logger/backend/internal/adapter/http/handler"
+	mqttadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/mqtt"
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
+	"github.com/kevinball/ares-bib-logger/backend/internal/application/service"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 )
 
@@ -35,25 +38,56 @@ func main() {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			slog.Error("failed to close database connection", "error", err)
+		}
+	}()
 
 	if err := runMigrations(db); err != nil {
 		slog.Error("failed to run migrations", "error", err)
 		os.Exit(1)
 	}
 
+	// Repositories
+	eventRepo := repository.NewEventRepo(db)
+	raceRepo := repository.NewRaceRepo(db)
+	checkpointRepo := repository.NewCheckpointRepo(db)
+	runnerRepo := repository.NewRunnerRepo(db)
+	checkpointLogRepo := repository.NewCheckpointLogRepo(db)
+	sessionRepo := repository.NewActiveSessionRepo(db)
+
+	// Application services
+	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointLogRepo, sessionRepo)
+
 	if cfg.MQTT.Enabled {
-		slog.Info("MQTT enabled",
+		mqttA, err := mqttadapter.New(cfg.MQTT, checkpointLogSvc)
+		if err != nil {
+			slog.Error("failed to start MQTT adapter", "error", err)
+			os.Exit(1)
+		}
+		defer mqttA.Stop()
+		slog.Info("MQTT adapter started",
 			"broker", fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.Port),
 			"subscribe", cfg.MQTT.SubscribeTopic(),
 		)
-		// MQTT adapter wired in a future step
 	} else {
 		slog.Info("MQTT disabled — running in manual-entry mode")
 	}
 
+	h := httphandler.New(
+		service.NewEventService(eventRepo),
+		service.NewRaceService(raceRepo),
+		service.NewCheckpointService(checkpointRepo, raceRepo),
+		service.NewRunnerService(runnerRepo, raceRepo),
+		checkpointLogSvc,
+		service.NewSessionService(sessionRepo),
+		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo),
+	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
+	h.Register(mux)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
@@ -98,16 +132,7 @@ func setupLogger(cfg *config.Config) {
 		level = slog.LevelInfo
 	}
 
-	opts := &slog.HandlerOptions{Level: level}
-
-	var handler slog.Handler
-	if cfg.Env == "production" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
-
-	slog.SetDefault(slog.New(handler))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 }
 
 func connectDB(cfg config.DBConfig) (*sql.DB, error) {

@@ -8,7 +8,6 @@ import (
 )
 
 type Config struct {
-	Env        string
 	ServerPort int
 	LogLevel   string
 	DB         DBConfig
@@ -80,7 +79,6 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Env:        envStr("ENV", "development"),
 		ServerPort: serverPort,
 		LogLevel:   envStr("LOG_LEVEL", "info"),
 		DB: DBConfig{

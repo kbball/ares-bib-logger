@@ -313,6 +313,7 @@ Three sections:
 - [x] 2026-06-13 — Created `backend/go.mod`
 - [x] 2026-06-13 — Scaffolded hexagonal directory structure (backend + frontend)
 - [x] 2026-06-13 — Frontend init: package.json, Vite, TypeScript, React, Vitest, ESLint, Prettier
+- [ ] Add Material UI (`@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`) to frontend
 - [x] 2026-06-13 — Captured project background, domain model, features, and open questions in plan
 - [x] 2026-06-13 — Analyzed GDR spreadsheet: Winlink format, column layout, roster structure
 - [x] 2026-06-13 — Analyzed GA Jewel spreadsheet: 4 races, bib ranges, checkpoint chains, Out/In structure
@@ -346,6 +347,7 @@ Three sections:
 - [ ] Roster importer (xlsx / CSV → Runner rows)
 
 ### Frontend
+- [ ] Install Material UI (`@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`)
 - [ ] Admin panel: event config, checkpoint display order (locked after race start), roster import (locked after first import), active checkpoint selection per race
 - [ ] Tab 1 — Data entry: race stats, manual bib entry, DNS/DNF, recent log, duplicate alert, race transfer
 - [ ] Tab 2 — Winlink import: race + checkpoint selector, paste area, import summary
@@ -383,3 +385,4 @@ Three sections:
 | 2026-06-13 | Roster import via paste (TSV) not file upload | Lowest friction at race-day — operator already has the spreadsheet open, just copies 3 cols and pastes |
 | 2026-06-13 | `MQTT_ENABLED` flag for fallback mode | MQTT is optional; app runs fully in manual-entry mode when disabled — degrades gracefully, doesn't crash |
 | 2026-06-13 | All state is DB-persisted; no in-memory-only state | Container restarts must be transparent — event config, roster, checkpoints, and ActiveSession all live in Postgres; the app loads from DB on boot, not from memory |
+| 2026-06-13 | Material UI (`@mui/material`) as frontend component library | Pre-built accessible components (tabs, tables, forms, dialogs) match the app's UI well and avoid building layout primitives from scratch |

@@ -57,9 +57,10 @@ CREATE TABLE checkpoints (
 CREATE TABLE runners (
     id         SERIAL PRIMARY KEY,
     race_id    INTEGER NOT NULL REFERENCES races(id) ON DELETE CASCADE,
-    bib_number INTEGER NOT NULL,
-    name       TEXT NOT NULL,
-    sort_order INTEGER NOT NULL,
+    bib_number  INTEGER NOT NULL,
+    first_name  TEXT NOT NULL,
+    last_name   TEXT NOT NULL,
+    sort_order  INTEGER NOT NULL,
     status     runner_status NOT NULL DEFAULT 'UNKNOWN',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
