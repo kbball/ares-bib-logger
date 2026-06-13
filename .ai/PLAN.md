@@ -213,6 +213,12 @@ ActiveSession  (one row, updated in place — survives restarts)
 - Store raw JSON payload for audit
 - Detect duplicates (same bib, same checkpoint, same session); alert in UI and publish warning back to mesh
 
+**Fallback / manual-entry mode:**
+- Controlled by `MQTT_ENABLED` env var (default `true`)
+- When `false`: MQTT adapter does not start; app runs fully on manual entry via UI
+- No degradation to other features — all UI tabs, Winlink import/export, and tabular view work normally
+- Useful when Meshtastic infrastructure is unavailable or being tested without a gateway
+
 ### 2. Admin Panel (UI)
 Three sections:
 
@@ -375,3 +381,5 @@ Three sections:
 | 2026-06-13 | Checkpoint display order locked at API level after race starts | Column order shift mid-race would break positional Winlink import mappings |
 | 2026-06-13 | Runner MOVED status + append-to-bottom in new race | Preserves existing sort_order in the original race (no column shifting on export); transferred runner goes to end of new race |
 | 2026-06-13 | Roster import via paste (TSV) not file upload | Lowest friction at race-day — operator already has the spreadsheet open, just copies 3 cols and pastes |
+| 2026-06-13 | `MQTT_ENABLED` flag for fallback mode | MQTT is optional; app runs fully in manual-entry mode when disabled — degrades gracefully, doesn't crash |
+| 2026-06-13 | All state is DB-persisted; no in-memory-only state | Container restarts must be transparent — event config, roster, checkpoints, and ActiveSession all live in Postgres; the app loads from DB on boot, not from memory |

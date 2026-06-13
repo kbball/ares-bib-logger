@@ -40,6 +40,13 @@ The frontend mirrors this structure under `frontend/src/` with `domain/`, `appli
 - Migrations managed with `golang-migrate` using plain SQL files (`backend/internal/adapter/repository/migrations/`).
 - **Migrations run automatically at application startup** before the HTTP server starts. `main.go` calls `migrate.Up()` on boot.
 - New migrations: `make migrate-create NAME=<description>`.
+- **All application state must be persisted in Postgres.** No in-memory-only state. Container restarts must be fully transparent — event config, rosters, checkpoints, and session all survive a restart by loading from DB on boot.
+
+## MQTT / Meshtastic
+
+- Controlled by `MQTT_ENABLED` env var (default `true`).
+- When `MQTT_ENABLED=false`, the MQTT adapter must not start and the application must boot normally in manual-entry-only mode. No panics, no fatal errors.
+- The MQTT adapter is a driven adapter — treat it as optional infrastructure. Core domain logic must not depend on MQTT being present.
 
 ## Logging
 
