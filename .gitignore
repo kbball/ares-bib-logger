@@ -1,0 +1,28 @@
+# Environment
+.env
+
+# Go
+backend/bin/
+*.exe
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
