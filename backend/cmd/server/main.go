@@ -59,6 +59,12 @@ func main() {
 	checkpointLogRepo := repository.NewCheckpointLogRepo(db)
 	sessionRepo := repository.NewActiveSessionRepo(db)
 
+	loc, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		slog.Warn("invalid TIMEZONE, falling back to UTC", "timezone", cfg.Timezone, "error", err)
+		loc = time.UTC
+	}
+
 	// SSE broker — shared by HTTP handler and MQTT adapter
 	broker := sseadapter.NewBroker()
 
@@ -87,7 +93,7 @@ func main() {
 		service.NewRunnerService(runnerRepo, raceRepo),
 		checkpointLogSvc,
 		service.NewSessionService(sessionRepo),
-		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo),
+		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo, loc),
 		broker,
 	)
 

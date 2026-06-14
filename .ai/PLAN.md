@@ -362,8 +362,17 @@ Vitest + React Testing Library + MSW; 163 tests, 89% branch coverage (461/517), 
 ### ~~Backend Testing~~ ✅ Completed 2026-06-14
 All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, config 93.6%, mqtt 92.7%, sse 94.4%. `make coverage` Makefile target was already wired.
 
-### UI — Bulk Checkpoint Import (Priority: High)
-- [ ] Admin tab: accept TSV paste (`code\tname\tdist_from_start`) to create multiple checkpoints at once for a race; mirrors the roster import UX pattern
+### ~~UI — Bug — Data Entry cards not auto-refreshing after bib log~~ ✅ Completed 2026-06-14
+- [x] Root cause: `useStream` captured handlers once at mount via empty `[]` dep array; `races` inside `onBibLogged` was always the initial empty array, so `loadLogs([])` was a no-op; fixed by storing handlers in a ref updated on every render so the EventSource callback always calls the latest closure; also added `loadLogs` calls to `submitBib` and `submitStatus` for defensive direct refresh
+
+### ~~UI / API — Bug — Winlink import times stored as UTC, displayed as local~~ ✅ Completed 2026-06-14
+- [x] Root cause: Docker container timezone is UTC; `parseTimeOfDay` built base time with `time.Local` (= UTC in Docker), storing e.g. 8:30 as 8:30 UTC → browser showed 4:30 EDT; fixed by adding `TIMEZONE` env var (IANA name, e.g. `America/New_York`), threading `*time.Location` into `WinlinkService`, and using it in `parseTimeOfDay`
+
+### ~~UI / API — Bug — Winlink export times shifted to UTC~~ ✅ Completed 2026-06-14
+- [x] Root cause: same Docker UTC issue; `RecordedAt.Local().Format("15:04")` produced UTC string (18:37) while browser showed local (14:37 EDT); fixed by using `RecordedAt.In(s.loc).Format("15:04")` with the same configured location
+
+### ~~UI — Bulk Checkpoint Import~~ ✅ Completed 2026-06-14
+- [x] Admin tab: "Bulk Checkpoint Import" section with race selector and TSV textarea (`code\tname\tdist`); creates each checkpoint via existing API sequentially; shows created count and per-row errors
 
 ### ~~UI / API — Winlink Export Email Subject Line~~ ✅ Completed 2026-06-14
 - [x] Subject field appears above the column textarea after Generate; format: `<CP DisplayName> <Race Name> <HH:MM 24-hr> update`; own read-only text field + Copy Subject button; Copy Subject recomputes the time at click time for freshness
@@ -372,6 +381,18 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 - [x] README split into Operator (Docker-only) and Developer tracks
 - [x] `docker-compose.operator.yml` — pulls `ghcr.io/kbball/ares-bib-logger:latest`, operators need only Docker Desktop
 - [x] `.github/workflows/ci.yml` — test + lint on PRs; build and push to GHCR on merge to main
+
+### UI — Enhancement — Rename "Copy to Clipboard" to "Copy Column Data" on Winlink Export (Priority: Low)
+- [ ] Button label on Winlink Export tab: change "Copy to Clipboard" → "Copy Column Data" for clarity
+
+### UI — Enhancement — Reorder tabs (Priority: Low)
+- [ ] New tab order: Data Entry → Runners → Winlink Import → Winlink Export → Admin
+
+### UI — Enhancement — Winlink Import should exclude the active checkpoint from the CP selector (Priority: Medium)
+- [ ] The checkpoint dropdown on Winlink Import should not offer the station's own active checkpoint; importing your own station's column is nonsensical and risks overwriting live data
+
+### UI — Enhancement — Winlink export column header should use CP display name not code (Priority: Low)
+- [ ] The first line of the generated export column currently emits the CP code (e.g. `AS1`); change it to emit the CP display name (e.g. `Aid Station 1`) to match the Winlink convention used by other stations
 
 ### UI — Context-Sensitive Help Panel (Priority: Medium)
 - [ ] Persistent help icon (question mark) in the lower-right corner of every tab; clicking opens a slide-in side panel explaining what the current screen does and how to use it

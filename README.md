@@ -208,6 +208,7 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `ENV` | `development` | Environment (`development` / `production`) |
 | `SERVER_PORT` | `8080` | HTTP server port |
 | `LOG_LEVEL` | `info` | Log level (`debug` / `info` / `warn` / `error`) |
+| `TIMEZONE` | `Local` | IANA timezone for Winlink time parsing/formatting (e.g. `America/New_York`). Must match the local timezone of the event venue. |
 | `DB_HOST` | `localhost` | Postgres host |
 | `DB_PORT` | `5432` | Postgres port |
 | `DB_NAME` | `ares_bib_logger` | Database name |

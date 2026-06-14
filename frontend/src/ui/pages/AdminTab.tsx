@@ -43,6 +43,10 @@ export default function AdminTab() {
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
+  // Bulk checkpoint import
+  const [bulkCpRaceID, setBulkCpRaceID] = useState<number | ''>('')
+  const [bulkCpTsv, setBulkCpTsv] = useState('')
+  const [bulkCpMsg, setBulkCpMsg] = useState('')
   // Runner status
   const [statusRaceID, setStatusRaceID] = useState<number | ''>('')
   const [statusBib, setStatusBib] = useState('')
@@ -573,6 +577,62 @@ export default function AdminTab() {
             </span>
           </Tooltip>
           {rosterMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{rosterMsg}</Typography>}
+        </Box>
+      </Stack>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* ── Bulk Checkpoint Import ── */}
+      <Typography variant="h6" gutterBottom>Bulk Checkpoint Import</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Paste TSV with columns: Code, DisplayName, DistFromStart (distance optional, no header row).
+      </Typography>
+      <Stack spacing={1}>
+        <FormControl size="small" sx={{ maxWidth: 220 }}>
+          <InputLabel id="bulk-cp-race-label">Race</InputLabel>
+          <Select value={bulkCpRaceID} label="Race" labelId="bulk-cp-race-label" onChange={(e) => { setBulkCpRaceID(Number(e.target.value)); setBulkCpMsg('') }}>
+            {races.filter((r) => !r.OrderLocked).map((r) => (
+              <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField
+          multiline rows={6} size="small"
+          placeholder={'AS1\tAid Station 1\t10.5\nAS2\tAid Station 2\t21.0'}
+          value={bulkCpTsv}
+          onChange={(e) => setBulkCpTsv(e.target.value)}
+          sx={{ fontFamily: 'monospace', maxWidth: 500 }}
+        />
+        <Box>
+          <Tooltip title="Create all checkpoints from the pasted TSV">
+            <span>
+              <Button
+                variant="contained"
+                disabled={!bulkCpRaceID || !bulkCpTsv.trim()}
+                onClick={async () => {
+                  const rows = bulkCpTsv.trim().split('\n').map((l) => l.split('\t'))
+                  let created = 0
+                  const errs: string[] = []
+                  for (const [code, name, dist] of rows) {
+                    if (!code?.trim() || !name?.trim()) { errs.push(`Skipped: "${code ?? ''}" — code and name required`); continue }
+                    const distVal = dist?.trim() ? parseFloat(dist.trim()) : null
+                    try {
+                      await api.createCheckpoint(Number(bulkCpRaceID), code.trim(), name.trim(), distVal)
+                      created++
+                    } catch (e: unknown) {
+                      errs.push(`${code.trim()}: ${(e as Error).message}`)
+                    }
+                  }
+                  await loadCheckpoints(races.map((r) => r.ID))
+                  setBulkCpTsv('')
+                  setBulkCpMsg(`Created ${created}${errs.length ? ` — errors: ${errs.join('; ')}` : ''}`)
+                }}
+              >
+                Import Checkpoints
+              </Button>
+            </span>
+          </Tooltip>
+          {bulkCpMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{bulkCpMsg}</Typography>}
         </Box>
       </Stack>
 

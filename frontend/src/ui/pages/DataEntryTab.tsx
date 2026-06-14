@@ -108,7 +108,9 @@ export default function DataEntryTab() {
       setBibError('')
       setError('')
       bibRef.current?.focus()
-      loadRunners(races.map((r) => r.ID))
+      const ids = races.map((r) => r.ID)
+      loadRunners(ids)
+      loadLogs(ids)
     } catch (e: unknown) {
       setBibError((e as Error).message)
     }
@@ -122,7 +124,9 @@ export default function DataEntryTab() {
       setStatusMsg(`Bib ${n} marked ${status}`)
       setStatusBib('')
       setError('')
-      loadRunners(races.map((r) => r.ID))
+      const ids = races.map((r) => r.ID)
+      loadRunners(ids)
+      loadLogs(ids)
     } catch (e: unknown) {
       setError((e as Error).message)
     }

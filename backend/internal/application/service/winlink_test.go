@@ -27,12 +27,12 @@ func newWinlinkSvc(
 	if len(races) > 0 {
 		r = races[0]
 	}
-	return service.NewWinlinkService(runners, checkpoints, logs, sess, r)
+	return service.NewWinlinkService(runners, checkpoints, logs, sess, r, time.UTC)
 }
 
 func parseHHMMSS(s string) time.Time {
 	t, _ := time.Parse("15:04:05", s)
-	return time.Date(2026, 1, 1, t.Hour(), t.Minute(), t.Second(), 0, time.Local)
+	return time.Date(2026, 1, 1, t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
 }
 
 func TestWinlinkService_Export_Format(t *testing.T) {
@@ -416,6 +416,7 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 		&mockCheckpointLogRepository{},
 		&mockActiveSessionRepository{},
 		&mockRaceRepository{},
+		time.UTC,
 	)
 	_ = svc // tested indirectly via Import below
 

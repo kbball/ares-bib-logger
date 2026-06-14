@@ -18,6 +18,7 @@ type WinlinkService struct {
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
 	races          portrepo.RaceRepository
+	loc            *time.Location
 }
 
 func NewWinlinkService(
@@ -26,13 +27,18 @@ func NewWinlinkService(
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
 	races portrepo.RaceRepository,
+	loc *time.Location,
 ) *WinlinkService {
+	if loc == nil {
+		loc = time.Local
+	}
 	return &WinlinkService{
 		runners:        runners,
 		checkpoints:    checkpoints,
 		checkpointLogs: checkpointLogs,
 		session:        session,
 		races:          races,
+		loc:            loc,
 	}
 }
 
@@ -110,7 +116,7 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 
 	for _, r := range runners {
 		if log, seen := logByRunner[r.ID]; seen {
-			sb.WriteString(log.RecordedAt.Local().Format("15:04"))
+			sb.WriteString(log.RecordedAt.In(s.loc).Format("15:04"))
 		} else {
 			switch r.Status {
 			case entity.StatusDNS:
@@ -209,7 +215,7 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 			}
 			result.Updated++
 		default:
-			t, err := parseTimeOfDay(line)
+			t, err := s.parseTimeOfDay(line)
 			if err != nil {
 				skip(pos, runner.BibNumber, "parse_error")
 				continue
@@ -259,18 +265,19 @@ func looksLikeTimeOrStatus(s string) bool {
 	return len(s) >= 4 && s[1] == ':' && unicode.IsDigit(rune(s[0]))
 }
 
-// parseTimeOfDay parses HH:MM:SS or HH:MM as local wall-clock time on today's date.
-func parseTimeOfDay(s string) (time.Time, error) {
+// parseTimeOfDay parses HH:MM:SS or HH:MM as a wall-clock time on today's date
+// in the service's configured timezone.
+func (s *WinlinkService) parseTimeOfDay(str string) (time.Time, error) {
 	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
-		t, err := time.Parse(layout, s)
+		t, err := time.Parse(layout, str)
 		if err == nil {
 			return base.Add(time.Duration(t.Hour())*time.Hour +
 				time.Duration(t.Minute())*time.Minute +
 				time.Duration(t.Second())*time.Second), nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("cannot parse time: %q", s)
+	return time.Time{}, fmt.Errorf("cannot parse time: %q", str)
 }

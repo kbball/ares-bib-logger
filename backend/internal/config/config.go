@@ -10,6 +10,7 @@ import (
 type Config struct {
 	ServerPort int
 	LogLevel   string
+	Timezone   string
 	DB         DBConfig
 	MQTT       MQTTConfig
 }
@@ -81,6 +82,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		ServerPort: serverPort,
 		LogLevel:   envStr("LOG_LEVEL", "info"),
+		Timezone:   envStr("TIMEZONE", "Local"),
 		DB: DBConfig{
 			Host:     envStr("DB_HOST", "localhost"),
 			Port:     dbPort,
