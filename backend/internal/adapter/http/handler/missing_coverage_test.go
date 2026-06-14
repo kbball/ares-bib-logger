@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/http/handler"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
+	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
 // mockSessionPublishErr lets SetEvent succeed but Get fail, so publishSession's
@@ -183,4 +185,71 @@ func TestHandler_PublishSession_GetError(t *testing.T) {
 		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionPublishErr{}, &mockWinlinkService{}, nil, noopPublisher{})
 	w := putJSON(t, h, "/api/session/event", map[string]int{"event_id": 1})
 	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// --- exportEventConfig ---
+
+func newHandlerWithExport(eventExport *mockEventExportService) *handler.Handler {
+	return handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{},
+		&mockWinlinkService{}, eventExport, noopPublisher{})
+}
+
+func TestHandler_ExportEventConfig_BadID(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{})
+	w := doRequest(t, h, http.MethodGet, "/api/events/abc/export")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_ExportEventConfig_ServiceError(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{err: domain.ErrNotFound})
+	w := doRequest(t, h, http.MethodGet, "/api/events/1/export")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_ExportEventConfig_Success(t *testing.T) {
+	payload := portsvc.EventExportPayload{Version: 1, Event: portsvc.EventExportInfo{Name: "GDR 2026"}}
+	h := newHandlerWithExport(&mockEventExportService{payload: payload})
+	w := doRequest(t, h, http.MethodGet, "/api/events/1/export")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "attachment")
+	var got portsvc.EventExportPayload
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	assert.Equal(t, "GDR 2026", got.Event.Name)
+}
+
+// --- importEventConfig ---
+
+func TestHandler_ImportEventConfig_BadPayload(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{})
+	req := httptest.NewRequest(http.MethodPost, "/api/events/import", bytes.NewBufferString("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_ImportEventConfig_MissingEventName(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{})
+	w := postJSON(t, h, "/api/events/import", map[string]any{"version": 1})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_ImportEventConfig_ServiceError(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{err: errors.New("db error")})
+	body := map[string]any{"version": 1, "event": map[string]string{"name": "GDR"}, "races": []any{}}
+	w := postJSON(t, h, "/api/events/import", body)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_ImportEventConfig_Success(t *testing.T) {
+	h := newHandlerWithExport(&mockEventExportService{eventID: 42})
+	body := map[string]any{"version": 1, "event": map[string]string{"name": "GDR"}, "races": []any{}}
+	w := postJSON(t, h, "/api/events/import", body)
+	require.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]int
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, 42, resp["event_id"])
 }
