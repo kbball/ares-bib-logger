@@ -173,7 +173,7 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `MQTT_CHANNEL_NUM` | `2` | Channel number in topic path |
 | `MQTT_CHANNEL_NAME` | `LongFast` | Channel name in topic path |
 | `MQTT_GATEWAY_NODE_ID` | — | Gateway node ID in hex without `!` (e.g. `a3b4c5d6`); required for publishing alerts back to mesh |
-| `MQTT_ENABLED` | `true` | Set to `false` to disable MQTT entirely and run in manual-entry-only mode |
+| `MQTT_ENABLED` | `false` | Set to `true` to enable MQTT |
 
 Subscribe topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#`
 Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQTT_GATEWAY_NODE_ID}`

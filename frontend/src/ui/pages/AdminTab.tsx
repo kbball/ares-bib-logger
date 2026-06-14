@@ -4,6 +4,7 @@ import {
   FormControl, InputLabel, Stack, Chip, Alert, Paper,
   Table, TableHead, TableRow, TableCell, TableBody,
   IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Tooltip,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import ArchiveIcon from '@mui/icons-material/Archive'
@@ -235,16 +236,18 @@ export default function AdminTab() {
           <Chip label={`Event #${session.EventID} active`} color="success" size="small" />
         )}
         {session?.EventID && (
-          <IconButton
-            size="small"
-            title="Archive this event — removes it from the dropdown"
-            onClick={() => {
-              const ev = events.find((e) => e.ID === session.EventID)
-              if (ev) setArchiveTarget({ id: ev.ID, label: ev.Name })
-            }}
-          >
-            <ArchiveIcon fontSize="small" />
-          </IconButton>
+          <Tooltip title="Archive event — hides it from the dropdown; data is preserved">
+            <IconButton
+              size="small"
+              aria-label="Archive this event"
+              onClick={() => {
+                const ev = events.find((e) => e.ID === session.EventID)
+                if (ev) setArchiveTarget({ id: ev.ID, label: ev.Name })
+              }}
+            >
+              <ArchiveIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         )}
       </Stack>
 
@@ -255,18 +258,22 @@ export default function AdminTab() {
           value={newEventName}
           onChange={(e) => setNewEventName(e.target.value)}
         />
-        <Button
-          variant="outlined"
-          disabled={!newEventName.trim()}
-          onClick={() =>
-            wrap(() => api.createEvent(newEventName.trim()).then(() => {
-              setNewEventName('')
-              return loadEvents()
-            }))
-          }
-        >
-          Create Event
-        </Button>
+        <Tooltip title="Create a new event">
+          <span>
+            <Button
+              variant="outlined"
+              disabled={!newEventName.trim()}
+              onClick={() =>
+                wrap(() => api.createEvent(newEventName.trim()).then(() => {
+                  setNewEventName('')
+                  return loadEvents()
+                }))
+              }
+            >
+              Create Event
+            </Button>
+          </span>
+        </Tooltip>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
@@ -285,20 +292,24 @@ export default function AdminTab() {
               value={newRaceName}
               onChange={(e) => setNewRaceName(e.target.value)}
             />
-            <Button
-              variant="outlined"
-              disabled={!newRaceName.trim()}
-              onClick={() =>
-                wrap(() =>
-                  api.createRace(session.EventID!, newRaceName.trim()).then(() => {
-                    setNewRaceName('')
-                    return loadRaces(session.EventID!)
-                  })
-                )
-              }
-            >
-              Create Race
-            </Button>
+            <Tooltip title="Add a new race to this event">
+              <span>
+                <Button
+                  variant="outlined"
+                  disabled={!newRaceName.trim()}
+                  onClick={() =>
+                    wrap(() =>
+                      api.createRace(session.EventID!, newRaceName.trim()).then(() => {
+                        setNewRaceName('')
+                        return loadRaces(session.EventID!)
+                      })
+                    )
+                  }
+                >
+                  Create Race
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
 
           {races.map((race) => (
@@ -310,23 +321,27 @@ export default function AdminTab() {
                   {race.OrderLocked
                     ? <Chip label="Order locked" size="small" color="warning" />
                     : (
-                      <IconButton
-                        size="small"
-                        title="Lock checkpoint order — prevents changes that would break Winlink position mappings"
-                        onClick={() => setLockTarget({ id: race.ID, label: race.Name })}
-                      >
-                        <LockIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title="Lock checkpoint order — prevents mid-race column shifts that break Winlink import">
+                        <IconButton
+                          size="small"
+                          aria-label="Lock checkpoint order"
+                          onClick={() => setLockTarget({ id: race.ID, label: race.Name })}
+                        >
+                          <LockIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     )
                   }
-                  <IconButton
-                    size="small"
-                    color="error"
-                    title="Delete race and all its data"
-                    onClick={() => setDeleteTarget({ type: 'race', id: race.ID, label: race.Name })}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Delete race and all its data">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      aria-label="Delete race and all its data"
+                      onClick={() => setDeleteTarget({ type: 'race', id: race.ID, label: race.Name })}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Stack>
               </Stack>
 
@@ -417,48 +432,64 @@ export default function AdminTab() {
                           <Stack direction="row" spacing={0} sx={{ justifyContent: 'flex-end' }}>
                             {editingCpID === cp.ID ? (
                               <>
-                                <IconButton size="small" color="success" onClick={saveEditCp} title="Save">
-                                  <CheckIcon fontSize="small" />
-                                </IconButton>
-                                <IconButton size="small" onClick={cancelEditCp} title="Cancel">
-                                  <CloseIcon fontSize="small" />
-                                </IconButton>
+                                <Tooltip title="Save">
+                                  <IconButton size="small" color="success" aria-label="Save" onClick={saveEditCp}>
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Cancel">
+                                  <IconButton size="small" aria-label="Cancel" onClick={cancelEditCp}>
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
                               </>
                             ) : (
                               <>
                                 {!race.OrderLocked && (
                                   <>
-                                    <IconButton
-                                      size="small"
-                                      disabled={idx === 0}
-                                      title="Move checkpoint up"
-                                      onClick={() => moveCheckpoint(race.ID, cp, 'up')}
-                                    >
-                                      <ArrowUpwardIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      disabled={idx === arr.length - 1}
-                                      title="Move checkpoint down"
-                                      onClick={() => moveCheckpoint(race.ID, cp, 'down')}
-                                    >
-                                      <ArrowDownwardIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      title="Edit checkpoint code and name"
-                                      onClick={() => startEditCp(cp)}
-                                    >
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      color="error"
-                                      title={`Delete checkpoint ${cp.Code}`}
-                                      onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
+                                    <Tooltip title="Move checkpoint up">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          aria-label="Move checkpoint up"
+                                          disabled={idx === 0}
+                                          onClick={() => moveCheckpoint(race.ID, cp, 'up')}
+                                        >
+                                          <ArrowUpwardIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                    <Tooltip title="Move checkpoint down">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          aria-label="Move checkpoint down"
+                                          disabled={idx === arr.length - 1}
+                                          onClick={() => moveCheckpoint(race.ID, cp, 'down')}
+                                        >
+                                          <ArrowDownwardIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                    <Tooltip title="Edit checkpoint code and name">
+                                      <IconButton
+                                        size="small"
+                                        aria-label="Edit checkpoint code and name"
+                                        onClick={() => startEditCp(cp)}
+                                      >
+                                        <EditIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete checkpoint">
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        aria-label="Delete checkpoint"
+                                        onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
                                   </>
                                 )}
                               </>
@@ -480,20 +511,24 @@ export default function AdminTab() {
                     value={cpRaceID === race.ID ? cpDist : ''}
                     onChange={(e) => { setCpRaceID(race.ID); setCpDist(e.target.value) }}
                     sx={{ width: 90 }} slotProps={{ htmlInput: { step: '0.1', min: '0' } }} />
-                  <Button variant="outlined" size="small"
-                    disabled={cpRaceID !== race.ID || !cpCode.trim() || !cpName.trim()}
-                    onClick={() => {
-                      const dist = cpDist.trim() ? parseFloat(cpDist) : null
-                      wrap(
-                        () => api.createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist).then(() => {
-                          setCpCode(''); setCpName(''); setCpDist(''); setCpRaceID('')
-                          return loadCheckpoints(races.map((r) => r.ID))
-                        })
-                      )
-                    }}
-                  >
-                    Add Checkpoint
-                  </Button>
+                  <Tooltip title="Add checkpoint to this race">
+                    <span>
+                      <Button variant="outlined" size="small"
+                        disabled={cpRaceID !== race.ID || !cpCode.trim() || !cpName.trim()}
+                        onClick={() => {
+                          const dist = cpDist.trim() ? parseFloat(cpDist) : null
+                          wrap(
+                            () => api.createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist).then(() => {
+                              setCpCode(''); setCpName(''); setCpDist(''); setCpRaceID('')
+                              return loadCheckpoints(races.map((r) => r.ID))
+                            })
+                          )
+                        }}
+                      >
+                        Add Checkpoint
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </Stack>
               )}
             </Paper>
@@ -526,13 +561,17 @@ export default function AdminTab() {
           sx={{ fontFamily: 'monospace' }}
         />
         <Box>
-          <Button
-            variant="contained"
-            disabled={!rosterRaceID || !rosterTsv.trim()}
-            onClick={() => setRosterConfirm(true)}
-          >
-            Import Roster
-          </Button>
+          <Tooltip title="Import and permanently lock roster for this race">
+            <span>
+              <Button
+                variant="contained"
+                disabled={!rosterRaceID || !rosterTsv.trim()}
+                onClick={() => setRosterConfirm(true)}
+              >
+                Import Roster
+              </Button>
+            </span>
+          </Tooltip>
           {rosterMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{rosterMsg}</Typography>}
         </Box>
       </Stack>
@@ -569,13 +608,17 @@ export default function AdminTab() {
               onKeyDown={(e) => e.key === 'Enter' && searchRunner()}
               sx={{ width: 120 }}
             />
-            <Button
-              variant="outlined"
-              disabled={!statusRaceID || !statusBib.trim()}
-              onClick={searchRunner}
-            >
-              Search
-            </Button>
+            <Tooltip title="Find runner in this race">
+              <span>
+                <Button
+                  variant="outlined"
+                  disabled={!statusRaceID || !statusBib.trim()}
+                  onClick={searchRunner}
+                >
+                  Search
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
 
           {statusSearchErr && <Alert severity="error">{statusSearchErr}</Alert>}
@@ -601,9 +644,11 @@ export default function AdminTab() {
                     ))}
                   </Select>
                 </FormControl>
-                <Button variant="contained" size="small" onClick={applyRunnerStatus}>
-                  Set
-                </Button>
+                <Tooltip title="Apply selected status to this runner" describeChild>
+                  <Button variant="contained" size="small" onClick={applyRunnerStatus}>
+                    Set
+                  </Button>
+                </Tooltip>
               </Stack>
               {statusMsg && (
                 <Alert severity="success" sx={{ mt: 1 }}>{statusMsg}</Alert>

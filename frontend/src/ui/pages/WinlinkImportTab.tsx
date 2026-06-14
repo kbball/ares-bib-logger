@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert, Box, Button, FormControl, InputLabel, MenuItem,
-  Paper, Select, Stack, TextField, Typography,
+  Paper, Select, Stack, TextField, Tooltip, Typography,
   Table, TableHead, TableRow, TableCell, TableBody,
 } from '@mui/material'
 import type { ActiveSession, Checkpoint, Race, WinlinkImportResult } from '../../domain/types'
@@ -114,13 +114,17 @@ export default function WinlinkImportTab() {
         />
 
         <Box>
-          <Button
-            variant="contained"
-            onClick={submit}
-            disabled={!raceID || !checkpointID || !text.trim()}
-          >
-            Import
-          </Button>
+          <Tooltip title="Parse column by row position and import checkpoint times">
+            <span>
+              <Button
+                variant="contained"
+                onClick={submit}
+                disabled={!raceID || !checkpointID || !text.trim()}
+              >
+                Import
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
 
         {result && (

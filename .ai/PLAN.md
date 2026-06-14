@@ -343,6 +343,8 @@ Three sections:
 - [x] 2026-06-14 — Frontend test suite: Vitest + React Testing Library + MSW; 163 tests across all layers (domain/pace, API adapters, App, and all five tab components); useStream SSE callbacks covered via mock-capture pattern; 89% branch coverage (461/517), meets the 80% frontend threshold; coverage thresholds enforced in `vite.config.ts`; coverage targets split in `CLAUDE.md` (backend >90%, frontend >80%)
 - [x] 2026-06-14 — Backend test suite: full coverage pass targeting >90% per-package; config test isolation via `clearEnv(t)` + `t.Setenv` to eliminate shell env bleed; domain entity constants tests (RunnerStatus, LogSource string values locked against rename); domain sentinel error tests (distinct, wrappable, correct messages); repository layer rewritten with `go-sqlmock` (v1.5.2) to run without a live DB — 70+ sqlmock tests covering all repos (event, race, checkpoint, runner, checkpoint_log, active_session) including transactions, nullable columns, and upsert; HTTP handler tests expanded to 97.3% coverage (updateCheckpoint, deleteCheckpoint, archiveEvent, listCheckpointLogs, lockRaceOrder, LoggingMiddleware/WriteHeader, parseTSVRoster 2-column paths, publishSession error branch); application service tests expanded to 95.9% coverage (CheckpointService.Create auto-order + list-error, Update/Delete all error paths, EventService.Archive, RaceService.LockOrder, CheckpointLogService.ListByRace)
 - [x] 2026-06-14 — Developer vs. Deployment docs: README split into Operator (Docker-only) and Developer tracks; `docker-compose.operator.yml` added for operators pulling pre-built image from GHCR; `.github/workflows/ci.yml` added — runs `test` and `lint` jobs on PRs, then builds and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-*` tag to GHCR on merge to main using GitHub Actions cache for layer reuse
+- [x] 2026-06-14 — Winlink Export email subject line: subject field (`<CP DisplayName> <Race Name> <HH:MM> update`) appears above the column textarea after Generate; read-only text field + Copy Subject button; Copy Subject recomputes the current time at click time; 4 new tests (subject visible, correct content, clipboard copy, Copied! feedback)
+- [x] 2026-06-14 — Tooltips on all action buttons and icons: MUI `Tooltip` added to every action button (Generate, Copy Subject, Copy to Clipboard, Import, Log, Submit, Transfer) and all AdminTab icon buttons (Archive, Lock Order, Delete Race, Save, Cancel, Move Up/Down, Edit CP, Delete CP); `describeChild` used on text buttons so tooltip uses `aria-describedby` rather than overriding the button accessible name with `aria-label`; test queries migrated from `getByTitle` to `getByRole('button', { name: ... })`; all 166 tests pass
 
 ## Backlog
 
@@ -363,8 +365,8 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### UI — Bulk Checkpoint Import (Priority: High)
 - [ ] Admin tab: accept TSV paste (`code\tname\tdist_from_start`) to create multiple checkpoints at once for a race; mirrors the roster import UX pattern
 
-### UI / API — Winlink Export Email Subject Line (Priority: High)
-- [ ] Generate a ready-to-copy email subject above the column text area; format: `<CP Name> <Race Name> <HH:MM 24-hr> update`; own text field + copy button
+### ~~UI / API — Winlink Export Email Subject Line~~ ✅ Completed 2026-06-14
+- [x] Subject field appears above the column textarea after Generate; format: `<CP DisplayName> <Race Name> <HH:MM 24-hr> update`; own read-only text field + Copy Subject button; Copy Subject recomputes the time at click time for freshness
 
 ### ~~README — Developer vs. Deployment Setup Docs~~ ✅ Completed 2026-06-14
 - [x] README split into Operator (Docker-only) and Developer tracks
@@ -374,8 +376,8 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### UI — Context-Sensitive Help Panel (Priority: Medium)
 - [ ] Persistent help icon (question mark) in the lower-right corner of every tab; clicking opens a slide-in side panel explaining what the current screen does and how to use it
 
-### UI — Tooltip on All Action Buttons and Icons (Priority: Medium)
-- [ ] Add `Tooltip` wrappers to every button and icon that performs an action; keep tooltip text short and action-oriented
+### ~~UI — Tooltip on All Action Buttons and Icons~~ ✅ Completed 2026-06-14
+- [x] Added MUI `Tooltip` to every action button and icon across all tabs
 
 ### UI — Training / Onboarding Section (Priority: Low)
 - [ ] Dedicated training section (tab or modal) that walks a new operator through how to use the application end-to-end before race day
@@ -385,8 +387,8 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 - [ ] Import that file to recreate the event configuration on another station; enables one person to configure once and share via Winlink
 - [ ] File size must be minimal to be Winlink-transmittable; omit logs, only include structural config
 
-### .env.example — MQTT Disabled by Default (Priority: Low)
-- [ ] Change `MQTT_ENABLED` default to `false` in `.env.example`; operators explicitly opt in when Meshtastic infrastructure is present
+### ~~.env.example — MQTT Disabled by Default~~ ✅ Completed
+- [x] `MQTT_ENABLED` default changed to `false` in `.env.example`; operators explicitly opt in when Meshtastic infrastructure is present
 
 ### ~~UI — Roster Import: Support `bib,fullName` TSV Format~~ ✅ Completed 2026-06-13
 `parseTSVRoster` auto-detects 2-column (`bib\tFull Name`) vs 3-column (`bib\tfirst\tlast`); first-space split derives first/last for 2-column case.

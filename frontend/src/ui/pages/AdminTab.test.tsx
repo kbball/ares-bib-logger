@@ -92,8 +92,8 @@ describe('AdminTab — Races', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/delete race/i))
-    await user.click(screen.getByTitle(/delete race/i))
+    await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
+    await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
 
     await waitFor(() =>
       expect(screen.getByRole('dialog')).toBeInTheDocument(),
@@ -105,8 +105,8 @@ describe('AdminTab — Races', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/delete race/i))
-    await user.click(screen.getByTitle(/delete race/i))
+    await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
+    await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.click(screen.getByRole('button', { name: /cancel/i }))
@@ -277,8 +277,8 @@ describe('AdminTab — Delete Confirmations', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/delete race and all its data/i))
-    await user.click(screen.getByTitle(/delete race and all its data/i))
+    await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
+    await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^delete$/i }))
@@ -290,8 +290,8 @@ describe('AdminTab — Delete Confirmations', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByTitle(/delete checkpoint/i)[0])
-    await user.click(screen.getAllByTitle(/delete checkpoint/i)[0])
+    await waitFor(() => screen.getAllByRole('button', { name: /delete checkpoint/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /delete checkpoint/i })[0])
 
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
     expect(screen.getByText(/delete checkpoint/i)).toBeInTheDocument()
@@ -306,8 +306,8 @@ describe('AdminTab — Archive Event', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/archive this event/i))
-    await user.click(screen.getByTitle(/archive this event/i))
+    await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
 
     await waitFor(() => screen.getByRole('dialog'))
     expect(screen.getByText(/archive event/i)).toBeInTheDocument()
@@ -320,8 +320,8 @@ describe('AdminTab — Archive Event', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/archive this event/i))
-    await user.click(screen.getByTitle(/archive this event/i))
+    await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }))
@@ -334,8 +334,8 @@ describe('AdminTab — Lock Order', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/lock checkpoint order/i))
-    await user.click(screen.getByTitle(/lock checkpoint order/i))
+    await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
+    await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
 
     await waitFor(() => screen.getByRole('dialog'))
     expect(screen.getByText(/lock checkpoint order/i)).toBeInTheDocument()
@@ -348,8 +348,8 @@ describe('AdminTab — Lock Order', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/lock checkpoint order/i))
-    await user.click(screen.getByTitle(/lock checkpoint order/i))
+    await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
+    await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }))
@@ -419,8 +419,8 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByTitle(/edit checkpoint code and name/i)[0])
-    await user.click(screen.getAllByTitle(/edit checkpoint code and name/i)[0])
+    await waitFor(() => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
 
     // Type in each edit field to cover their onChange handlers
     await waitFor(() => screen.getByDisplayValue('AS1'))
@@ -432,7 +432,7 @@ describe('AdminTab — Checkpoint Management', () => {
     await user.clear(distInput)
     await user.type(distInput, '15')
 
-    await user.click(screen.getByTitle('Save'))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
 
     await waitFor(() => expect(screen.queryByDisplayValue('AS1X')).not.toBeInTheDocument())
   })
@@ -441,12 +441,12 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByTitle(/edit checkpoint code and name/i)[0])
-    await user.click(screen.getAllByTitle(/edit checkpoint code and name/i)[0])
+    await waitFor(() => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
 
     await waitFor(() => screen.getByDisplayValue('AS1'))
 
-    await user.click(screen.getByTitle('Cancel'))
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }))
 
     await waitFor(() => expect(screen.queryByDisplayValue('AS1')).not.toBeInTheDocument())
   })
@@ -455,8 +455,8 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByTitle(/move checkpoint down/i)[0])
-    await user.click(screen.getAllByTitle(/move checkpoint down/i)[0])
+    await waitFor(() => screen.getAllByRole('button', { name: /move checkpoint down/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /move checkpoint down/i })[0])
 
     await waitFor(() => expect(screen.queryByText(/^error/i)).not.toBeInTheDocument())
   })
@@ -465,8 +465,8 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByTitle(/move checkpoint up/i)[1])
-    await user.click(screen.getAllByTitle(/move checkpoint up/i)[1])
+    await waitFor(() => screen.getAllByRole('button', { name: /move checkpoint up/i })[1])
+    await user.click(screen.getAllByRole('button', { name: /move checkpoint up/i })[1])
 
     await waitFor(() => expect(screen.queryByText(/^error/i)).not.toBeInTheDocument())
   })
@@ -489,8 +489,8 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/archive this event/i))
-    await user.click(screen.getByTitle(/archive this event/i))
+    await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.keyboard('{Escape}')
@@ -501,8 +501,8 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/lock checkpoint order/i))
-    await user.click(screen.getByTitle(/lock checkpoint order/i))
+    await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
+    await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.keyboard('{Escape}')
@@ -513,8 +513,8 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getByTitle(/delete race and all its data/i))
-    await user.click(screen.getByTitle(/delete race and all its data/i))
+    await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
+    await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.keyboard('{Escape}')

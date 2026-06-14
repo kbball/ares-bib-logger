@@ -45,7 +45,7 @@ describe('WinlinkExportTab', () => {
     expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
   })
 
-  it('shows column text after clicking Generate', async () => {
+  it('shows column text and subject after clicking Generate', async () => {
     const user = userEvent.setup()
     render(<WinlinkExportTab />)
 
@@ -59,6 +59,62 @@ describe('WinlinkExportTab', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /copy to clipboard/i })).toBeInTheDocument(),
     )
+    expect(screen.getByRole('textbox', { name: /email subject/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /copy subject/i })).toBeInTheDocument()
+  })
+
+  it('subject field contains CP name, race name, time, and "update"', async () => {
+    const user = userEvent.setup()
+    render(<WinlinkExportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    await waitFor(() => screen.getByRole('textbox', { name: /email subject/i }))
+    const subjectField = screen.getByRole('textbox', { name: /email subject/i }) as HTMLInputElement
+    // mockCheckpoint.DisplayName = "Aid Station 1", mockRace.Name = "GDR"
+    expect(subjectField.value).toMatch(/Aid Station 1/)
+    expect(subjectField.value).toMatch(/GDR/)
+    expect(subjectField.value).toMatch(/\d{2}:\d{2}/)
+    expect(subjectField.value).toMatch(/update/)
+  })
+
+  it('copies subject to clipboard on Copy Subject click', async () => {
+    const user = userEvent.setup()
+    render(<WinlinkExportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy subject/i }))
+
+    await user.click(screen.getByRole('button', { name: /copy subject/i }))
+
+    await waitFor(() => expect(mockWriteText).toHaveBeenCalledWith(expect.stringMatching(/update/i)))
+  })
+
+  it('shows Copied! on Copy Subject button after click', async () => {
+    const user = userEvent.setup()
+    render(<WinlinkExportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy subject/i }))
+
+    await user.click(screen.getByRole('button', { name: /copy subject/i }))
+
+    await waitFor(() => expect(screen.getByText(/copied!/i)).toBeInTheDocument())
   })
 
   it('shows error alert when export API fails', async () => {

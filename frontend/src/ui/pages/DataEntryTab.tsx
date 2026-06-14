@@ -272,13 +272,17 @@ export default function DataEntryTab() {
               autoFocus
               disabled={!hasActiveCheckpoint}
             />
-            <Button
-              variant="contained"
-              onClick={submitBib}
-              disabled={!bib || !hasActiveCheckpoint}
-            >
-              Log
-            </Button>
+            <Tooltip title="Log bib at the active checkpoint">
+              <span>
+                <Button
+                  variant="contained"
+                  onClick={submitBib}
+                  disabled={!bib || !hasActiveCheckpoint}
+                >
+                  Log
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
         </Paper>
 
@@ -306,13 +310,17 @@ export default function DataEntryTab() {
                 <MenuItem value="DNF">DNF</MenuItem>
               </Select>
             </FormControl>
-            <Button
-              variant="outlined"
-              onClick={submitStatus}
-              disabled={!statusBib || !hasActiveCheckpoint}
-            >
-              Submit
-            </Button>
+            <Tooltip title="Mark runner as DNS or DNF">
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={submitStatus}
+                  disabled={!statusBib || !hasActiveCheckpoint}
+                >
+                  Submit
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
           {statusMsg && <Typography variant="body2" sx={{ mt: 1 }}>{statusMsg}</Typography>}
         </Paper>
@@ -340,13 +348,17 @@ export default function DataEntryTab() {
                 ))}
               </Select>
             </FormControl>
-            <Button
-              variant="outlined"
-              onClick={submitTransfer}
-              disabled={!transferBib || !transferRace}
-            >
-              Transfer
-            </Button>
+            <Tooltip title="Move runner to the selected race">
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={submitTransfer}
+                  disabled={!transferBib || !transferRace}
+                >
+                  Transfer
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
           {transferMsg && <Typography variant="body2" sx={{ mt: 1 }}>{transferMsg}</Typography>}
         </Paper>
