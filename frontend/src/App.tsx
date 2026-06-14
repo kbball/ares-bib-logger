@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom'
 import {
   ThemeProvider,
   CssBaseline,
@@ -28,7 +29,14 @@ import RunnersTab from './ui/pages/RunnersTab'
 import AdminTab from './ui/pages/AdminTab'
 import GuideTab from './ui/pages/GuideTab'
 
-const TABS = ['Data Entry', 'Runners', 'Winlink Import', 'Winlink Export', 'Admin', 'Guide']
+const TABS = [
+  { label: 'Data Entry', path: '/data-entry' },
+  { label: 'Runners', path: '/runners' },
+  { label: 'Winlink Import', path: '/winlink-import' },
+  { label: 'Winlink Export', path: '/winlink-export' },
+  { label: 'Admin', path: '/admin' },
+  { label: 'Guide', path: '/guide' },
+]
 
 type HelpItem = { heading: string; text: string }
 
@@ -146,13 +154,20 @@ const HELP: { title: string; items: HelpItem[] }[] = [
   },
 ]
 
-export default function App() {
-  const [tab, setTab] = useState(0)
+function AppInner() {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [colorMode, setColorMode] = useState<ColorMode>('light')
   const [helpOpen, setHelpOpen] = useState(false)
   const theme = useMemo(() => createAppTheme(colorMode), [colorMode])
   const toggleMode = () => setColorMode((m) => (m === 'dark' ? 'light' : 'dark'))
 
+  // Redirect bare / to the default tab.
+  useEffect(() => {
+    if (pathname === '/') navigate('/data-entry', { replace: true })
+  }, [pathname, navigate])
+
+  const tab = Math.max(0, TABS.findIndex((t) => t.path === pathname))
   const help = HELP[tab]
 
   return (
@@ -188,12 +203,12 @@ export default function App() {
         </Toolbar>
         <Tabs
           value={tab}
-          onChange={(_, v) => setTab(v)}
+          onChange={(_, v) => navigate(TABS[v as number].path)}
           textColor="inherit"
           indicatorColor="secondary"
           variant="scrollable"
         >
-          {TABS.map((label) => (
+          {TABS.map(({ label }) => (
             <Tab key={label} label={label} />
           ))}
         </Tabs>
@@ -241,5 +256,13 @@ export default function App() {
         </Box>
       </Drawer>
     </ThemeProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInner />
+    </BrowserRouter>
   )
 }
