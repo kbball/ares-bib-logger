@@ -32,10 +32,12 @@ export default function AdminTab() {
   const [cpRaceID, setCpRaceID] = useState<number | ''>('')
   const [cpCode, setCpCode] = useState('')
   const [cpName, setCpName] = useState('')
+  const [cpDist, setCpDist] = useState('')
   // Checkpoint inline edit
   const [editingCpID, setEditingCpID] = useState<number | null>(null)
   const [editCode, setEditCode] = useState('')
   const [editName, setEditName] = useState('')
+  const [editDist, setEditDist] = useState('')
   // Roster import
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
@@ -149,12 +151,14 @@ export default function AdminTab() {
     setEditingCpID(cp.ID)
     setEditCode(cp.Code)
     setEditName(cp.DisplayName)
+    setEditDist(cp.DistanceFromStart != null ? String(cp.DistanceFromStart) : '')
   }
 
   const saveEditCp = () => {
     if (!editingCpID || !editCode.trim() || !editName.trim()) return
+    const dist = editDist.trim() ? parseFloat(editDist) : null
     wrap(
-      () => api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim())
+      () => api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist)
         .then(() => {
           setEditingCpID(null)
           return loadCheckpoints(races.map((r) => r.ID))
@@ -321,6 +325,7 @@ export default function AdminTab() {
                     <TableCell>Order</TableCell>
                     <TableCell>Code</TableCell>
                     <TableCell>Name</TableCell>
+                    <TableCell>Dist (mi)</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -349,11 +354,22 @@ export default function AdminTab() {
                                 sx={{ width: 180 }}
                               />
                             </TableCell>
+                            <TableCell>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={editDist}
+                                onChange={(e) => setEditDist(e.target.value)}
+                                sx={{ width: 80 }}
+                                slotProps={{ htmlInput: { step: '0.1', min: '0' } }}
+                              />
+                            </TableCell>
                           </>
                         ) : (
                           <>
                             <TableCell>{cp.Code}</TableCell>
                             <TableCell>{cp.DisplayName}</TableCell>
+                            <TableCell>{cp.DistanceFromStart != null ? cp.DistanceFromStart : '—'}</TableCell>
                           </>
                         )}
                         <TableCell align="right">
@@ -416,16 +432,21 @@ export default function AdminTab() {
                     onChange={(e) => { setCpRaceID(race.ID); setCpCode(e.target.value) }} sx={{ width: 100 }} />
                   <TextField size="small" label="Display name" value={cpRaceID === race.ID ? cpName : ''}
                     onChange={(e) => { setCpRaceID(race.ID); setCpName(e.target.value) }} sx={{ width: 180 }} />
+                  <TextField size="small" label="Dist (mi)" type="number"
+                    value={cpRaceID === race.ID ? cpDist : ''}
+                    onChange={(e) => { setCpRaceID(race.ID); setCpDist(e.target.value) }}
+                    sx={{ width: 90 }} slotProps={{ htmlInput: { step: '0.1', min: '0' } }} />
                   <Button variant="outlined" size="small"
                     disabled={cpRaceID !== race.ID || !cpCode.trim() || !cpName.trim()}
-                    onClick={() =>
+                    onClick={() => {
+                      const dist = cpDist.trim() ? parseFloat(cpDist) : null
                       wrap(
-                        () => api.createCheckpoint(race.ID, cpCode.trim(), cpName.trim()).then(() => {
-                          setCpCode(''); setCpName(''); setCpRaceID('')
+                        () => api.createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist).then(() => {
+                          setCpCode(''); setCpName(''); setCpDist(''); setCpRaceID('')
                           return loadCheckpoints(races.map((r) => r.ID))
                         })
                       )
-                    }
+                    }}
                   >
                     Add Checkpoint
                   </Button>

@@ -226,6 +226,63 @@ func TestWinlinkService_Import_NoHeader(t *testing.T) {
 	assert.Equal(t, 1, result.Created)
 }
 
+// MOVED at sort_order 1 must NOT be misidentified as a header; position 2 must map to sort_order 2.
+func TestWinlinkService_Import_MovedAtPositionOne(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusMoved},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	sess := &mockActiveSessionRepository{}
+	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}, logs, sess)
+
+	// No header; first line is MOVED (sort_order 1), second is a time (sort_order 2).
+	column := "MOVED Marathon\n17:45\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Created)  // bib 101 created
+	assert.Equal(t, 1, result.Skipped)  // bib 100 skipped (moved)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, 1, result.SkippedDetails[0].Position)
+	assert.Equal(t, 100, result.SkippedDetails[0].BibNumber)
+	assert.Equal(t, "moved", result.SkippedDetails[0].Reason)
+
+	// The log must be for runner 2 (bib 101), not runner 1.
+	require.Len(t, logs.created, 1)
+	assert.Equal(t, 2, logs.created[0].RunnerID)
+}
+
+// Blank at sort_order 1 (no header) must NOT be stripped as a header; position 2 must map to sort_order 2.
+func TestWinlinkService_Import_BlankAtPositionOnePreservesOrder(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	sess := &mockActiveSessionRepository{}
+	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}, logs, sess)
+
+	// No header; first line is blank (sort_order 1 not yet seen), second is a time (sort_order 2).
+	column := "\n17:45\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Created)  // bib 101 created
+	assert.Equal(t, 1, result.Skipped)  // bib 100 skipped (blank)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, 1, result.SkippedDetails[0].Position)
+	assert.Equal(t, "blank", result.SkippedDetails[0].Reason)
+
+	// The log must be for runner 2 (bib 101), not runner 1.
+	require.Len(t, logs.created, 1)
+	assert.Equal(t, 2, logs.created[0].RunnerID)
+}
+
 // --- Export error paths ---
 
 func TestWinlinkService_Export_SessionError(t *testing.T) {

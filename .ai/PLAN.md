@@ -334,18 +334,14 @@ Three sections:
 - [x] 2026-06-13 — Winlink export: MOVED runners now emit `MOVED <raceName>` instead of a blank line; WinlinkService gains races repo to resolve the target race across the event
 - [x] 2026-06-13 — Winlink import: added `SkippedDetails` to result (position, bib, reason: blank/no_runner/duplicate/parse_error); Import tab displays a details table when skips occur
 - [x] 2026-06-13 — Test fixes: added missing mock stubs (Archive, LockOrder, Update/Delete on checkpoints, ListByRace on log service) across service and handler test packages; fixed reorder test field name, roster test format/status, export format timezone
+- [x] 2026-06-13 — Pace / Projected Arrival: migration 000003 adds nullable `distance_from_start` to checkpoints; field threaded through entity → repo → service → handler; Admin UI adds Dist (mi) field to checkpoint create/edit; `domain/pace.ts` computes pace from last two logged CPs with distances; Runners tab shows Pace (MM:SS /mi) and Proj. Next (HH:MM) columns when ≥2 CPs have distances; Data Entry race cards show "Next expected: HH:MM" at the active checkpoint
 
 ## Backlog
 
 ### Frontend — Responsive Layout
 - [ ] Data Entry tab: cards stack vertically and use full-width inputs on small screens; target tablet (768px+) as primary field-use form factor
 
-### Frontend + API — Pace / Projected Arrival
-- [ ] Add `distance_from_start` field to `checkpoints` table (new migration)
-- [ ] Calculate pace from checkpoint log timestamps + known distances
-- [ ] Display projected arrival at next checkpoint on Data Entry race-stats cards and/or Runners tab
-- [ ] Algorithm: pace = elapsed / distance between last two logged CPs; projection = now + (distance to next CP / pace)
-- [ ] Edge cases: single CP logged → "—"; DNS/DNF excluded; outlier pace flagged
+### ~~Frontend + API — Pace / Projected Arrival~~ ✅ Completed 2026-06-13
 
 ### Testing
 - [ ] Backend: unit tests for all domain + application packages (`testing` + `testify`, mockery mocks); target >90% coverage

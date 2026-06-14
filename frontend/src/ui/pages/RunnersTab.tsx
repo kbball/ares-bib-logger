@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Box, Chip, Stack, Tab, Table, TableBody, TableCell, TableHead,
-  TableRow, TableSortLabel, Tabs, TextField, Typography,
+  TableRow, TableSortLabel, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import type { ActiveSession, Checkpoint, CheckpointLog, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
+import { computeRunnerPace, projectArrival, formatPace } from '../../domain/pace'
 
 const STATUS_COLOR: Record<string, 'default' | 'success' | 'error' | 'warning' | 'info'> = {
   ACTIVE: 'success',
@@ -143,6 +144,40 @@ export default function RunnersTab() {
     })
   }, [allRunners, filterRaceID, search, sortKey, sortDir])
 
+  // Show pace columns only when a single race is selected and ≥2 checkpoints have distances
+  const showPace = useMemo(() => {
+    if (!filterRaceID) return false
+    const cps = checkpointsByRace[filterRaceID as number] ?? []
+    return cps.filter((cp) => cp.DistanceFromStart !== null).length >= 2
+  }, [filterRaceID, checkpointsByRace])
+
+  // Per-runner pace map (only computed when showPace)
+  const paceMap = useMemo(() => {
+    if (!showPace || !filterRaceID) return new Map<number, ReturnType<typeof computeRunnerPace>>()
+    const cps = checkpointsByRace[filterRaceID as number] ?? []
+    const allLogs = Object.values(logsByRace).flat()
+    const m = new Map<number, ReturnType<typeof computeRunnerPace>>()
+    filtered.forEach((runner) => {
+      m.set(runner.ID, computeRunnerPace(runner, cps, allLogs))
+    })
+    return m
+  }, [showPace, filterRaceID, checkpointsByRace, logsByRace, filtered])
+
+  // Next unlogged checkpoint per runner (for projection target)
+  const nextCPMap = useMemo(() => {
+    if (!showPace || !filterRaceID) return new Map<number, Checkpoint | null>()
+    const cps = [...(checkpointsByRace[filterRaceID as number] ?? [])].sort(
+      (a, b) => a.DisplayOrder - b.DisplayOrder,
+    )
+    const allLogs = Object.values(logsByRace).flat()
+    const m = new Map<number, Checkpoint | null>()
+    filtered.forEach((runner) => {
+      const loggedIDs = new Set(allLogs.filter((l) => l.RunnerID === runner.ID).map((l) => l.CheckpointID))
+      m.set(runner.ID, cps.find((cp) => !loggedIDs.has(cp.ID)) ?? null)
+    })
+    return m
+  }, [showPace, filterRaceID, checkpointsByRace, logsByRace, filtered])
+
   const raceForRunner = (r: Runner) => races.find((rc) => rc.ID === r.RaceID)
 
   const formatLogCell = (log: CheckpointLog | undefined) => {
@@ -238,8 +273,23 @@ export default function RunnersTab() {
               {checkpoints.map((cp) => (
                 <TableCell key={cp.ID} sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
                   {cp.DisplayName}
+                  {cp.DistanceFromStart != null && (
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      {cp.DistanceFromStart}mi
+                    </Typography>
+                  )}
                 </TableCell>
               ))}
+              {showPace && (
+                <>
+                  <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>Pace</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+                    <Tooltip title="Projected arrival at next checkpoint based on current pace">
+                      <span>Proj. Next</span>
+                    </Tooltip>
+                  </TableCell>
+                </>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -267,6 +317,25 @@ export default function RunnersTab() {
                     </TableCell>
                   )
                 })}
+                {showPace && (() => {
+                  const pace = paceMap.get(runner.ID)
+                  const nextCP = nextCPMap.get(runner.ID) ?? null
+                  const proj = pace && nextCP?.DistanceFromStart != null
+                    ? projectArrival(pace, nextCP.DistanceFromStart)
+                    : null
+                  return (
+                    <>
+                      <TableCell sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
+                        {pace?.paceMinPerMile != null ? formatPace(pace.paceMinPerMile) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
+                        {proj
+                          ? proj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                          : '—'}
+                      </TableCell>
+                    </>
+                  )
+                })()}
               </TableRow>
             ))}
           </TableBody>

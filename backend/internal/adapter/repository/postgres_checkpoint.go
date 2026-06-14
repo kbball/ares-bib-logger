@@ -19,11 +19,11 @@ func NewCheckpointRepo(db *sql.DB) *CheckpointRepo { return &CheckpointRepo{db: 
 
 var _ portrepo.CheckpointRepository = (*CheckpointRepo)(nil)
 
-const cpCols = `id, race_id, code, display_name, display_order, created_at`
+const cpCols = `id, race_id, code, display_name, display_order, distance_from_start, created_at`
 
 func scanCheckpoint(s interface{ Scan(...any) error }) (entity.Checkpoint, error) {
 	var cp entity.Checkpoint
-	err := s.Scan(&cp.ID, &cp.RaceID, &cp.Code, &cp.DisplayName, &cp.DisplayOrder, &cp.CreatedAt)
+	err := s.Scan(&cp.ID, &cp.RaceID, &cp.Code, &cp.DisplayName, &cp.DisplayOrder, &cp.DistanceFromStart, &cp.CreatedAt)
 	return cp, err
 }
 
@@ -57,8 +57,8 @@ func (r *CheckpointRepo) Get(ctx context.Context, id int) (entity.Checkpoint, er
 
 func (r *CheckpointRepo) Update(ctx context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
 	updated, err := scanCheckpoint(r.db.QueryRowContext(ctx,
-		`UPDATE checkpoints SET code = $1, display_name = $2 WHERE id = $3 RETURNING `+cpCols,
-		cp.Code, cp.DisplayName, cp.ID))
+		`UPDATE checkpoints SET code = $1, display_name = $2, distance_from_start = $3 WHERE id = $4 RETURNING `+cpCols,
+		cp.Code, cp.DisplayName, cp.DistanceFromStart, cp.ID))
 	if err != nil {
 		return entity.Checkpoint{}, mapNotFound(err)
 	}
@@ -72,9 +72,9 @@ func (r *CheckpointRepo) Delete(ctx context.Context, id int) error {
 
 func (r *CheckpointRepo) Create(ctx context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
 	created, err := scanCheckpoint(r.db.QueryRowContext(ctx,
-		`INSERT INTO checkpoints (race_id, code, display_name, display_order)
-		 VALUES ($1, $2, $3, $4) RETURNING `+cpCols,
-		cp.RaceID, cp.Code, cp.DisplayName, cp.DisplayOrder))
+		`INSERT INTO checkpoints (race_id, code, display_name, display_order, distance_from_start)
+		 VALUES ($1, $2, $3, $4, $5) RETURNING `+cpCols,
+		cp.RaceID, cp.Code, cp.DisplayName, cp.DisplayOrder, cp.DistanceFromStart))
 	if err != nil {
 		return entity.Checkpoint{}, fmt.Errorf("creating checkpoint: %w", err)
 	}

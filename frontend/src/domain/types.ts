@@ -20,6 +20,7 @@ export interface Checkpoint {
   Code: string
   DisplayName: string
   DisplayOrder: number
+  DistanceFromStart: number | null
   CreatedAt: string
 }
 

@@ -13,6 +13,7 @@ const SKIP_REASON: Record<string, string> = {
   no_runner: 'No runner at this position',
   duplicate: 'Already logged (duplicate)',
   parse_error: 'Could not parse time',
+  moved: 'Runner transferred out of this race',
 }
 
 function skipLabel(d: { Reason: string }): string {

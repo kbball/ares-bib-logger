@@ -40,7 +40,7 @@ func (s *CheckpointService) Create(ctx context.Context, cp entity.Checkpoint) (e
 	return s.checkpoints.Create(ctx, cp)
 }
 
-func (s *CheckpointService) Update(ctx context.Context, id int, code, displayName string) (entity.Checkpoint, error) {
+func (s *CheckpointService) Update(ctx context.Context, id int, code, displayName string, distance *float64) (entity.Checkpoint, error) {
 	cp, err := s.checkpoints.Get(ctx, id)
 	if err != nil {
 		return entity.Checkpoint{}, fmt.Errorf("getting checkpoint: %w", err)
@@ -54,6 +54,7 @@ func (s *CheckpointService) Update(ctx context.Context, id int, code, displayNam
 	}
 	cp.Code = code
 	cp.DisplayName = displayName
+	cp.DistanceFromStart = distance
 	return s.checkpoints.Update(ctx, cp)
 }
 

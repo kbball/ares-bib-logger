@@ -184,6 +184,11 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 		}
 
 		upper := strings.ToUpper(line)
+		if strings.HasPrefix(upper, "MOVED") {
+			// Runner was transferred out of this race; no action needed.
+			skip(pos, runner.BibNumber, "moved")
+			continue
+		}
 		switch upper {
 		case "DNS", "DNF":
 			status := entity.StatusDNS
@@ -245,10 +250,15 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 	return result, nil
 }
 
-// looksLikeTimeOrStatus returns true if the line appears to be a time (HH:MM or HH:MM:SS) or DNS/DNF.
+// looksLikeTimeOrStatus returns true if the line appears to be a data row:
+// a time (HH:MM or HH:MM:SS), DNS, DNF, blank, or MOVED (with optional race name).
+// Returns false for a station-name header such as "AS #6".
 func looksLikeTimeOrStatus(s string) bool {
 	s = strings.TrimSpace(strings.ToUpper(s))
-	if s == "DNS" || s == "DNF" || s == "" {
+	if s == "" || s == "DNS" || s == "DNF" {
+		return true
+	}
+	if strings.HasPrefix(s, "MOVED") {
 		return true
 	}
 	return len(s) >= 5 && s[2] == ':' && unicode.IsDigit(rune(s[0]))

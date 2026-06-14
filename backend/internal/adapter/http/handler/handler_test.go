@@ -71,7 +71,7 @@ func (m *mockCheckpointService) Create(_ context.Context, cp entity.Checkpoint) 
 	cp.ID = 1
 	return cp, m.err
 }
-func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string) (entity.Checkpoint, error) {
+func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string, _ *float64) (entity.Checkpoint, error) {
 	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName}, m.err
 }
 func (m *mockCheckpointService) Delete(_ context.Context, id int) error { return m.err }

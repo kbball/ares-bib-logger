@@ -26,10 +26,10 @@ export const lockRaceOrder = (id: number) => put<void>(`/api/races/${id}/lock-or
 // Checkpoints
 export const listCheckpoints = (raceID: number) =>
   get<Checkpoint[]>(`/api/races/${raceID}/checkpoints`)
-export const createCheckpoint = (raceID: number, code: string, displayName: string) =>
-  post<Checkpoint>(`/api/races/${raceID}/checkpoints`, { code, display_name: displayName })
-export const updateCheckpoint = (id: number, code: string, displayName: string) =>
-  put<Checkpoint>(`/api/checkpoints/${id}`, { code, display_name: displayName })
+export const createCheckpoint = (raceID: number, code: string, displayName: string, distance?: number | null) =>
+  post<Checkpoint>(`/api/races/${raceID}/checkpoints`, { code, display_name: displayName, distance_from_start: distance ?? null })
+export const updateCheckpoint = (id: number, code: string, displayName: string, distance?: number | null) =>
+  put<Checkpoint>(`/api/checkpoints/${id}`, { code, display_name: displayName, distance_from_start: distance ?? null })
 export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>
   put<void>(`/api/races/${raceID}/checkpoints/order`, { ids })

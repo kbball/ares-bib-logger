@@ -7,6 +7,7 @@ import {
 import type { ActiveSession, Checkpoint, CheckpointLog, LogBibResult, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
+import { computeRunnerPace, projectArrival } from '../../domain/pace'
 
 const SOURCE_LABEL: Record<string, string> = {
   MANUAL: 'Manual',
@@ -177,9 +178,11 @@ export default function DataEntryTab() {
           {races.map((race) => {
             const raceRunners = runners.filter((r) => r.RaceID === race.ID)
             const cp = activeCheckpointFor(race.ID)
+            const raceLogs = logsByRace[race.ID] ?? []
+            const raceCPs = (checkpointsByRace[race.ID] ?? []).sort((a, b) => a.DisplayOrder - b.DisplayOrder)
             // Runners with a real time log at the active checkpoint (DNS/DNF raw messages don't count as "through")
             const throughSet = new Set(
-              (logsByRace[race.ID] ?? [])
+              raceLogs
                 .filter((l) => {
                   if (l.CheckpointID !== cp?.ID) return false
                   const raw = l.RawMessage?.toUpperCase()
@@ -191,6 +194,25 @@ export default function DataEntryTab() {
             const through = raceRunners.filter((r) => throughSet.has(r.ID))
             const dnsDnf = raceRunners.filter((r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'))
             const stillToCome = raceRunners.filter((r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF')
+
+            // Projected next arrival — earliest among runners not yet through, if CP has a distance
+            let nextExpected: string | null = null
+            let nextExpectedBib: number | null = null
+            if (cp?.DistanceFromStart != null) {
+              const arrivals = stillToCome
+                .map((r) => {
+                  const pace = computeRunnerPace(r, raceCPs, raceLogs)
+                  const arrival = projectArrival(pace, cp.DistanceFromStart!)
+                  return arrival ? { arrival, bib: r.BibNumber } : null
+                })
+                .filter((x): x is { arrival: Date; bib: number } => x !== null)
+              if (arrivals.length > 0) {
+                const earliest = arrivals.reduce((best, x) => x.arrival < best.arrival ? x : best)
+                nextExpected = earliest.arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                nextExpectedBib = earliest.bib
+              }
+            }
+
             return (
               <Paper key={race.ID} sx={{ p: 1.5, minWidth: 160 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
@@ -219,6 +241,13 @@ export default function DataEntryTab() {
                     {cp ? `${cp.Code} – ${cp.DisplayName}` : 'No active CP'}
                   </Typography>
                 </Tooltip>
+                {cp?.DistanceFromStart != null && (
+                  <Tooltip title="Earliest projected arrival at this checkpoint based on runner paces">
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      Next expected: {nextExpected ?? '—'}{nextExpectedBib != null && ` (bib ${nextExpectedBib})`}
+                    </Typography>
+                  </Tooltip>
+                )}
               </Paper>
             )
           })}

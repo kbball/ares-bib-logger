@@ -8,13 +8,16 @@ Built for the NW-GA ARES team supporting the **GA Death Race (GDR)** and **GA Je
 
 ## Features
 
-- **Auto-capture** — subscribes to a local Mosquitto MQTT broker and parses incoming Meshtastic messages; bib numbers extracted automatically and logged with a timestamp
-- **Manual entry** — fallback bib entry, DNS, and DNF logging from the UI
-- **Duplicate detection** — alerts on repeated bibs and optionally rebroadcasts a warning via MQTT
-- **Winlink export** — generates a ready-to-copy time column for the active race, every 20–30 minutes throughout the event
-- **Winlink import** — paste a column received from another station to capture their checkpoint data and DNS/DNF updates
-- **Runner table** — searchable by bib or name; shows all checkpoints in configured order
-- **Race transfer** — move a runner from one GA Jewel race to another mid-event
+- **Auto-capture** — subscribes to a local Mosquitto MQTT broker and parses incoming Meshtastic messages; bib numbers extracted and logged with a timestamp automatically
+- **Manual entry** — fallback bib entry, DNS, and DNF logging from the UI; `MQTT_ENABLED=false` boots the app in manual-only mode with no MQTT dependency
+- **Duplicate detection** — alerts on repeated bibs and rebroadcasts a warning back to the Meshtastic mesh via MQTT
+- **Winlink export** — generates a ready-to-copy time column (`HH:MM` / `DNS` / `DNF` / `MOVED <raceName>` / blank) for the active race checkpoint
+- **Winlink import** — paste a column received from another station; shows a per-line summary of skipped rows (position, bib, reason)
+- **Pace & projected arrival** — once checkpoint distances (miles from start) are configured, displays each runner's current pace and projected arrival time at the next checkpoint; race-stats cards show the earliest expected arrival at the active checkpoint
+- **Runner table** — searchable by bib or name; all checkpoint columns with actual logged times; sortable columns; race filter tabs
+- **Race transfer** — move a runner from one GA Jewel race to another mid-event; `MOVED` shown in the original race, runner appended to the new race
+- **Event & checkpoint management** — create events and races; define checkpoint order per race (lockable to prevent mid-race shifts); archive completed events
+- **Light / dark mode** — dark by default (field use); user-toggleable from the app bar
 
 ## Events Supported
 
@@ -95,7 +98,7 @@ ares-bib-logger/
 │       └── adapter/      # HTTP handlers, Postgres repos, MQTT client
 ├── frontend/
 │   └── src/
-│       ├── domain/       # Core types and interfaces
+│       ├── domain/       # Core types, interfaces, and pure domain logic (pace computation)
 │       ├── application/  # Custom hooks / use cases
 │       ├── adapters/     # API clients, storage
 │       └── ui/           # React components and pages
@@ -126,6 +129,7 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `MQTT_CHANNEL_NUM` | `2` | Channel number in topic path |
 | `MQTT_CHANNEL_NAME` | `LongFast` | Channel name in topic path |
 | `MQTT_GATEWAY_NODE_ID` | — | Gateway node ID in hex without `!` (e.g. `a3b4c5d6`); required for publishing alerts back to mesh |
+| `MQTT_ENABLED` | `true` | Set to `false` to disable MQTT entirely and run in manual-entry-only mode |
 
 Subscribe topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#`
 Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQTT_GATEWAY_NODE_ID}`
@@ -135,7 +139,7 @@ Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQT
 See [CLAUDE.md](CLAUDE.md) for the full set of coding standards. Key points:
 
 - Hexagonal architecture — domain layer has zero framework imports
-- All code must have tests; target >80% coverage
+- All code must have tests; target >90% coverage
 - Run `make lint && make fmt` before every commit
 - All config via env vars — no hardcoded values
 
