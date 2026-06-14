@@ -270,7 +270,7 @@ describe('AdminTab — Delete Confirmations', () => {
     await user.click(screen.getAllByRole('button', { name: /delete checkpoint/i })[0])
 
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
-    expect(screen.getByText(/delete checkpoint/i)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText(/delete checkpoint/i)).toBeInTheDocument()
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^delete$/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -286,7 +286,7 @@ describe('AdminTab — Archive Event', () => {
     await user.click(screen.getByRole('button', { name: /archive this event/i }))
 
     await waitFor(() => screen.getByRole('dialog'))
-    expect(screen.getByText(/archive event/i)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText(/archive event/i)).toBeInTheDocument()
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -314,7 +314,7 @@ describe('AdminTab — Lock Order', () => {
     await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
 
     await waitFor(() => screen.getByRole('dialog'))
-    expect(screen.getByText(/lock checkpoint order/i)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText(/lock checkpoint order/i)).toBeInTheDocument()
 
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: /lock order/i }),

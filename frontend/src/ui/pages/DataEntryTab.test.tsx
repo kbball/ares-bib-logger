@@ -83,7 +83,7 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getByText(/dns \/ dnf/i))
+    await waitFor(() => screen.getByText('GDR'))
     const statusSection = screen.getByText(/dns \/ dnf/i).closest('div')!
     const bibInputs = within(statusSection).getAllByLabelText(/bib #/i)
     const statusBibInput = bibInputs[0]
