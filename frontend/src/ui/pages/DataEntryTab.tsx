@@ -378,11 +378,13 @@ export default function DataEntryTab() {
                   <TableCell>{entry.runner.FirstName} {entry.runner.LastName}</TableCell>
                   <TableCell>{race?.Name ?? `Race ${entry.runner.RaceID}`}</TableCell>
                   <TableCell>
-                    <Chip
-                      label={SOURCE_LABEL[entry.log.Source] ?? entry.log.Source}
-                      size="small"
-                      color={entry.log.Source === 'MESHTASTIC' ? 'primary' : 'default'}
-                    />
+                    {entry.log && (
+                      <Chip
+                        label={SOURCE_LABEL[entry.log.Source] ?? entry.log.Source}
+                        size="small"
+                        color={entry.log.Source === 'MESHTASTIC' ? 'primary' : 'default'}
+                      />
+                    )}
                   </TableCell>
                   <TableCell>
                     {entry.is_duplicate && <Chip label="DUPLICATE" size="small" color="warning" />}

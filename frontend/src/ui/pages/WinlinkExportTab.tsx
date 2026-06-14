@@ -70,8 +70,8 @@ export default function WinlinkExportTab() {
       <Stack spacing={2}>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Race</InputLabel>
-            <Select value={raceID} label="Race" onChange={(e) => { setRaceID(Number(e.target.value)); setColumn('') }}>
+            <InputLabel id="export-race-label">Race</InputLabel>
+            <Select value={raceID} label="Race" labelId="export-race-label" onChange={(e) => { setRaceID(Number(e.target.value)); setColumn('') }}>
               {races.map((r) => (
                 <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
               ))}

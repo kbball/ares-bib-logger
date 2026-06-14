@@ -217,10 +217,11 @@ export default function AdminTab() {
       <Typography variant="h6" gutterBottom>Active Event</Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 220 }}>
-          <InputLabel>Event</InputLabel>
+          <InputLabel id="event-label">Event</InputLabel>
           <Select
             value={session?.EventID ?? ''}
             label="Event"
+            labelId="event-label"
             onChange={(e) =>
               wrap(() => api.setSessionEvent(Number(e.target.value)), loadSession)
             }
@@ -332,10 +333,11 @@ export default function AdminTab() {
               {/* Active checkpoint selector */}
               <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center' }}>
                 <FormControl size="small" sx={{ minWidth: 180 }}>
-                  <InputLabel>Active Checkpoint</InputLabel>
+                  <InputLabel id={`active-cp-label-${race.ID}`}>Active Checkpoint</InputLabel>
                   <Select
                     value={activeCheckpointFor(race.ID) ?? ''}
                     label="Active Checkpoint"
+                    labelId={`active-cp-label-${race.ID}`}
                     onChange={(e) => {
                       if (!e.target.value) {
                         wrap(() => api.clearSessionCheckpoint(race.ID), loadSession)
@@ -429,6 +431,7 @@ export default function AdminTab() {
                                     <IconButton
                                       size="small"
                                       disabled={idx === 0}
+                                      title="Move checkpoint up"
                                       onClick={() => moveCheckpoint(race.ID, cp, 'up')}
                                     >
                                       <ArrowUpwardIcon fontSize="small" />
@@ -436,6 +439,7 @@ export default function AdminTab() {
                                     <IconButton
                                       size="small"
                                       disabled={idx === arr.length - 1}
+                                      title="Move checkpoint down"
                                       onClick={() => moveCheckpoint(race.ID, cp, 'down')}
                                     >
                                       <ArrowDownwardIcon fontSize="small" />
@@ -450,6 +454,7 @@ export default function AdminTab() {
                                     <IconButton
                                       size="small"
                                       color="error"
+                                      title={`Delete checkpoint ${cp.Code}`}
                                       onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
                                     >
                                       <DeleteIcon fontSize="small" />
@@ -503,10 +508,10 @@ export default function AdminTab() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Paste TSV with columns: BibNumber, FirstName, LastName (no header row). Importing locks the roster permanently.
       </Typography>
-      <Stack spacing={1}>
+      <Stack spacing={1} data-testid="roster-section">
         <FormControl size="small" sx={{ maxWidth: 220 }}>
-          <InputLabel>Race</InputLabel>
-          <Select value={rosterRaceID} label="Race" onChange={(e) => setRosterRaceID(Number(e.target.value))}>
+          <InputLabel id="roster-race-label">Race</InputLabel>
+          <Select value={rosterRaceID} label="Race" labelId="roster-race-label" onChange={(e) => setRosterRaceID(Number(e.target.value))}>
             {races
               .filter((r) => !r.RosterLocked)
               .map((r) => (
@@ -540,13 +545,14 @@ export default function AdminTab() {
         <Alert severity="info" sx={{ mb: 2 }}>Select an active event first.</Alert>
       )}
       {session?.EventID && (
-        <Stack spacing={2}>
+        <Stack spacing={2} data-testid="runner-status-form">
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>Race</InputLabel>
+              <InputLabel id="status-race-label">Race</InputLabel>
               <Select
                 value={statusRaceID}
                 label="Race"
+                labelId="status-race-label"
                 onChange={(e) => { setStatusRaceID(Number(e.target.value)); setStatusRunner(null); setStatusMsg('') }}
               >
                 {races.map((r) => (
@@ -583,10 +589,11 @@ export default function AdminTab() {
                 <Chip label={statusRunner.Status} size="small" />
                 <Typography variant="body2">→</Typography>
                 <FormControl size="small" sx={{ minWidth: 130 }}>
-                  <InputLabel>New status</InputLabel>
+                  <InputLabel id="new-status-label">New status</InputLabel>
                   <Select
                     value={statusNew}
                     label="New status"
+                    labelId="new-status-label"
                     onChange={(e) => setStatusNew(e.target.value as RunnerStatus)}
                   >
                     {(['ACTIVE', 'DNS', 'DNF', 'FINISHED'] as RunnerStatus[]).map((s) => (

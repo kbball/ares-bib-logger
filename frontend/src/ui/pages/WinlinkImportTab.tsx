@@ -74,8 +74,8 @@ export default function WinlinkImportTab() {
       <Stack spacing={2}>
         <Stack direction="row" spacing={2}>
           <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Race</InputLabel>
-            <Select value={raceID} label="Race" onChange={(e) => { setRaceID(Number(e.target.value)); setCheckpointID('') }}>
+            <InputLabel id="import-race-label">Race</InputLabel>
+            <Select value={raceID} label="Race" labelId="import-race-label" onChange={(e) => { setRaceID(Number(e.target.value)); setCheckpointID('') }}>
               {races.map((r) => (
                 <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
               ))}
@@ -83,10 +83,11 @@ export default function WinlinkImportTab() {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Checkpoint</InputLabel>
+            <InputLabel id="import-cp-label">Checkpoint</InputLabel>
             <Select
               value={checkpointID}
               label="Checkpoint"
+              labelId="import-cp-label"
               disabled={!raceID}
               onChange={(e) => setCheckpointID(Number(e.target.value))}
             >

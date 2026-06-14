@@ -56,9 +56,9 @@ The frontend mirrors this structure under `frontend/src/` with `domain/`, `appli
 
 ## Testing
 
-- Every package must have tests. Target: **>90% coverage**.
-- Backend: `testing` stdlib + `testify/assert` + `testify/require` + `testify/mock`. Use `mockery` to generate mocks from port interfaces.
-- Frontend: Vitest + React Testing Library + MSW for API mocking.
+- Every package must have tests.
+- Backend target: **>90% coverage**. `testing` stdlib + `testify/assert` + `testify/require` + `testify/mock`. Use `mockery` to generate mocks from port interfaces.
+- Frontend target: **>80% coverage**. Vitest + React Testing Library + MSW for API mocking.
 - Domain and application layers must be unit tested in isolation — no DB, no HTTP.
 - Run all tests: `make test`. Run with coverage: `make coverage`.
 
