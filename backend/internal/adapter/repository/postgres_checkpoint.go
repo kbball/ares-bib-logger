@@ -55,6 +55,16 @@ func (r *CheckpointRepo) Get(ctx context.Context, id int) (entity.Checkpoint, er
 	return cp, nil
 }
 
+func (r *CheckpointRepo) Update(ctx context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
+	updated, err := scanCheckpoint(r.db.QueryRowContext(ctx,
+		`UPDATE checkpoints SET code = $1, display_name = $2 WHERE id = $3 RETURNING `+cpCols,
+		cp.Code, cp.DisplayName, cp.ID))
+	if err != nil {
+		return entity.Checkpoint{}, mapNotFound(err)
+	}
+	return updated, nil
+}
+
 func (r *CheckpointRepo) Delete(ctx context.Context, id int) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM checkpoints WHERE id = $1`, id)
 	return err

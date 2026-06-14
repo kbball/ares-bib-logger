@@ -61,12 +61,19 @@ func (s *CheckpointLogService) LogBib(ctx context.Context, input portsvc.LogBibI
 	log, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{
 		RunnerID:     runner.ID,
 		CheckpointID: checkpointID,
-		RecordedAt:   time.Now().UTC(),
+		RecordedAt:   time.Now(),
 		Source:       input.Source,
 		RawMessage:   input.RawMessage,
 	})
 	if err != nil {
 		return portsvc.LogBibResult{}, fmt.Errorf("creating log: %w", err)
+	}
+
+	if runner.Status == entity.StatusUnknown {
+		if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusActive); err != nil {
+			return portsvc.LogBibResult{}, fmt.Errorf("updating runner status: %w", err)
+		}
+		runner.Status = entity.StatusActive
 	}
 
 	return portsvc.LogBibResult{Log: log, Runner: runner}, nil

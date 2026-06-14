@@ -8,6 +8,17 @@ import type { ActiveSession, Checkpoint, Race, WinlinkImportResult } from '../..
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
+const SKIP_REASON: Record<string, string> = {
+  blank: 'Blank line',
+  no_runner: 'No runner at this position',
+  duplicate: 'Already logged (duplicate)',
+  parse_error: 'Could not parse time',
+}
+
+function skipLabel(d: { Reason: string }): string {
+  return SKIP_REASON[d.Reason] ?? d.Reason
+}
+
 export default function WinlinkImportTab() {
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
@@ -117,6 +128,29 @@ export default function WinlinkImportTab() {
             <Typography>Created: {result.Created}</Typography>
             <Typography>Updated: {result.Updated}</Typography>
             <Typography>Skipped: {result.Skipped}</Typography>
+            {result.SkippedDetails?.length > 0 && (
+              <>
+                <Typography variant="body2" sx={{ mt: 1, mb: 0.5 }}>Skipped details:</Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Position</TableCell>
+                      <TableCell>Bib</TableCell>
+                      <TableCell>Reason</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {result.SkippedDetails.map((d, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{d.Position}</TableCell>
+                        <TableCell>{d.BibNumber || '—'}</TableCell>
+                        <TableCell>{skipLabel(d)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            )}
             {result.Errors?.length > 0 && (
               <>
                 <Typography color="error" sx={{ mt: 1 }}>Errors:</Typography>

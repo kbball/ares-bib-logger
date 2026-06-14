@@ -58,6 +58,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Checkpoints
 	mux.HandleFunc("GET /api/races/{raceID}/checkpoints", h.listCheckpoints)
 	mux.HandleFunc("POST /api/races/{raceID}/checkpoints", h.createCheckpoint)
+	mux.HandleFunc("PUT /api/checkpoints/{id}", h.updateCheckpoint)
 	mux.HandleFunc("DELETE /api/checkpoints/{id}", h.deleteCheckpoint)
 	mux.HandleFunc("PUT /api/races/{raceID}/checkpoints/order", h.reorderCheckpoints)
 

@@ -21,10 +21,10 @@ import (
 
 type mockToken struct{ err error }
 
-func (m *mockToken) Wait() bool                        { return true }
-func (m *mockToken) WaitTimeout(_ time.Duration) bool  { return true }
-func (m *mockToken) Done() <-chan struct{}              { ch := make(chan struct{}); close(ch); return ch }
-func (m *mockToken) Error() error                      { return m.err }
+func (m *mockToken) Wait() bool                       { return true }
+func (m *mockToken) WaitTimeout(_ time.Duration) bool { return true }
+func (m *mockToken) Done() <-chan struct{}            { ch := make(chan struct{}); close(ch); return ch }
+func (m *mockToken) Error() error                     { return m.err }
 
 type mockPahoClient struct {
 	connectErr   error
@@ -37,7 +37,7 @@ func (m *mockPahoClient) Connect() pahomqtt.Token { return &mockToken{m.connectE
 func (m *mockPahoClient) Subscribe(_ string, _ byte, _ pahomqtt.MessageHandler) pahomqtt.Token {
 	return &mockToken{m.subscribeErr}
 }
-func (m *mockPahoClient) Disconnect(_ uint)  { m.disconnected = true }
+func (m *mockPahoClient) Disconnect(_ uint) { m.disconnected = true }
 func (m *mockPahoClient) Publish(_ string, _ byte, _ bool, payload any) pahomqtt.Token {
 	if b, ok := payload.([]byte); ok {
 		m.published = append(m.published, b)
@@ -60,6 +60,10 @@ func (m *mockLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (p
 
 func (m *mockLogService) LogStatus(_ context.Context, _ int, _ entity.RunnerStatus) error {
 	return nil
+}
+
+func (m *mockLogService) ListByRace(_ context.Context, _ int) ([]entity.CheckpointLog, error) {
+	return nil, nil
 }
 
 type mockPublisher struct {

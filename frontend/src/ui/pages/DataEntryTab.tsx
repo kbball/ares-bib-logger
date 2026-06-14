@@ -4,7 +4,7 @@ import {
   MenuItem, Paper, Select, Stack, Table, TableBody, TableCell,
   TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
-import type { ActiveSession, Checkpoint, LogBibResult, Race, Runner } from '../../domain/types'
+import type { ActiveSession, Checkpoint, CheckpointLog, LogBibResult, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -19,6 +19,7 @@ export default function DataEntryTab() {
   const [races, setRaces] = useState<Race[]>([])
   const [runners, setRunners] = useState<Runner[]>([])
   const [checkpointsByRace, setCheckpointsByRace] = useState<Record<number, Checkpoint[]>>({})
+  const [logsByRace, setLogsByRace] = useState<Record<number, CheckpointLog[]>>({})
   const [recentLogs, setRecentLogs] = useState<LogBibResult[]>([])
   const [dupAlert, setDupAlert] = useState<string | null>(null)
 
@@ -54,6 +55,12 @@ export default function DataEntryTab() {
     )
     setCheckpointsByRace(Object.fromEntries(entries))
   }, [])
+  const loadLogs = useCallback(async (raceIDs: number[]) => {
+    const entries = await Promise.all(
+      raceIDs.map(async (id) => [id, await api.listCheckpointLogs(id)] as [number, CheckpointLog[]])
+    )
+    setLogsByRace(Object.fromEntries(entries))
+  }, [])
 
   useEffect(() => { loadSession() }, [loadSession])
 
@@ -66,8 +73,9 @@ export default function DataEntryTab() {
       const ids = races.map((r) => r.ID)
       loadRunners(ids)
       loadCheckpoints(ids)
+      loadLogs(ids)
     }
-  }, [races, loadRunners, loadCheckpoints])
+  }, [races, loadRunners, loadCheckpoints, loadLogs])
 
   const pushLog = useCallback((result: LogBibResult) => {
     if (result.is_duplicate) {
@@ -80,7 +88,9 @@ export default function DataEntryTab() {
   useStream({
     onBibLogged: (payload) => {
       pushLog(payload as LogBibResult)
-      loadRunners(races.map((r) => r.ID))
+      const ids = races.map((r) => r.ID)
+      loadRunners(ids)
+      loadLogs(ids)
     },
     onSessionChanged: (payload) => setSession(payload as ActiveSession),
   })
@@ -167,24 +177,45 @@ export default function DataEntryTab() {
           {races.map((race) => {
             const raceRunners = runners.filter((r) => r.RaceID === race.ID)
             const cp = activeCheckpointFor(race.ID)
+            // Runners with a real time log at the active checkpoint (DNS/DNF raw messages don't count as "through")
+            const throughSet = new Set(
+              (logsByRace[race.ID] ?? [])
+                .filter((l) => {
+                  if (l.CheckpointID !== cp?.ID) return false
+                  const raw = l.RawMessage?.toUpperCase()
+                  return raw !== 'DNS' && raw !== 'DNF'
+                })
+                .map((l) => l.RunnerID)
+            )
+            // Exclusive three-way partition — all three sum to raceRunners.length
+            const through = raceRunners.filter((r) => throughSet.has(r.ID))
+            const dnsDnf = raceRunners.filter((r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'))
+            const stillToCome = raceRunners.filter((r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF')
             return (
               <Paper key={race.ID} sx={{ p: 1.5, minWidth: 160 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
-                <Tooltip title="Total runners in this race (includes all statuses)">
-                  <Typography variant="body2">Runners: {raceRunners.length}</Typography>
-                </Tooltip>
-                <Tooltip title="Runners still on course — status is ACTIVE or UNKNOWN">
-                  <Typography variant="body2">
-                    On course: {raceRunners.filter((r) => r.Status === 'ACTIVE' || r.Status === 'UNKNOWN').length}
+                <Tooltip title="Total runners in this race — equals Still to come + Through + DNS/DNF">
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Runners: {raceRunners.length}
                   </Typography>
                 </Tooltip>
-                <Tooltip title="Runners who did not start (DNS) or did not finish (DNF)">
+                <Tooltip title="Runners not yet logged at this checkpoint (on course, moved, or finished elsewhere)">
+                  <Typography variant="body2" color={stillToCome.length === 0 && cp ? 'success.main' : 'text.primary'}>
+                    Still to come: {cp ? stillToCome.length : '—'}
+                  </Typography>
+                </Tooltip>
+                <Tooltip title="Runners physically logged through this checkpoint">
                   <Typography variant="body2">
-                    DNS/DNF: {raceRunners.filter((r) => r.Status === 'DNS' || r.Status === 'DNF').length}
+                    Through: {cp ? through.length : '—'}
+                  </Typography>
+                </Tooltip>
+                <Tooltip title="Runners marked DNS or DNF (not logged through this checkpoint)">
+                  <Typography variant="body2">
+                    DNS/DNF: {cp ? dnsDnf.length : raceRunners.filter((r) => r.Status === 'DNS' || r.Status === 'DNF').length}
                   </Typography>
                 </Tooltip>
                 <Tooltip title={cp ? 'Active checkpoint for this race' : 'No checkpoint assigned — set one in Admin'}>
-                  <Typography variant="body2" color={cp ? 'success.main' : 'error.main'}>
+                  <Typography variant="body2" color={cp ? 'success.main' : 'error.main'} sx={{ mt: 0.5 }}>
                     {cp ? `${cp.Code} – ${cp.DisplayName}` : 'No active CP'}
                   </Typography>
                 </Tooltip>

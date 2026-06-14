@@ -54,6 +54,30 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, cp)
 }
 
+func (h *Handler) updateCheckpoint(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid checkpoint id")
+		return
+	}
+
+	var body struct {
+		Code        string `json:"code"`
+		DisplayName string `json:"display_name"`
+	}
+	if err := decode(r, &body); err != nil || body.Code == "" || body.DisplayName == "" {
+		writeError(w, http.StatusBadRequest, "code and display_name are required")
+		return
+	}
+
+	cp, err := h.checkpoints.Update(r.Context(), id, body.Code, body.DisplayName)
+	if err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, cp)
+}
+
 func (h *Handler) deleteCheckpoint(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathInt(r, "id")
 	if !ok {

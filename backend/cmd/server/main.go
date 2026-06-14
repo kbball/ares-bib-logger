@@ -87,7 +87,7 @@ func main() {
 		service.NewRunnerService(runnerRepo, raceRepo),
 		checkpointLogSvc,
 		service.NewSessionService(sessionRepo),
-		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo),
+		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo),
 		broker,
 	)
 

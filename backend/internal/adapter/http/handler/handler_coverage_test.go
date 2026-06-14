@@ -135,9 +135,7 @@ func TestHandler_ImportRoster_ServiceError(t *testing.T) {
 	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
 		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
 
-	body, _ := json.Marshal(map[string]any{
-		"rows": []map[string]any{{"bib_number": 100, "first_name": "A", "last_name": "B"}},
-	})
+	body, _ := json.Marshal(map[string]any{"tsv": "100\tA\tB"})
 	req := httptest.NewRequest(http.MethodPost, "/api/races/1/roster", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

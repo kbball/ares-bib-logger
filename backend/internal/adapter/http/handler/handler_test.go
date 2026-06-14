@@ -32,6 +32,7 @@ func (m *mockEventService) Create(_ context.Context, name string) (entity.Event,
 	e := entity.Event{ID: 1, Name: name}
 	return e, m.err
 }
+func (m *mockEventService) Archive(_ context.Context, id int) error { return m.err }
 
 type mockRaceService struct {
 	races []entity.Race
@@ -52,7 +53,8 @@ func (m *mockRaceService) Get(_ context.Context, id int) (entity.Race, error) {
 func (m *mockRaceService) Create(_ context.Context, eventID int, name string) (entity.Race, error) {
 	return entity.Race{ID: 1, EventID: eventID, Name: name}, m.err
 }
-func (m *mockRaceService) Delete(_ context.Context, id int) error { return m.err }
+func (m *mockRaceService) Delete(_ context.Context, id int) error   { return m.err }
+func (m *mockRaceService) LockOrder(_ context.Context, id int) error { return m.err }
 
 type mockCheckpointService struct {
 	checkpoints []entity.Checkpoint
@@ -69,6 +71,10 @@ func (m *mockCheckpointService) Create(_ context.Context, cp entity.Checkpoint) 
 	cp.ID = 1
 	return cp, m.err
 }
+func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string) (entity.Checkpoint, error) {
+	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName}, m.err
+}
+func (m *mockCheckpointService) Delete(_ context.Context, id int) error { return m.err }
 func (m *mockCheckpointService) Reorder(_ context.Context, raceID int, ids []int) error {
 	return m.err
 }
@@ -98,6 +104,9 @@ func (m *mockCheckpointLogService) LogBib(_ context.Context, input portsvc.LogBi
 }
 func (m *mockCheckpointLogService) LogStatus(_ context.Context, bib int, status entity.RunnerStatus) error {
 	return m.err
+}
+func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]entity.CheckpointLog, error) {
+	return nil, m.err
 }
 
 type mockSessionService struct {

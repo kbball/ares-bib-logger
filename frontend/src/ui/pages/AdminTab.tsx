@@ -8,6 +8,9 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete'
 import ArchiveIcon from '@mui/icons-material/Archive'
 import LockIcon from '@mui/icons-material/Lock'
+import EditIcon from '@mui/icons-material/Edit'
+import CheckIcon from '@mui/icons-material/Check'
+import CloseIcon from '@mui/icons-material/Close'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import type { Event, Race, Checkpoint, ActiveSession } from '../../domain/types'
@@ -25,17 +28,23 @@ export default function AdminTab() {
   const [newEventName, setNewEventName] = useState('')
   // Create-race form
   const [newRaceName, setNewRaceName] = useState('')
-  // Checkpoint form
+  // Checkpoint create form
   const [cpRaceID, setCpRaceID] = useState<number | ''>('')
   const [cpCode, setCpCode] = useState('')
   const [cpName, setCpName] = useState('')
+  // Checkpoint inline edit
+  const [editingCpID, setEditingCpID] = useState<number | null>(null)
+  const [editCode, setEditCode] = useState('')
+  const [editName, setEditName] = useState('')
   // Roster import
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
-  // Delete / archive confirmation dialogs
+  // Confirmation dialogs
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'race' | 'checkpoint'; id: number; label: string } | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string } | null>(null)
+  const [lockTarget, setLockTarget] = useState<{ id: number; label: string } | null>(null)
+  const [rosterConfirm, setRosterConfirm] = useState(false)
 
   const loadSession = () =>
     api.getSession().then(setSession).catch(() => {})
@@ -102,6 +111,27 @@ export default function AdminTab() {
     )
   }
 
+  const confirmLockOrder = () => {
+    if (!lockTarget) return
+    wrap(
+      () => api.lockRaceOrder(lockTarget.id).then(() => {
+        setLockTarget(null)
+        return loadRaces(session!.EventID!)
+      }),
+    )
+  }
+
+  const confirmRosterImport = () => {
+    setRosterConfirm(false)
+    wrap(
+      () => api.importRoster(Number(rosterRaceID), rosterTsv).then((r) => {
+        setRosterMsg(`Imported ${r.imported} runners.`)
+        setRosterTsv('')
+        return loadRaces(session!.EventID!)
+      })
+    )
+  }
+
   const moveCheckpoint = (raceID: number, cp: Checkpoint, direction: 'up' | 'down') => {
     const cps = [...(checkpointsByRace[raceID] ?? [])].sort((a, b) => a.DisplayOrder - b.DisplayOrder)
     const idx = cps.findIndex((c) => c.ID === cp.ID)
@@ -114,6 +144,25 @@ export default function AdminTab() {
         .then(() => loadCheckpoints(races.map((r) => r.ID))),
     )
   }
+
+  const startEditCp = (cp: Checkpoint) => {
+    setEditingCpID(cp.ID)
+    setEditCode(cp.Code)
+    setEditName(cp.DisplayName)
+  }
+
+  const saveEditCp = () => {
+    if (!editingCpID || !editCode.trim() || !editName.trim()) return
+    wrap(
+      () => api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim())
+        .then(() => {
+          setEditingCpID(null)
+          return loadCheckpoints(races.map((r) => r.ID))
+        }),
+    )
+  }
+
+  const cancelEditCp = () => setEditingCpID(null)
 
   return (
     <Box sx={{ maxWidth: 800 }}>
@@ -219,10 +268,8 @@ export default function AdminTab() {
                     : (
                       <IconButton
                         size="small"
-                        title="Finalize checkpoint order — locks it so Winlink mappings can't shift"
-                        onClick={() => wrap(
-                          () => api.lockRaceOrder(race.ID).then(() => loadRaces(session!.EventID!))
-                        )}
+                        title="Lock checkpoint order — prevents changes that would break Winlink position mappings"
+                        onClick={() => setLockTarget({ id: race.ID, label: race.Name })}
                       >
                         <LockIcon fontSize="small" />
                       </IconButton>
@@ -267,7 +314,7 @@ export default function AdminTab() {
                 </FormControl>
               </Stack>
 
-              {/* Checkpoint list + reorder + delete */}
+              {/* Checkpoint list + reorder + edit + delete */}
               <Table size="small" sx={{ mt: 1 }}>
                 <TableHead>
                   <TableRow>
@@ -283,35 +330,79 @@ export default function AdminTab() {
                     .map((cp, idx, arr) => (
                       <TableRow key={cp.ID}>
                         <TableCell>{cp.DisplayOrder}</TableCell>
-                        <TableCell>{cp.Code}</TableCell>
-                        <TableCell>{cp.DisplayName}</TableCell>
+                        {editingCpID === cp.ID ? (
+                          <>
+                            <TableCell>
+                              <TextField
+                                size="small"
+                                value={editCode}
+                                onChange={(e) => setEditCode(e.target.value)}
+                                sx={{ width: 90 }}
+                                autoFocus
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <TextField
+                                size="small"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                sx={{ width: 180 }}
+                              />
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell>{cp.Code}</TableCell>
+                            <TableCell>{cp.DisplayName}</TableCell>
+                          </>
+                        )}
                         <TableCell align="right">
                           <Stack direction="row" spacing={0} sx={{ justifyContent: 'flex-end' }}>
-                            {!race.OrderLocked && (
+                            {editingCpID === cp.ID ? (
                               <>
-                                <IconButton
-                                  size="small"
-                                  disabled={idx === 0}
-                                  onClick={() => moveCheckpoint(race.ID, cp, 'up')}
-                                >
-                                  <ArrowUpwardIcon fontSize="small" />
+                                <IconButton size="small" color="success" onClick={saveEditCp} title="Save">
+                                  <CheckIcon fontSize="small" />
                                 </IconButton>
-                                <IconButton
-                                  size="small"
-                                  disabled={idx === arr.length - 1}
-                                  onClick={() => moveCheckpoint(race.ID, cp, 'down')}
-                                >
-                                  <ArrowDownwardIcon fontSize="small" />
+                                <IconButton size="small" onClick={cancelEditCp} title="Cancel">
+                                  <CloseIcon fontSize="small" />
                                 </IconButton>
                               </>
+                            ) : (
+                              <>
+                                {!race.OrderLocked && (
+                                  <>
+                                    <IconButton
+                                      size="small"
+                                      disabled={idx === 0}
+                                      onClick={() => moveCheckpoint(race.ID, cp, 'up')}
+                                    >
+                                      <ArrowUpwardIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      disabled={idx === arr.length - 1}
+                                      onClick={() => moveCheckpoint(race.ID, cp, 'down')}
+                                    >
+                                      <ArrowDownwardIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      title="Edit checkpoint code and name"
+                                      onClick={() => startEditCp(cp)}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </>
+                                )}
+                              </>
                             )}
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -350,7 +441,7 @@ export default function AdminTab() {
       {/* ── Roster Import ── */}
       <Typography variant="h6" gutterBottom>Roster Import</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Paste TSV with columns: BibNumber, FirstName, LastName (no header row).
+        Paste TSV with columns: BibNumber, FirstName, LastName (no header row). Importing locks the roster permanently.
       </Typography>
       <Stack spacing={1}>
         <FormControl size="small" sx={{ maxWidth: 220 }}>
@@ -373,15 +464,7 @@ export default function AdminTab() {
           <Button
             variant="contained"
             disabled={!rosterRaceID || !rosterTsv.trim()}
-            onClick={() => {
-              wrap(
-                () => api.importRoster(Number(rosterRaceID), rosterTsv).then((r) => {
-                  setRosterMsg(`Imported ${r.imported} runners.`)
-                  setRosterTsv('')
-                  return loadRaces(session!.EventID!)
-                })
-              )
-            }}
+            onClick={() => setRosterConfirm(true)}
           >
             Import Roster
           </Button>
@@ -389,7 +472,7 @@ export default function AdminTab() {
         </Box>
       </Stack>
 
-      {/* ── Archive confirmation dialog ── */}
+      {/* ── Archive confirmation ── */}
       <Dialog open={!!archiveTarget} onClose={() => setArchiveTarget(null)}>
         <DialogTitle>Archive Event</DialogTitle>
         <DialogContent>
@@ -403,7 +486,35 @@ export default function AdminTab() {
         </DialogActions>
       </Dialog>
 
-      {/* ── Delete confirmation dialog ── */}
+      {/* ── Lock race order confirmation ── */}
+      <Dialog open={!!lockTarget} onClose={() => setLockTarget(null)}>
+        <DialogTitle>Lock Checkpoint Order</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Lock the checkpoint order for "{lockTarget?.label}"? Once locked, checkpoints cannot be reordered, edited, or deleted. This is required before Winlink import to ensure bib positions don't shift.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLockTarget(null)}>Cancel</Button>
+          <Button color="warning" variant="contained" onClick={confirmLockOrder}>Lock Order</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Roster import confirmation ── */}
+      <Dialog open={rosterConfirm} onClose={() => setRosterConfirm(false)}>
+        <DialogTitle>Import Roster</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Import this roster? This will permanently lock the roster for the selected race — runners cannot be added or removed via import again.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRosterConfirm(false)}>Cancel</Button>
+          <Button color="warning" variant="contained" onClick={confirmRosterImport}>Import &amp; Lock</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete confirmation ── */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>

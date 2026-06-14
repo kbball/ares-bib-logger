@@ -38,6 +38,10 @@ func (m *mockEventRepository) Create(_ context.Context, name string) (entity.Eve
 	return e, nil
 }
 
+func (m *mockEventRepository) Archive(_ context.Context, id int) error {
+	return nil
+}
+
 // --- EventService tests ---
 
 func TestEventService_CreateAndList(t *testing.T) {

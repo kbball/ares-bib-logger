@@ -28,6 +28,8 @@ export const listCheckpoints = (raceID: number) =>
   get<Checkpoint[]>(`/api/races/${raceID}/checkpoints`)
 export const createCheckpoint = (raceID: number, code: string, displayName: string) =>
   post<Checkpoint>(`/api/races/${raceID}/checkpoints`, { code, display_name: displayName })
+export const updateCheckpoint = (id: number, code: string, displayName: string) =>
+  put<Checkpoint>(`/api/checkpoints/${id}`, { code, display_name: displayName })
 export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>
   put<void>(`/api/races/${raceID}/checkpoints/order`, { ids })

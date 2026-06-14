@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert, Box, Chip, FormControl, InputLabel, MenuItem,
-  Select, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, TableSortLabel, TextField, Typography,
+  Alert, Box, Chip, Stack, Tab, Table, TableBody, TableCell, TableHead,
+  TableRow, TableSortLabel, Tabs, TextField, Typography,
 } from '@mui/material'
 import type { ActiveSession, Checkpoint, CheckpointLog, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
@@ -80,12 +79,34 @@ export default function RunnersTab() {
     }
   }
 
+  // Which race IDs have at least one runner matching the current search query
+  const racesWithMatches = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    if (!q) return new Set(races.map((r) => r.ID))
+    return new Set(
+      allRunners
+        .filter(
+          (r) =>
+            String(r.BibNumber).includes(q) ||
+            r.FirstName.toLowerCase().includes(q) ||
+            r.LastName.toLowerCase().includes(q),
+        )
+        .map((r) => r.RaceID),
+    )
+  }, [races, allRunners, search])
+
+  // If the selected tab's race has no matches, fall back to All
+  useEffect(() => {
+    if (filterRaceID !== '' && !racesWithMatches.has(filterRaceID as number)) {
+      setFilterRaceID('')
+    }
+  }, [racesWithMatches, filterRaceID])
+
   const visibleRace = filterRaceID ? races.find((r) => r.ID === filterRaceID) : null
   const checkpoints = visibleRace
     ? (checkpointsByRace[visibleRace.ID] ?? []).sort((a, b) => a.DisplayOrder - b.DisplayOrder)
     : []
 
-  // Build a fast lookup: `${runnerID}-${checkpointID}` → log
   const logMap = useMemo(() => {
     const m = new Map<string, CheckpointLog>()
     Object.values(logsByRace).flat().forEach((log) => {
@@ -128,7 +149,7 @@ export default function RunnersTab() {
     if (!log) return '—'
     const raw = log.RawMessage?.toUpperCase()
     if (raw === 'DNS' || raw === 'DNF') return raw
-    return new Date(log.RecordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return new Date(log.RecordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   }
 
   const col = (label: string, key: SortKey) => (
@@ -143,6 +164,22 @@ export default function RunnersTab() {
     </TableCell>
   )
 
+  // Visible race tabs — only show races with search matches (all visible when not searching)
+  const visibleRaces = races.filter((r) => racesWithMatches.has(r.ID))
+
+  // Count matching runners per race (only used when a search is active)
+  const matchCountFor = (raceID: number | '') => {
+    const q = search.toLowerCase().trim()
+    if (!q) return null
+    const pool = raceID === '' ? allRunners : allRunners.filter((r) => r.RaceID === raceID)
+    return pool.filter(
+      (r) =>
+        String(r.BibNumber).includes(q) ||
+        r.FirstName.toLowerCase().includes(q) ||
+        r.LastName.toLowerCase().includes(q),
+    ).length
+  }
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>Runners</Typography>
@@ -151,7 +188,7 @@ export default function RunnersTab() {
         <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
       )}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 1 }}>
         <TextField
           size="small"
           label="Search bib / name"
@@ -159,20 +196,30 @@ export default function RunnersTab() {
           onChange={(e) => setSearch(e.target.value)}
           sx={{ width: 220 }}
         />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Race</InputLabel>
-          <Select
-            value={filterRaceID}
-            label="Race"
-            onChange={(e) => setFilterRaceID(e.target.value as number | '')}
-          >
-            <MenuItem value="">All races</MenuItem>
-            {races.map((r) => (
-              <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
       </Stack>
+
+      <Tabs
+        value={filterRaceID}
+        onChange={(_, v) => setFilterRaceID(v as number | '')}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ mb: 1, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab
+          label={matchCountFor('') !== null ? `All (${matchCountFor('')})` : 'All'}
+          value=""
+        />
+        {visibleRaces.map((race) => {
+          const count = matchCountFor(race.ID)
+          return (
+            <Tab
+              key={race.ID}
+              label={count !== null ? `${race.Name} (${count})` : race.Name}
+              value={race.ID}
+            />
+          )
+        })}
+      </Tabs>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         {filtered.length} runner{filtered.length !== 1 ? 's' : ''}
@@ -190,7 +237,7 @@ export default function RunnersTab() {
               {col('Status', 'Status')}
               {checkpoints.map((cp) => (
                 <TableCell key={cp.ID} sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
-                  {cp.Code}
+                  {cp.DisplayName}
                 </TableCell>
               ))}
             </TableRow>

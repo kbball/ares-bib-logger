@@ -246,6 +246,14 @@ func (m *mockCheckpointRepository) Create(_ context.Context, cp entity.Checkpoin
 	return cp, nil
 }
 
+func (m *mockCheckpointRepository) Update(_ context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
+	return cp, nil
+}
+
+func (m *mockCheckpointRepository) Delete(_ context.Context, id int) error {
+	return nil
+}
+
 func (m *mockCheckpointRepository) Reorder(_ context.Context, raceID int, orderedIDs []int) error {
 	return nil
 }

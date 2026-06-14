@@ -162,7 +162,7 @@ func TestHandler_CreateCheckpoint_MissingCode(t *testing.T) {
 }
 
 func TestHandler_ReorderCheckpoints_Success(t *testing.T) {
-	body, _ := json.Marshal(map[string]any{"ordered_ids": []int{3, 1, 2}})
+	body, _ := json.Marshal(map[string]any{"ids": []int{3, 1, 2}})
 	req := httptest.NewRequest(http.MethodPut, "/api/races/1/checkpoints/order", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestHandler_ReorderCheckpoints_Locked(t *testing.T) {
 	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
 		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
 
-	body, _ := json.Marshal(map[string]any{"ordered_ids": []int{1, 2}})
+	body, _ := json.Marshal(map[string]any{"ids": []int{1, 2}})
 	req := httptest.NewRequest(http.MethodPut, "/api/races/1/checkpoints/order", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

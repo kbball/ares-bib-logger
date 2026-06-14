@@ -40,7 +40,35 @@ func (s *CheckpointService) Create(ctx context.Context, cp entity.Checkpoint) (e
 	return s.checkpoints.Create(ctx, cp)
 }
 
+func (s *CheckpointService) Update(ctx context.Context, id int, code, displayName string) (entity.Checkpoint, error) {
+	cp, err := s.checkpoints.Get(ctx, id)
+	if err != nil {
+		return entity.Checkpoint{}, fmt.Errorf("getting checkpoint: %w", err)
+	}
+	race, err := s.races.Get(ctx, cp.RaceID)
+	if err != nil {
+		return entity.Checkpoint{}, fmt.Errorf("getting race: %w", err)
+	}
+	if race.OrderLocked {
+		return entity.Checkpoint{}, fmt.Errorf("race %d: %w", cp.RaceID, domain.ErrLocked)
+	}
+	cp.Code = code
+	cp.DisplayName = displayName
+	return s.checkpoints.Update(ctx, cp)
+}
+
 func (s *CheckpointService) Delete(ctx context.Context, id int) error {
+	cp, err := s.checkpoints.Get(ctx, id)
+	if err != nil {
+		return fmt.Errorf("getting checkpoint: %w", err)
+	}
+	race, err := s.races.Get(ctx, cp.RaceID)
+	if err != nil {
+		return fmt.Errorf("getting race: %w", err)
+	}
+	if race.OrderLocked {
+		return fmt.Errorf("race %d: %w", cp.RaceID, domain.ErrLocked)
+	}
 	return s.checkpoints.Delete(ctx, id)
 }
 

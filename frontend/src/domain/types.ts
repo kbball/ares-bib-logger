@@ -64,10 +64,17 @@ export interface LogBibResult {
   is_duplicate: boolean
 }
 
+export interface WinlinkSkipDetail {
+  Position: number
+  BibNumber: number
+  Reason: string // "blank" | "no_runner" | "duplicate" | "parse_error"
+}
+
 export interface WinlinkImportResult {
   Created: number
   Updated: number
   Skipped: number
+  SkippedDetails: WinlinkSkipDetail[]
   Errors: string[]
 }
 

@@ -56,7 +56,7 @@ DNS            ← runner sort_order 2
 DNF            ← runner sort_order 4
 …
 ```
-- Values: `HH:MM:SS` | `DNS` | `DNF` | blank
+- Values: `HH:MM` | `DNS` | `DNF` | blank
 - Import maps by row position → runner sort_order (positional, not bib-keyed)
 - Header line may be absent on import — parser must handle both
 
@@ -255,13 +255,13 @@ Three sections:
 - Source checkpoint selector (dropdown of checkpoints in configured display order)
 - Large text area: paste received Winlink column
 - Submit: parses by row position → sort_order; stores CheckpointLog records
-- Import summary: new records added, duplicates skipped
+- Import summary: Created / Updated / Skipped counts; table of skipped details with position, bib, and reason (blank line, no runner at position, duplicate, parse error)
 
 **Tab 3: Winlink Export**
 - Race selector (for GA Jewel; GDR auto-selects)
 - Auto-populates the active checkpoint ID for this station from ActiveSession — no manual selection needed
 - Generates a ready-to-paste column: station header + one time value per runner in sort_order
-- Values: `HH:MM:SS` | `DNS` | `DNF` | blank
+- Values: `HH:MM` | `DNS` | `DNF` | `MOVED <raceName>` | blank
 - **Copy button** to copy the full column to clipboard in one click
 - Output refreshes on demand (operator clicks Generate or Copy before each Winlink send)
 
@@ -331,15 +331,11 @@ Three sections:
 - [x] 2026-06-13 — Winlink Import tab: import summary now shows Created count alongside Updated/Skipped
 - [x] 2026-06-13 — Runners tab: default sort changed to Bib ascending; MOVED chip changed to orange (warning); checkpoint columns populated from log data
 - [x] 2026-06-13 — Light/dark mode: theme factory (`createAppTheme(mode)`), sun/moon toggle icon in AppBar top-right, dark is default
+- [x] 2026-06-13 — Winlink export: MOVED runners now emit `MOVED <raceName>` instead of a blank line; WinlinkService gains races repo to resolve the target race across the event
+- [x] 2026-06-13 — Winlink import: added `SkippedDetails` to result (position, bib, reason: blank/no_runner/duplicate/parse_error); Import tab displays a details table when skips occur
+- [x] 2026-06-13 — Test fixes: added missing mock stubs (Archive, LockOrder, Update/Delete on checkpoints, ListByRace on log service) across service and handler test packages; fixed reorder test field name, roster test format/status, export format timezone
 
 ## Backlog
-
-### Frontend — Bulk DNS/DNF Entry
-- [ ] Add a "Bulk DNS/DNF" toggle on the Data Entry tab
-- [ ] When active: multi-line text area (one bib per line), DNS/DNF dropdown, submit all at once
-- [ ] Primary use case: start-of-race DNS batch (10–30 bibs from race HQ)
-- [ ] Client-side loop over `POST /api/log/status` per bib; collect errors
-- [ ] Completion summary: "X marked DNS, Y errors" with error bib numbers listed
 
 ### Frontend — Responsive Layout
 - [ ] Data Entry tab: cards stack vertically and use full-width inputs on small screens; target tablet (768px+) as primary field-use form factor

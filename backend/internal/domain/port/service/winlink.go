@@ -2,10 +2,17 @@ package service
 
 import "context"
 
+type WinlinkSkipDetail struct {
+	Position  int    // 1-based position in the data rows (after the optional header)
+	BibNumber int    // 0 if no runner was found at this position
+	Reason    string // "blank" | "no_runner" | "duplicate" | "parse_error"
+}
+
 type WinlinkImportResult struct {
-	Created int
-	Updated int // status changes (DNS/DNF)
-	Skipped int // blank lines
+	Created        int
+	Updated        int // status changes (DNS/DNF)
+	Skipped        int
+	SkippedDetails []WinlinkSkipDetail
 }
 
 type WinlinkService interface {

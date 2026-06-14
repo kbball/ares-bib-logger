@@ -21,13 +21,18 @@ func newWinlinkSvc(
 	checkpoints *mockCheckpointRepository,
 	logs *mockCheckpointLogRepository,
 	sess *mockActiveSessionRepository,
+	races ...*mockRaceRepository,
 ) *service.WinlinkService {
-	return service.NewWinlinkService(runners, checkpoints, logs, sess)
+	r := &mockRaceRepository{}
+	if len(races) > 0 {
+		r = races[0]
+	}
+	return service.NewWinlinkService(runners, checkpoints, logs, sess, r)
 }
 
 func parseHHMMSS(s string) time.Time {
 	t, _ := time.Parse("15:04:05", s)
-	return time.Date(2026, 1, 1, t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
+	return time.Date(2026, 1, 1, t.Hour(), t.Minute(), t.Second(), 0, time.Local)
 }
 
 func TestWinlinkService_Export_Format(t *testing.T) {
@@ -65,10 +70,49 @@ func TestWinlinkService_Export_Format(t *testing.T) {
 	require.Len(t, lines, 5) // header + 4 runners
 
 	assert.Equal(t, "AS6", lines[0])
-	assert.Equal(t, "17:45:00", lines[1]) // seen
+	assert.Equal(t, "17:45", lines[1]) // seen
 	assert.Equal(t, "DNS", lines[2])      // DNS status
 	assert.Equal(t, "DNF", lines[3])      // DNF status
 	assert.Equal(t, "", lines[4])         // not seen, no status
+}
+
+func TestWinlinkService_Export_MovedRunner(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{
+			5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6"},
+		},
+	}
+	// Race 1 has two runners: one active, one moved to race 2.
+	// Race 2 is the target and has the moved runner as active.
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2, Status: entity.StatusMoved},
+			{ID: 3, RaceID: 2, BibNumber: 101, SortOrder: 1, Status: entity.StatusActive},
+		},
+	}
+	races := &mockRaceRepository{
+		races: map[int]entity.Race{
+			1: {ID: 1, EventID: 1, Name: "50K"},
+			2: {ID: 2, EventID: 1, Name: "Marathon"},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+
+	svc := newWinlinkSvc(runners, checkpoints, logs, sess, races)
+	out, err := svc.Export(context.Background(), 1)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	require.Len(t, lines, 3) // header + 2 runners
+	assert.Equal(t, "AS6", lines[0])
+	assert.Equal(t, "", lines[1])               // runner 100 not yet seen
+	assert.Equal(t, "MOVED Marathon", lines[2]) // runner 101 moved to Marathon
 }
 
 func TestWinlinkService_Export_NoActiveCheckpoint(t *testing.T) {
@@ -111,6 +155,9 @@ func TestWinlinkService_Import_ParsesTimes(t *testing.T) {
 	assert.Equal(t, 1, result.Skipped) // blank line for runner 2
 	assert.Equal(t, 0, result.Updated)
 	assert.Len(t, logs.created, 2)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, 2, result.SkippedDetails[0].Position)
+	assert.Equal(t, "blank", result.SkippedDetails[0].Reason)
 }
 
 func TestWinlinkService_Import_HandlesDNSDNF(t *testing.T) {
@@ -155,6 +202,10 @@ func TestWinlinkService_Import_SkipsDuplicates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Created)
 	assert.Equal(t, 1, result.Skipped)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, 1, result.SkippedDetails[0].Position)
+	assert.Equal(t, 100, result.SkippedDetails[0].BibNumber)
+	assert.Equal(t, "duplicate", result.SkippedDetails[0].Reason)
 }
 
 func TestWinlinkService_Import_NoHeader(t *testing.T) {
@@ -293,6 +344,9 @@ func TestWinlinkService_Import_SkipsUnknownSortOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Created)
 	assert.Equal(t, 1, result.Skipped)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, 2, result.SkippedDetails[0].Position)
+	assert.Equal(t, "no_runner", result.SkippedDetails[0].Reason)
 }
 
 func TestWinlinkService_Import_InvalidTimeSkipped(t *testing.T) {
@@ -317,6 +371,7 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 		&mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
 		&mockCheckpointLogRepository{},
 		&mockActiveSessionRepository{},
+		&mockRaceRepository{},
 	)
 	_ = svc // tested indirectly via Import below
 

@@ -17,6 +17,7 @@ type WinlinkService struct {
 	checkpoints    portrepo.CheckpointRepository
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
+	races          portrepo.RaceRepository
 }
 
 func NewWinlinkService(
@@ -24,12 +25,14 @@ func NewWinlinkService(
 	checkpoints portrepo.CheckpointRepository,
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
+	races portrepo.RaceRepository,
 ) *WinlinkService {
 	return &WinlinkService{
 		runners:        runners,
 		checkpoints:    checkpoints,
 		checkpointLogs: checkpointLogs,
 		session:        session,
+		races:          races,
 	}
 }
 
@@ -66,19 +69,60 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 		logByRunner[l.RunnerID] = l
 	}
 
+	// For MOVED runners, find the race they transferred to.
+	movedToRace := make(map[int]string) // bib → target race name
+	if sess.EventID != nil {
+		var movedBibs []int
+		for _, r := range runners {
+			if r.Status == entity.StatusMoved {
+				movedBibs = append(movedBibs, r.BibNumber)
+			}
+		}
+		if len(movedBibs) > 0 {
+			movedBibSet := make(map[int]bool, len(movedBibs))
+			for _, b := range movedBibs {
+				movedBibSet[b] = true
+			}
+			allRaces, err := s.races.List(ctx, *sess.EventID)
+			if err != nil {
+				return "", fmt.Errorf("listing races for moved runners: %w", err)
+			}
+			for _, race := range allRaces {
+				if race.ID == raceID {
+					continue
+				}
+				raceRunners, err := s.runners.List(ctx, race.ID)
+				if err != nil {
+					return "", fmt.Errorf("listing runners for race %d: %w", race.ID, err)
+				}
+				for _, r := range raceRunners {
+					if movedBibSet[r.BibNumber] && r.Status != entity.StatusMoved {
+						movedToRace[r.BibNumber] = race.Name
+					}
+				}
+			}
+		}
+	}
+
 	var sb strings.Builder
 	sb.WriteString(cp.Code)
 	sb.WriteByte('\n')
 
 	for _, r := range runners {
 		if log, seen := logByRunner[r.ID]; seen {
-			sb.WriteString(log.RecordedAt.Format("15:04:05"))
+			sb.WriteString(log.RecordedAt.Local().Format("15:04"))
 		} else {
 			switch r.Status {
 			case entity.StatusDNS:
 				sb.WriteString("DNS")
 			case entity.StatusDNF:
 				sb.WriteString("DNF")
+			case entity.StatusMoved:
+				if raceName, ok := movedToRace[r.BibNumber]; ok {
+					sb.WriteString("MOVED " + raceName)
+				} else {
+					sb.WriteString("MOVED")
+				}
 			default:
 				// blank — runner not yet seen at this checkpoint
 			}
@@ -114,18 +158,28 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 
 	var result portsvc.WinlinkImportResult
 
+	skip := func(pos, bib int, reason string) {
+		result.Skipped++
+		result.SkippedDetails = append(result.SkippedDetails, portsvc.WinlinkSkipDetail{
+			Position:  pos,
+			BibNumber: bib,
+			Reason:    reason,
+		})
+	}
+
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		sortOrder := i + 1
+		pos := i + 1
 
 		if line == "" {
-			result.Skipped++
+			skip(pos, 0, "blank")
 			continue
 		}
 
 		runner, ok := byOrder[sortOrder]
 		if !ok {
-			result.Skipped++
+			skip(pos, 0, "no_runner")
 			continue
 		}
 
@@ -159,7 +213,7 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 		default:
 			t, err := parseTimeOfDay(line)
 			if err != nil {
-				result.Skipped++
+				skip(pos, runner.BibNumber, "parse_error")
 				continue
 			}
 			exists, err := s.checkpointLogs.ExistsByRunnerAndCheckpoint(ctx, runner.ID, checkpointID)
@@ -167,7 +221,7 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 				return result, fmt.Errorf("checking duplicate for bib %d: %w", runner.BibNumber, err)
 			}
 			if exists {
-				result.Skipped++
+				skip(pos, runner.BibNumber, "duplicate")
 				continue
 			}
 			if _, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{
@@ -178,6 +232,11 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 				RawMessage:   line,
 			}); err != nil {
 				return result, fmt.Errorf("creating log for bib %d: %w", runner.BibNumber, err)
+			}
+			if runner.Status == entity.StatusUnknown {
+				if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusActive); err != nil {
+					return result, fmt.Errorf("updating status for bib %d: %w", runner.BibNumber, err)
+				}
 			}
 			result.Created++
 		}
@@ -195,10 +254,10 @@ func looksLikeTimeOrStatus(s string) bool {
 	return len(s) >= 5 && s[2] == ':' && unicode.IsDigit(rune(s[0]))
 }
 
-// parseTimeOfDay parses HH:MM:SS or HH:MM, combining with today's date.
+// parseTimeOfDay parses HH:MM:SS or HH:MM as local wall-clock time on today's date.
 func parseTimeOfDay(s string) (time.Time, error) {
 	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		t, err := time.Parse(layout, s)

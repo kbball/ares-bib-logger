@@ -91,13 +91,7 @@ func TestHandler_ImportRoster_Success(t *testing.T) {
 	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
 		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
 
-	body := map[string]any{
-		"rows": []map[string]any{
-			{"bib_number": 100, "first_name": "Alice", "last_name": "Smith"},
-			{"bib_number": 101, "first_name": "Bob", "last_name": "Jones"},
-		},
-	}
-	b, _ := json.Marshal(body)
+	b, _ := json.Marshal(map[string]any{"tsv": "100\tAlice\tSmith\n101\tBob\tJones"})
 	req := httptest.NewRequest(http.MethodPost, "/api/races/1/roster", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -105,7 +99,7 @@ func TestHandler_ImportRoster_Success(t *testing.T) {
 	h.Register(mux)
 	mux.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, runners.importCalled)
 }
 

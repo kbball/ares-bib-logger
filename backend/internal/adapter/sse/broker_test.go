@@ -91,7 +91,7 @@ type strictResponseWriter struct {
 	status int
 }
 
-func (s *strictResponseWriter) Header() http.Header       { return s.header }
+func (s *strictResponseWriter) Header() http.Header         { return s.header }
 func (s *strictResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (s *strictResponseWriter) WriteHeader(code int)        { s.status = code }
 
