@@ -439,6 +439,7 @@ export default function RunnersTab() {
                     <strong>Race:</strong> {race?.Name ?? `Race ${selectedRunner.RaceID}`}
                   </Typography>
                   <Typography
+                    component="div"
                     variant="body2"
                     sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
                   >
