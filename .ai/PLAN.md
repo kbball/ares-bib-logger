@@ -395,6 +395,7 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 
 ### CI / Quality
 - [ ] Pre-commit hook or CI step: `make lint && make fmt` must pass before commit
+- [x] GitHub Actions Node.js 24 migration — set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in before the forced 2026-06-16 deadline
 
 ---
 
