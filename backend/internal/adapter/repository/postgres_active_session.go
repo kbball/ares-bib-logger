@@ -28,7 +28,7 @@ func (r *ActiveSessionRepo) Get(ctx context.Context) (entity.ActiveSession, erro
 	}
 	defer func() { _ = rows.Close() }()
 
-	var sess entity.ActiveSession
+	sess := entity.ActiveSession{Checkpoints: []entity.ActiveSessionCheckpoint{}}
 	first := true
 	for rows.Next() {
 		var eventID sql.NullInt64

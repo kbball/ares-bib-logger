@@ -76,7 +76,7 @@ export default function WinlinkExportTab() {
 
   const buildSubject = () => {
     const race = races.find((r) => r.ID === Number(raceID))
-    const sessionCp = session?.Checkpoints.find((c) => c.RaceID === Number(raceID))
+    const sessionCp = session?.Checkpoints?.find((c) => c.RaceID === Number(raceID))
     const cp = checkpoints.find((c) => c.ID === sessionCp?.CheckpointID)
     return [cp?.DisplayName, race?.Name, currentHHMM(), 'update'].filter(Boolean).join(' ')
   }

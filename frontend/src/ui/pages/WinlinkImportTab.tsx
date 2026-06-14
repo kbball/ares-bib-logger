@@ -71,7 +71,7 @@ export default function WinlinkImportTab() {
 
   useStream({ onSessionChanged: (p) => setSession(p as ActiveSession) })
 
-  const activeCheckpointID = session?.Checkpoints.find(
+  const activeCheckpointID = session?.Checkpoints?.find(
     (c) => c.RaceID === Number(raceID),
   )?.CheckpointID
   const checkpoints = raceID
