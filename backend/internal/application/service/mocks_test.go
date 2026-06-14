@@ -127,6 +127,7 @@ type mockCheckpointLogRepository struct {
 	nextID    int
 	existsErr error
 	createErr error
+	upsertErr error
 	listErr   error
 }
 
@@ -139,6 +140,24 @@ func (m *mockCheckpointLogRepository) Create(_ context.Context, log entity.Check
 	m.logs = append(m.logs, log)
 	m.created = append(m.created, log)
 	return log, nil
+}
+
+func (m *mockCheckpointLogRepository) Upsert(_ context.Context, log entity.CheckpointLog) (entity.CheckpointLog, bool, error) {
+	if m.upsertErr != nil {
+		return entity.CheckpointLog{}, false, m.upsertErr
+	}
+	for i, l := range m.logs {
+		if l.RunnerID == log.RunnerID && l.CheckpointID == log.CheckpointID {
+			log.ID = l.ID
+			m.logs[i] = log
+			return log, false, nil
+		}
+	}
+	m.nextID++
+	log.ID = m.nextID
+	m.logs = append(m.logs, log)
+	m.created = append(m.created, log)
+	return log, true, nil
 }
 
 func (m *mockCheckpointLogRepository) ExistsByRunnerAndCheckpoint(_ context.Context, runnerID, checkpointID int) (bool, error) {

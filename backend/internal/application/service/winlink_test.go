@@ -183,14 +183,14 @@ func TestWinlinkService_Import_HandlesDNSDNF(t *testing.T) {
 	assert.Equal(t, entity.StatusDNF, runners.runners[1].Status)
 }
 
-func TestWinlinkService_Import_SkipsDuplicates(t *testing.T) {
+func TestWinlinkService_Import_OverwritesDuplicates(t *testing.T) {
 	runners := &mockRunnerRepository{
 		runners: []entity.Runner{
 			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1},
 		},
 	}
 	logs := &mockCheckpointLogRepository{
-		logs: []entity.CheckpointLog{{RunnerID: 1, CheckpointID: 10}},
+		logs: []entity.CheckpointLog{{ID: 1, RunnerID: 1, CheckpointID: 10}},
 	}
 	sess := &mockActiveSessionRepository{}
 
@@ -201,11 +201,9 @@ func TestWinlinkService_Import_SkipsDuplicates(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Created)
-	assert.Equal(t, 1, result.Skipped)
-	require.Len(t, result.SkippedDetails, 1)
-	assert.Equal(t, 1, result.SkippedDetails[0].Position)
-	assert.Equal(t, 100, result.SkippedDetails[0].BibNumber)
-	assert.Equal(t, "duplicate", result.SkippedDetails[0].Reason)
+	assert.Equal(t, 1, result.Updated) // overwrite counts as Updated
+	assert.Equal(t, 0, result.Skipped)
+	assert.Empty(t, result.SkippedDetails)
 }
 
 func TestWinlinkService_Import_NoHeader(t *testing.T) {
@@ -367,26 +365,15 @@ func TestWinlinkService_Import_DNFUpdateError(t *testing.T) {
 	assert.ErrorContains(t, err, "updating DNF status")
 }
 
-func TestWinlinkService_Import_ExistsError(t *testing.T) {
+func TestWinlinkService_Import_UpsertError(t *testing.T) {
 	runners := &mockRunnerRepository{
 		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1}},
 	}
-	logs := &mockCheckpointLogRepository{existsErr: errDB}
+	logs := &mockCheckpointLogRepository{upsertErr: errDB}
 	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}, logs, &mockActiveSessionRepository{})
 
 	_, err := svc.Import(context.Background(), 1, 10, "17:45:00\n")
-	assert.ErrorContains(t, err, "checking duplicate")
-}
-
-func TestWinlinkService_Import_CreateError(t *testing.T) {
-	runners := &mockRunnerRepository{
-		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1}},
-	}
-	logs := &mockCheckpointLogRepository{createErr: errDB}
-	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}, logs, &mockActiveSessionRepository{})
-
-	_, err := svc.Import(context.Background(), 1, 10, "17:45:00\n")
-	assert.ErrorContains(t, err, "creating log")
+	assert.ErrorContains(t, err, "upserting log")
 }
 
 func TestWinlinkService_Import_SkipsUnknownSortOrder(t *testing.T) {
@@ -441,6 +428,8 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 		{"", true},
 		{"17:45:00", true},
 		{"08:00", true},
+		{"7:35", true},  // single-digit hour must not be treated as a header
+		{"9:05:30", true},
 		{"AS6", false},
 		{"HELLO", false},
 	}

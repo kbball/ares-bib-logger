@@ -198,21 +198,14 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 			if err := s.runners.UpdateStatus(ctx, runner.ID, status); err != nil {
 				return result, fmt.Errorf("updating %s status for bib %d: %w", upper, runner.BibNumber, err)
 			}
-			// Record at the checkpoint so it shows in the checkpoint column.
-			exists, err := s.checkpointLogs.ExistsByRunnerAndCheckpoint(ctx, runner.ID, checkpointID)
-			if err != nil {
-				return result, fmt.Errorf("checking log for bib %d: %w", runner.BibNumber, err)
-			}
-			if !exists {
-				if _, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{
-					RunnerID:     runner.ID,
-					CheckpointID: checkpointID,
-					RecordedAt:   time.Now().UTC(),
-					Source:       entity.SourceWinlinkImport,
-					RawMessage:   upper,
-				}); err != nil {
-					return result, fmt.Errorf("creating %s log for bib %d: %w", upper, runner.BibNumber, err)
-				}
+			if _, _, err := s.checkpointLogs.Upsert(ctx, entity.CheckpointLog{
+				RunnerID:     runner.ID,
+				CheckpointID: checkpointID,
+				RecordedAt:   time.Now().UTC(),
+				Source:       entity.SourceWinlinkImport,
+				RawMessage:   upper,
+			}); err != nil {
+				return result, fmt.Errorf("upserting %s log for bib %d: %w", upper, runner.BibNumber, err)
 			}
 			result.Updated++
 		default:
@@ -221,29 +214,26 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 				skip(pos, runner.BibNumber, "parse_error")
 				continue
 			}
-			exists, err := s.checkpointLogs.ExistsByRunnerAndCheckpoint(ctx, runner.ID, checkpointID)
-			if err != nil {
-				return result, fmt.Errorf("checking duplicate for bib %d: %w", runner.BibNumber, err)
-			}
-			if exists {
-				skip(pos, runner.BibNumber, "duplicate")
-				continue
-			}
-			if _, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{
+			_, wasCreated, err := s.checkpointLogs.Upsert(ctx, entity.CheckpointLog{
 				RunnerID:     runner.ID,
 				CheckpointID: checkpointID,
 				RecordedAt:   t,
 				Source:       entity.SourceWinlinkImport,
 				RawMessage:   line,
-			}); err != nil {
-				return result, fmt.Errorf("creating log for bib %d: %w", runner.BibNumber, err)
+			})
+			if err != nil {
+				return result, fmt.Errorf("upserting log for bib %d: %w", runner.BibNumber, err)
 			}
 			if runner.Status == entity.StatusUnknown {
 				if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusActive); err != nil {
 					return result, fmt.Errorf("updating status for bib %d: %w", runner.BibNumber, err)
 				}
 			}
-			result.Created++
+			if wasCreated {
+				result.Created++
+			} else {
+				result.Updated++
+			}
 		}
 	}
 
@@ -261,7 +251,12 @@ func looksLikeTimeOrStatus(s string) bool {
 	if strings.HasPrefix(s, "MOVED") {
 		return true
 	}
-	return len(s) >= 5 && s[2] == ':' && unicode.IsDigit(rune(s[0]))
+	// HH:MM or HH:MM:SS
+	if len(s) >= 5 && s[2] == ':' && unicode.IsDigit(rune(s[0])) {
+		return true
+	}
+	// H:MM or H:MM:SS (single-digit hour)
+	return len(s) >= 4 && s[1] == ':' && unicode.IsDigit(rune(s[0]))
 }
 
 // parseTimeOfDay parses HH:MM:SS or HH:MM as local wall-clock time on today's date.

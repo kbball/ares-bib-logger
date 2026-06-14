@@ -40,6 +40,27 @@ func (r *CheckpointLogRepo) Create(ctx context.Context, log entity.CheckpointLog
 	return created, nil
 }
 
+func (r *CheckpointLogRepo) Upsert(ctx context.Context, log entity.CheckpointLog) (entity.CheckpointLog, bool, error) {
+	var wasCreated bool
+	var l entity.CheckpointLog
+	var rawMsg sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO checkpoint_logs (runner_id, checkpoint_id, recorded_at, source, raw_message)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (runner_id, checkpoint_id) DO UPDATE
+		   SET recorded_at = EXCLUDED.recorded_at,
+		       source      = EXCLUDED.source,
+		       raw_message = EXCLUDED.raw_message
+		 RETURNING `+logCols+`, (xmax = 0)`,
+		log.RunnerID, log.CheckpointID, log.RecordedAt, string(log.Source), nullableStr(log.RawMessage),
+	).Scan(&l.ID, &l.RunnerID, &l.CheckpointID, &l.RecordedAt, &l.Source, &rawMsg, &l.CreatedAt, &wasCreated)
+	if err != nil {
+		return entity.CheckpointLog{}, false, fmt.Errorf("upserting checkpoint log: %w", err)
+	}
+	l.RawMessage = rawMsg.String
+	return l, wasCreated, nil
+}
+
 func (r *CheckpointLogRepo) ExistsByRunnerAndCheckpoint(ctx context.Context, runnerID, checkpointID int) (bool, error) {
 	var exists bool
 	err := r.db.QueryRowContext(ctx,

@@ -16,7 +16,7 @@ const TABS = ['Data Entry', 'Winlink Import', 'Winlink Export', 'Runners', 'Admi
 
 export default function App() {
   const [tab, setTab] = useState(0)
-  const [colorMode, setColorMode] = useState<ColorMode>('dark')
+  const [colorMode, setColorMode] = useState<ColorMode>('light')
   const theme = useMemo(() => createAppTheme(colorMode), [colorMode])
   const toggleMode = () => setColorMode((m) => (m === 'dark' ? 'light' : 'dark'))
 

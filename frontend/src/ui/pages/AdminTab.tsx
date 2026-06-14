@@ -13,7 +13,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
-import type { Event, Race, Checkpoint, ActiveSession } from '../../domain/types'
+import type { Event, Race, Checkpoint, ActiveSession, Runner, RunnerStatus } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -42,6 +42,14 @@ export default function AdminTab() {
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
+  // Runner status
+  const [statusRaceID, setStatusRaceID] = useState<number | ''>('')
+  const [statusBib, setStatusBib] = useState('')
+  const [statusRunner, setStatusRunner] = useState<Runner | null>(null)
+  const [statusNew, setStatusNew] = useState<RunnerStatus>('ACTIVE')
+  const [statusMsg, setStatusMsg] = useState('')
+  const [statusSearchErr, setStatusSearchErr] = useState('')
+
   // Confirmation dialogs
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'race' | 'checkpoint'; id: number; label: string } | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string } | null>(null)
@@ -132,6 +140,37 @@ export default function AdminTab() {
         return loadRaces(session!.EventID!)
       })
     )
+  }
+
+  const searchRunner = async () => {
+    if (!statusRaceID || !statusBib.trim()) return
+    setStatusRunner(null)
+    setStatusMsg('')
+    setStatusSearchErr('')
+    try {
+      const runners = await api.listRunners(Number(statusRaceID))
+      const found = runners.find((r) => r.BibNumber === Number(statusBib))
+      if (!found) {
+        setStatusSearchErr(`Bib ${statusBib} not found in this race.`)
+      } else {
+        setStatusRunner(found)
+        setStatusNew(found.Status === 'MOVED' || found.Status === 'UNKNOWN' ? 'ACTIVE' : found.Status)
+      }
+    } catch (e: unknown) {
+      setStatusSearchErr((e as Error).message)
+    }
+  }
+
+  const applyRunnerStatus = async () => {
+    if (!statusRunner) return
+    try {
+      await api.logStatus(statusRunner.BibNumber, statusNew)
+      setStatusRunner({ ...statusRunner, Status: statusNew })
+      setStatusMsg(`Status updated to ${statusNew}.`)
+      setStatusSearchErr('')
+    } catch (e: unknown) {
+      setStatusSearchErr((e as Error).message)
+    }
   }
 
   const moveCheckpoint = (raceID: number, cp: Checkpoint, direction: 'up' | 'down') => {
@@ -492,6 +531,80 @@ export default function AdminTab() {
           {rosterMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{rosterMsg}</Typography>}
         </Box>
       </Stack>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* ── Runner Status ── */}
+      <Typography variant="h6" gutterBottom>Change Runner Status</Typography>
+      {!session?.EventID && (
+        <Alert severity="info" sx={{ mb: 2 }}>Select an active event first.</Alert>
+      )}
+      {session?.EventID && (
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Race</InputLabel>
+              <Select
+                value={statusRaceID}
+                label="Race"
+                onChange={(e) => { setStatusRaceID(Number(e.target.value)); setStatusRunner(null); setStatusMsg('') }}
+              >
+                {races.map((r) => (
+                  <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="Bib number"
+              type="number"
+              value={statusBib}
+              onChange={(e) => { setStatusBib(e.target.value); setStatusRunner(null); setStatusMsg('') }}
+              onKeyDown={(e) => e.key === 'Enter' && searchRunner()}
+              sx={{ width: 120 }}
+            />
+            <Button
+              variant="outlined"
+              disabled={!statusRaceID || !statusBib.trim()}
+              onClick={searchRunner}
+            >
+              Search
+            </Button>
+          </Stack>
+
+          {statusSearchErr && <Alert severity="error">{statusSearchErr}</Alert>}
+
+          {statusRunner && (
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>{statusRunner.FirstName} {statusRunner.LastName}</strong> — Bib {statusRunner.BibNumber}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Chip label={statusRunner.Status} size="small" />
+                <Typography variant="body2">→</Typography>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel>New status</InputLabel>
+                  <Select
+                    value={statusNew}
+                    label="New status"
+                    onChange={(e) => setStatusNew(e.target.value as RunnerStatus)}
+                  >
+                    {(['ACTIVE', 'DNS', 'DNF', 'FINISHED'] as RunnerStatus[]).map((s) => (
+                      <MenuItem key={s} value={s}>{s}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Button variant="contained" size="small" onClick={applyRunnerStatus}>
+                  Set
+                </Button>
+              </Stack>
+              {statusMsg && (
+                <Alert severity="success" sx={{ mt: 1 }}>{statusMsg}</Alert>
+              )}
+            </Paper>
+          )}
+        </Stack>
+      )}
 
       {/* ── Archive confirmation ── */}
       <Dialog open={!!archiveTarget} onClose={() => setArchiveTarget(null)}>

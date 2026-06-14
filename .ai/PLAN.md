@@ -335,8 +335,16 @@ Three sections:
 - [x] 2026-06-13 — Winlink import: added `SkippedDetails` to result (position, bib, reason: blank/no_runner/duplicate/parse_error); Import tab displays a details table when skips occur
 - [x] 2026-06-13 — Test fixes: added missing mock stubs (Archive, LockOrder, Update/Delete on checkpoints, ListByRace on log service) across service and handler test packages; fixed reorder test field name, roster test format/status, export format timezone
 - [x] 2026-06-13 — Pace / Projected Arrival: migration 000003 adds nullable `distance_from_start` to checkpoints; field threaded through entity → repo → service → handler; Admin UI adds Dist (mi) field to checkpoint create/edit; `domain/pace.ts` computes pace from last two logged CPs with distances; Runners tab shows Pace (MM:SS /mi) and Proj. Next (HH:MM) columns when ≥2 CPs have distances; Data Entry race cards show "Next expected: HH:MM" at the active checkpoint
+- [x] 2026-06-14 — **Bug fix (Winlink blank-line positional shift)**: `looksLikeTimeOrStatus` failed to recognize single-digit-hour times (`"7:35"`, len=4) because the check required `len(s) >= 5`; the first data row was misidentified as a checkpoint header and skipped, shifting every subsequent runner one position off; fixed by also matching `H:MM` / `H:MM:SS` patterns via `s[1] == ':'`
+- [x] 2026-06-14 — Winlink import upsert: changed from skip-on-duplicate to upsert — same column can be re-imported any number of times and new data overwrites existing; added `Upsert` to `CheckpointLogRepository` using `INSERT … ON CONFLICT (runner_id, checkpoint_id) DO UPDATE`; `xmax=0` detects insert vs overwrite for `Created`/`Updated` result counts; manual and MQTT logging remain dedup-only (unaffected); removed "duplicate" skip reason from frontend label map
+- [x] 2026-06-14 — Default theme changed from dark to light
+- [x] 2026-06-14 — Admin: "Change Runner Status" section — select race, enter bib, click Search to find runner; shows name + current status chip → new-status dropdown (ACTIVE / DNS / DNF / FINISHED) + Set button; calls existing `POST /api/log/status`
+- [x] 2026-06-14 — Runners tab: clicking any row opens a runner detail modal — shows bib, race, status chip, current pace, projected arrival at the active checkpoint (using display name), and full checkpoint log table for that runner's race
 
 ## Backlog
+
+### ~~Winlink Import — Blank Line Positional Investigation~~ ✅ Resolved 2026-06-14
+Root cause identified and fixed: single-digit-hour times (e.g. `7:35`) were 4 chars and failed the `len(s) >= 5` guard in `looksLikeTimeOrStatus`, causing the first data row to be skipped as a phantom header.
 
 ### Frontend — Responsive Layout
 - [ ] Data Entry tab: cards stack vertically and use full-width inputs on small screens; target tablet (768px+) as primary field-use form factor

@@ -5,7 +5,7 @@ import "context"
 type WinlinkSkipDetail struct {
 	Position  int    // 1-based position in the data rows (after the optional header)
 	BibNumber int    // 0 if no runner was found at this position
-	Reason    string // "blank" | "no_runner" | "duplicate" | "parse_error"
+	Reason    string // "blank" | "no_runner" | "parse_error" | "moved"
 }
 
 type WinlinkImportResult struct {
