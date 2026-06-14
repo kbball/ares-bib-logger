@@ -143,6 +143,14 @@ export default function AdminTab() {
   const activeCheckpointFor = (raceID: number) =>
     session?.Checkpoints?.find((c) => c.RaceID === raceID)?.CheckpointID ?? null
 
+  // Guard against out-of-range MUI warning: only use the CP ID as value once options have loaded.
+  const activeCpSelectValue = (raceID: number) => {
+    const cpID = activeCheckpointFor(raceID)
+    return cpID !== null && (checkpointsByRace[raceID] ?? []).some((cp) => cp.ID === cpID)
+      ? cpID
+      : ''
+  }
+
   const wrap = (fn: () => Promise<unknown>, onDone?: () => void) =>
     fn()
       .then(() => {
@@ -494,7 +502,7 @@ export default function AdminTab() {
                 <FormControl size="small" sx={{ minWidth: 180 }}>
                   <InputLabel id={`active-cp-label-${race.ID}`}>Active Checkpoint</InputLabel>
                   <Select
-                    value={activeCheckpointFor(race.ID) ?? ''}
+                    value={activeCpSelectValue(race.ID)}
                     label="Active Checkpoint"
                     labelId={`active-cp-label-${race.ID}`}
                     onChange={(e) => {
