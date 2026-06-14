@@ -45,10 +45,8 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getAllByLabelText(/bib #/i)[0])
-    const bibInput = screen.getAllByLabelText(/bib #/i)[0]
-    await user.type(bibInput, '100')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^log$/i })).not.toBeDisabled())
+    await waitFor(() => screen.getByText('GDR')) // session + races loaded → hasActiveCheckpoint true
+    await user.type(screen.getAllByLabelText(/bib #/i)[0], '100')
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
     await waitFor(() => expect(screen.getByText(/alice/i)).toBeInTheDocument())
@@ -58,9 +56,8 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getAllByLabelText(/bib #/i)[0])
+    await waitFor(() => screen.getByText('GDR'))
     await user.type(screen.getAllByLabelText(/bib #/i)[0], 'abc')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^log$/i })).not.toBeDisabled())
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
     await waitFor(() => expect(screen.getByText(/valid bib/i)).toBeInTheDocument())
@@ -75,9 +72,8 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getAllByLabelText(/bib #/i)[0])
+    await waitFor(() => screen.getByText('GDR'))
     await user.type(screen.getAllByLabelText(/bib #/i)[0], '100')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^log$/i })).not.toBeDisabled())
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
     await waitFor(() => expect(screen.getAllByText(/duplicate/i).length).toBeGreaterThan(0))
@@ -145,9 +141,8 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getAllByLabelText(/bib #/i)[0])
+    await waitFor(() => screen.getByText('GDR'))
     await user.type(screen.getAllByLabelText(/bib #/i)[0], '999')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^log$/i })).not.toBeDisabled())
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
     await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
@@ -180,9 +175,8 @@ describe('DataEntryTab', () => {
     const user = userEvent.setup()
     render(<DataEntryTab />)
 
-    await waitFor(() => screen.getAllByLabelText(/bib #/i)[0])
+    await waitFor(() => screen.getByText('GDR'))
     await user.type(screen.getAllByLabelText(/bib #/i)[0], '100')
-    await waitFor(() => expect(screen.getByRole('button', { name: /^log$/i })).not.toBeDisabled())
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
     // Alert text is "DUPLICATE: Bib 100 (...)" — distinct from the chip label "DUPLICATE"

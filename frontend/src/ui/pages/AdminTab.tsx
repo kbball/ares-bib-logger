@@ -290,7 +290,7 @@ export default function AdminTab() {
         <FormControl size="small" sx={{ minWidth: 220 }}>
           <InputLabel id="event-label">Event</InputLabel>
           <Select
-            value={session?.EventID ?? ''}
+            value={events.some((e) => e.ID === session?.EventID) ? (session?.EventID ?? '') : ''}
             label="Event"
             labelId="event-label"
             onChange={(e) => wrap(() => api.setSessionEvent(Number(e.target.value)), loadSession)}
@@ -320,7 +320,7 @@ export default function AdminTab() {
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
                   a.href = url
-                  a.download = `event-${(ev?.Name ?? session.EventID).toString().replace(/\s+/g, '-').toLowerCase()}.json`
+                  a.download = `event-${(ev?.Name ?? eventID).toString().replace(/\s+/g, '-').toLowerCase()}.json`
                   a.click()
                   URL.revokeObjectURL(url)
                 } catch {
