@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -16,6 +17,11 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
+	if status >= 500 {
+		slog.Error("handler error", "status", status, "error", msg)
+	} else {
+		slog.Debug("handler error", "status", status, "error", msg)
+	}
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 

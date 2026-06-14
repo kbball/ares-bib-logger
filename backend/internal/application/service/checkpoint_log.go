@@ -72,6 +72,10 @@ func (s *CheckpointLogService) LogBib(ctx context.Context, input portsvc.LogBibI
 	return portsvc.LogBibResult{Log: log, Runner: runner}, nil
 }
 
+func (s *CheckpointLogService) ListByRace(ctx context.Context, raceID int) ([]entity.CheckpointLog, error) {
+	return s.checkpointLogs.ListByRace(ctx, raceID)
+}
+
 func (s *CheckpointLogService) LogStatus(ctx context.Context, bibNumber int, status entity.RunnerStatus) error {
 	sess, err := s.session.Get(ctx)
 	if err != nil {

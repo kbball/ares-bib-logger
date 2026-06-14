@@ -33,3 +33,7 @@ func (s *RaceService) Create(ctx context.Context, eventID int, name string) (ent
 func (s *RaceService) Delete(ctx context.Context, id int) error {
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *RaceService) LockOrder(ctx context.Context, id int) error {
+	return s.repo.LockOrder(ctx, id)
+}

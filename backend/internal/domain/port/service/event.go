@@ -10,4 +10,5 @@ type EventService interface {
 	List(ctx context.Context) ([]entity.Event, error)
 	Get(ctx context.Context, id int) (entity.Event, error)
 	Create(ctx context.Context, name string) (entity.Event, error)
+	Archive(ctx context.Context, id int) error
 }

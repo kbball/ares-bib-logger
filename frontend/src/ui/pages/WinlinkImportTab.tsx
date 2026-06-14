@@ -114,6 +114,7 @@ export default function WinlinkImportTab() {
         {result && (
           <Paper sx={{ p: 2 }}>
             <Typography variant="subtitle1" gutterBottom>Import Summary</Typography>
+            <Typography>Created: {result.Created}</Typography>
             <Typography>Updated: {result.Updated}</Typography>
             <Typography>Skipped: {result.Skipped}</Typography>
             {result.Errors?.length > 0 && (

@@ -30,7 +30,18 @@ func (s *CheckpointService) Get(ctx context.Context, id int) (entity.Checkpoint,
 }
 
 func (s *CheckpointService) Create(ctx context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
+	if cp.DisplayOrder == 0 {
+		existing, err := s.checkpoints.List(ctx, cp.RaceID)
+		if err != nil {
+			return entity.Checkpoint{}, fmt.Errorf("listing checkpoints for order: %w", err)
+		}
+		cp.DisplayOrder = len(existing) + 1
+	}
 	return s.checkpoints.Create(ctx, cp)
+}
+
+func (s *CheckpointService) Delete(ctx context.Context, id int) error {
+	return s.checkpoints.Delete(ctx, id)
 }
 
 func (s *CheckpointService) Reorder(ctx context.Context, raceID int, orderedIDs []int) error {

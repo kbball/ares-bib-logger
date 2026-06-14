@@ -29,3 +29,7 @@ func (s *EventService) Get(ctx context.Context, id int) (entity.Event, error) {
 func (s *EventService) Create(ctx context.Context, name string) (entity.Event, error) {
 	return s.repo.Create(ctx, name)
 }
+
+func (s *EventService) Archive(ctx context.Context, id int) error {
+	return s.repo.Archive(ctx, id)
+}

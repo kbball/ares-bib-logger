@@ -22,4 +22,6 @@ type CheckpointLogService interface {
 	LogBib(ctx context.Context, input LogBibInput) (LogBibResult, error)
 	// LogStatus records a DNS/DNF/ACTIVE status change for a runner by bib number.
 	LogStatus(ctx context.Context, bibNumber int, status entity.RunnerStatus) error
+	// ListByRace returns all checkpoint logs for runners in a race.
+	ListByRace(ctx context.Context, raceID int) ([]entity.CheckpointLog, error)
 }

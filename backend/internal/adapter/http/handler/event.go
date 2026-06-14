@@ -49,3 +49,17 @@ func (h *Handler) getEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, event)
 }
+
+func (h *Handler) archiveEvent(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid event id")
+		return
+	}
+
+	if err := h.events.Archive(r.Context(), id); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

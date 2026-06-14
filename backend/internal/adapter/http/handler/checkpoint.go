@@ -54,6 +54,20 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, cp)
 }
 
+func (h *Handler) deleteCheckpoint(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid checkpoint id")
+		return
+	}
+
+	if err := h.checkpoints.Delete(r.Context(), id); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) reorderCheckpoints(w http.ResponseWriter, r *http.Request) {
 	raceID, ok := pathInt(r, "raceID")
 	if !ok {
@@ -62,14 +76,14 @@ func (h *Handler) reorderCheckpoints(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		OrderedIDs []int `json:"ordered_ids"`
+		IDs []int `json:"ids"`
 	}
-	if err := decode(r, &body); err != nil || len(body.OrderedIDs) == 0 {
-		writeError(w, http.StatusBadRequest, "ordered_ids is required")
+	if err := decode(r, &body); err != nil || len(body.IDs) == 0 {
+		writeError(w, http.StatusBadRequest, "ids is required")
 		return
 	}
 
-	if err := h.checkpoints.Reorder(r.Context(), raceID, body.OrderedIDs); err != nil {
+	if err := h.checkpoints.Reorder(r.Context(), raceID, body.IDs); err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}

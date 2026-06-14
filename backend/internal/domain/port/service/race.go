@@ -11,4 +11,5 @@ type RaceService interface {
 	Get(ctx context.Context, id int) (entity.Race, error)
 	Create(ctx context.Context, eventID int, name string) (entity.Race, error)
 	Delete(ctx context.Context, id int) error
+	LockOrder(ctx context.Context, id int) error
 }

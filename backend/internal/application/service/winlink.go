@@ -131,14 +131,29 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 
 		upper := strings.ToUpper(line)
 		switch upper {
-		case "DNS":
-			if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusDNS); err != nil {
-				return result, fmt.Errorf("updating DNS status for bib %d: %w", runner.BibNumber, err)
+		case "DNS", "DNF":
+			status := entity.StatusDNS
+			if upper == "DNF" {
+				status = entity.StatusDNF
 			}
-			result.Updated++
-		case "DNF":
-			if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusDNF); err != nil {
-				return result, fmt.Errorf("updating DNF status for bib %d: %w", runner.BibNumber, err)
+			if err := s.runners.UpdateStatus(ctx, runner.ID, status); err != nil {
+				return result, fmt.Errorf("updating %s status for bib %d: %w", upper, runner.BibNumber, err)
+			}
+			// Record at the checkpoint so it shows in the checkpoint column.
+			exists, err := s.checkpointLogs.ExistsByRunnerAndCheckpoint(ctx, runner.ID, checkpointID)
+			if err != nil {
+				return result, fmt.Errorf("checking log for bib %d: %w", runner.BibNumber, err)
+			}
+			if !exists {
+				if _, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{
+					RunnerID:     runner.ID,
+					CheckpointID: checkpointID,
+					RecordedAt:   time.Now().UTC(),
+					Source:       entity.SourceWinlinkImport,
+					RawMessage:   upper,
+				}); err != nil {
+					return result, fmt.Errorf("creating %s log for bib %d: %w", upper, runner.BibNumber, err)
+				}
 			}
 			result.Updated++
 		default:

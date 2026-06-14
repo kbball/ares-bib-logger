@@ -3,7 +3,13 @@ import {
   Box, Typography, Divider, TextField, Button, Select, MenuItem,
   FormControl, InputLabel, Stack, Chip, Alert, Paper,
   Table, TableHead, TableRow, TableCell, TableBody,
+  IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/Delete'
+import ArchiveIcon from '@mui/icons-material/Archive'
+import LockIcon from '@mui/icons-material/Lock'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import type { Event, Race, Checkpoint, ActiveSession } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
@@ -27,6 +33,9 @@ export default function AdminTab() {
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
+  // Delete / archive confirmation dialogs
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'race' | 'checkpoint'; id: number; label: string } | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string } | null>(null)
 
   const loadSession = () =>
     api.getSession().then(setSession).catch(() => {})
@@ -70,6 +79,42 @@ export default function AdminTab() {
       .then(() => { setError(''); onDone?.() })
       .catch((e: Error) => setError(e.message))
 
+  const confirmDelete = () => {
+    if (!deleteTarget) return
+    const { type, id } = deleteTarget
+    if (type === 'race') {
+      wrap(() => api.deleteRace(id).then(() => loadRaces(session!.EventID!)), () => setDeleteTarget(null))
+    } else {
+      wrap(
+        () => api.deleteCheckpoint(id).then(() => loadCheckpoints(races.map((r) => r.ID))),
+        () => setDeleteTarget(null),
+      )
+    }
+  }
+
+  const confirmArchive = () => {
+    if (!archiveTarget) return
+    wrap(
+      () => api.archiveEvent(archiveTarget.id).then(() => {
+        setArchiveTarget(null)
+        return Promise.all([loadEvents(), loadSession()])
+      }),
+    )
+  }
+
+  const moveCheckpoint = (raceID: number, cp: Checkpoint, direction: 'up' | 'down') => {
+    const cps = [...(checkpointsByRace[raceID] ?? [])].sort((a, b) => a.DisplayOrder - b.DisplayOrder)
+    const idx = cps.findIndex((c) => c.ID === cp.ID)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= cps.length) return
+    const reordered = [...cps]
+    ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+    wrap(
+      () => api.reorderCheckpoints(raceID, reordered.map((c) => c.ID))
+        .then(() => loadCheckpoints(races.map((r) => r.ID))),
+    )
+  }
+
   return (
     <Box sx={{ maxWidth: 800 }}>
       <Typography variant="h5" gutterBottom>Admin</Typography>
@@ -95,6 +140,18 @@ export default function AdminTab() {
         </FormControl>
         {session?.EventID && (
           <Chip label={`Event #${session.EventID} active`} color="success" size="small" />
+        )}
+        {session?.EventID && (
+          <IconButton
+            size="small"
+            title="Archive this event — removes it from the dropdown"
+            onClick={() => {
+              const ev = events.find((e) => e.ID === session.EventID)
+              if (ev) setArchiveTarget({ id: ev.ID, label: ev.Name })
+            }}
+          >
+            <ArchiveIcon fontSize="small" />
+          </IconButton>
         )}
       </Stack>
 
@@ -155,9 +212,30 @@ export default function AdminTab() {
             <Paper key={race.ID} sx={{ p: 2, mb: 2 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   {race.RosterLocked && <Chip label="Roster locked" size="small" color="warning" />}
-                  {race.OrderLocked && <Chip label="Order locked" size="small" color="warning" />}
+                  {race.OrderLocked
+                    ? <Chip label="Order locked" size="small" color="warning" />
+                    : (
+                      <IconButton
+                        size="small"
+                        title="Finalize checkpoint order — locks it so Winlink mappings can't shift"
+                        onClick={() => wrap(
+                          () => api.lockRaceOrder(race.ID).then(() => loadRaces(session!.EventID!))
+                        )}
+                      >
+                        <LockIcon fontSize="small" />
+                      </IconButton>
+                    )
+                  }
+                  <IconButton
+                    size="small"
+                    color="error"
+                    title="Delete race and all its data"
+                    onClick={() => setDeleteTarget({ type: 'race', id: race.ID, label: race.Name })}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
                 </Stack>
               </Stack>
 
@@ -189,23 +267,53 @@ export default function AdminTab() {
                 </FormControl>
               </Stack>
 
-              {/* Checkpoint list + add */}
+              {/* Checkpoint list + reorder + delete */}
               <Table size="small" sx={{ mt: 1 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Order</TableCell>
                     <TableCell>Code</TableCell>
                     <TableCell>Name</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {(checkpointsByRace[race.ID] ?? [])
                     .sort((a, b) => a.DisplayOrder - b.DisplayOrder)
-                    .map((cp) => (
+                    .map((cp, idx, arr) => (
                       <TableRow key={cp.ID}>
                         <TableCell>{cp.DisplayOrder}</TableCell>
                         <TableCell>{cp.Code}</TableCell>
                         <TableCell>{cp.DisplayName}</TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={0} sx={{ justifyContent: 'flex-end' }}>
+                            {!race.OrderLocked && (
+                              <>
+                                <IconButton
+                                  size="small"
+                                  disabled={idx === 0}
+                                  onClick={() => moveCheckpoint(race.ID, cp, 'up')}
+                                >
+                                  <ArrowUpwardIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  disabled={idx === arr.length - 1}
+                                  onClick={() => moveCheckpoint(race.ID, cp, 'down')}
+                                >
+                                  <ArrowDownwardIcon fontSize="small" />
+                                </IconButton>
+                              </>
+                            )}
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -281,6 +389,35 @@ export default function AdminTab() {
         </Box>
       </Stack>
 
+      {/* ── Archive confirmation dialog ── */}
+      <Dialog open={!!archiveTarget} onClose={() => setArchiveTarget(null)}>
+        <DialogTitle>Archive Event</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Archive "{archiveTarget?.label}"? It will be hidden from the event dropdown. All race data is preserved and can be recovered by a developer if needed.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setArchiveTarget(null)}>Cancel</Button>
+          <Button color="warning" variant="contained" onClick={confirmArchive}>Archive</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete confirmation dialog ── */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {deleteTarget?.type === 'race'
+              ? `Delete race "${deleteTarget.label}" and ALL its runners, checkpoints, and logs? This cannot be undone.`
+              : `Delete checkpoint "${deleteTarget?.label}"? Any existing logs for this checkpoint will also be deleted.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={confirmDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

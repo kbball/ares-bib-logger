@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
@@ -33,31 +36,62 @@ func (h *Handler) importRoster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Rows []struct {
-			BibNumber int    `json:"bib_number"`
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-		} `json:"rows"`
+		TSV string `json:"tsv"`
 	}
-	if err := decode(r, &body); err != nil || len(body.Rows) == 0 {
-		writeError(w, http.StatusBadRequest, "rows are required")
+	if err := decode(r, &body); err != nil || strings.TrimSpace(body.TSV) == "" {
+		writeError(w, http.StatusBadRequest, "tsv is required")
 		return
 	}
 
-	rows := make([]portsvc.RosterRow, len(body.Rows))
-	for i, r := range body.Rows {
-		rows[i] = portsvc.RosterRow{
-			BibNumber: r.BibNumber,
-			FirstName: r.FirstName,
-			LastName:  r.LastName,
-		}
+	rows, err := parseTSVRoster(body.TSV)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if err := h.runners.ImportRoster(r.Context(), raceID, rows); err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]int{"imported": len(rows)})
+}
+
+// parseTSVRoster parses a tab-separated paste (from Excel) into roster rows.
+// Accepts 2 columns (bib, combined name) or 3 columns (bib, first, last).
+func parseTSVRoster(tsv string) ([]portsvc.RosterRow, error) {
+	var rows []portsvc.RosterRow
+	for i, line := range strings.Split(strings.TrimSpace(tsv), "\n") {
+		line = strings.TrimRight(line, "\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("line %d: expected at least 2 tab-separated columns", i+1)
+		}
+		bib, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil || bib <= 0 {
+			return nil, fmt.Errorf("line %d: invalid bib number %q", i+1, parts[0])
+		}
+		var first, last string
+		if len(parts) == 2 {
+			name := strings.TrimSpace(parts[1])
+			if idx := strings.Index(name, " "); idx >= 0 {
+				first = name[:idx]
+				last = name[idx+1:]
+			} else {
+				first = name
+			}
+		} else {
+			first = strings.TrimSpace(parts[1])
+			last = strings.TrimSpace(parts[2])
+		}
+		rows = append(rows, portsvc.RosterRow{BibNumber: bib, FirstName: first, LastName: last})
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no valid rows found in TSV")
+	}
+	return rows, nil
 }
 
 func (h *Handler) transferRunner(w http.ResponseWriter, r *http.Request) {

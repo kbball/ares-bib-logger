@@ -60,3 +60,17 @@ func (h *Handler) deleteRace(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) lockRaceOrder(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid race id")
+		return
+	}
+
+	if err := h.races.LockOrder(r.Context(), id); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

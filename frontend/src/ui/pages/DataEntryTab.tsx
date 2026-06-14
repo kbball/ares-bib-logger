@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert, Box, Button, Chip, Divider, FormControl, InputLabel,
   MenuItem, Paper, Select, Stack, Table, TableBody, TableCell,
-  TableHead, TableRow, TextField, Typography,
+  TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
-import type { ActiveSession, LogBibResult, Race, Runner } from '../../domain/types'
+import type { ActiveSession, Checkpoint, LogBibResult, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -18,6 +18,7 @@ export default function DataEntryTab() {
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
   const [runners, setRunners] = useState<Runner[]>([])
+  const [checkpointsByRace, setCheckpointsByRace] = useState<Record<number, Checkpoint[]>>({})
   const [recentLogs, setRecentLogs] = useState<LogBibResult[]>([])
   const [dupAlert, setDupAlert] = useState<string | null>(null)
 
@@ -47,20 +48,26 @@ export default function DataEntryTab() {
     const all = await Promise.all(raceIDs.map((id) => api.listRunners(id)))
     setRunners(all.flat())
   }, [])
+  const loadCheckpoints = useCallback(async (raceIDs: number[]) => {
+    const entries = await Promise.all(
+      raceIDs.map(async (id) => [id, await api.listCheckpoints(id)] as [number, Checkpoint[]])
+    )
+    setCheckpointsByRace(Object.fromEntries(entries))
+  }, [])
+
+  useEffect(() => { loadSession() }, [loadSession])
 
   useEffect(() => {
-    loadSession()
-  }, [loadSession])
-
-  useEffect(() => {
-    if (session?.EventID) {
-      loadRaces(session.EventID)
-    }
+    if (session?.EventID) loadRaces(session.EventID)
   }, [session?.EventID, loadRaces])
 
   useEffect(() => {
-    if (races.length) loadRunners(races.map((r) => r.ID))
-  }, [races, loadRunners])
+    if (races.length) {
+      const ids = races.map((r) => r.ID)
+      loadRunners(ids)
+      loadCheckpoints(ids)
+    }
+  }, [races, loadRunners, loadCheckpoints])
 
   const pushLog = useCallback((result: LogBibResult) => {
     if (result.is_duplicate) {
@@ -71,9 +78,14 @@ export default function DataEntryTab() {
   }, [])
 
   useStream({
-    onBibLogged: (payload) => pushLog(payload as LogBibResult),
+    onBibLogged: (payload) => {
+      pushLog(payload as LogBibResult)
+      loadRunners(races.map((r) => r.ID))
+    },
     onSessionChanged: (payload) => setSession(payload as ActiveSession),
   })
+
+  const hasActiveCheckpoint = (session?.Checkpoints?.length ?? 0) > 0
 
   const submitBib = async () => {
     const n = parseInt(bib, 10)
@@ -85,6 +97,7 @@ export default function DataEntryTab() {
       setBibError('')
       setError('')
       bibRef.current?.focus()
+      loadRunners(races.map((r) => r.ID))
     } catch (e: unknown) {
       setBibError((e as Error).message)
     }
@@ -98,6 +111,7 @@ export default function DataEntryTab() {
       setStatusMsg(`Bib ${n} marked ${status}`)
       setStatusBib('')
       setError('')
+      loadRunners(races.map((r) => r.ID))
     } catch (e: unknown) {
       setError((e as Error).message)
     }
@@ -109,18 +123,23 @@ export default function DataEntryTab() {
     const runner = runners.find((r) => r.BibNumber === n)
     if (!runner) { setTransferMsg(`Bib ${n} not found`); return }
     try {
-      await api.transferRunner(runner.ID, Number(transferRace))
+      await api.transferRunner(runner.BibNumber, runner.RaceID, Number(transferRace))
       setTransferMsg(`Bib ${n} transferred`)
       setTransferBib('')
       setTransferRace('')
       setError('')
+      loadRunners(races.map((r) => r.ID))
     } catch (e: unknown) {
       setError((e as Error).message)
     }
   }
 
-  const activeCheckpoint = (raceID: number) =>
-    session?.Checkpoints?.find((c) => c.RaceID === raceID)?.CheckpointID
+  const activeCheckpointFor = (raceID: number) => {
+    const cpID = session?.Checkpoints?.find((c) => c.RaceID === raceID)?.CheckpointID
+    if (!cpID) return null
+    const cp = (checkpointsByRace[raceID] ?? []).find((c) => c.ID === cpID)
+    return cp ?? null
+  }
 
   return (
     <Box sx={{ maxWidth: 900 }}>
@@ -132,31 +151,47 @@ export default function DataEntryTab() {
           {dupAlert}
         </Alert>
       )}
+      {!hasActiveCheckpoint && session?.EventID && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No active checkpoint set. Go to Admin and set an active checkpoint before logging bibs.
+        </Alert>
+      )}
+
+      {!session?.EventID && (
+        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
+      )}
 
       {/* ── Race stats ── */}
       {races.length > 0 && (
         <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
           {races.map((race) => {
             const raceRunners = runners.filter((r) => r.RaceID === race.ID)
-            const cpID = activeCheckpoint(race.ID)
+            const cp = activeCheckpointFor(race.ID)
             return (
               <Paper key={race.ID} sx={{ p: 1.5, minWidth: 160 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
-                <Typography variant="body2">Runners: {raceRunners.length}</Typography>
-                <Typography variant="body2">
-                  Active: {raceRunners.filter((r) => r.Status === 'ACTIVE').length}
-                </Typography>
-                <Typography variant="body2" color={cpID ? 'success.main' : 'error.main'}>
-                  {cpID ? `CP #${cpID}` : 'No active CP'}
-                </Typography>
+                <Tooltip title="Total runners in this race (includes all statuses)">
+                  <Typography variant="body2">Runners: {raceRunners.length}</Typography>
+                </Tooltip>
+                <Tooltip title="Runners still on course — status is ACTIVE or UNKNOWN">
+                  <Typography variant="body2">
+                    On course: {raceRunners.filter((r) => r.Status === 'ACTIVE' || r.Status === 'UNKNOWN').length}
+                  </Typography>
+                </Tooltip>
+                <Tooltip title="Runners who did not start (DNS) or did not finish (DNF)">
+                  <Typography variant="body2">
+                    DNS/DNF: {raceRunners.filter((r) => r.Status === 'DNS' || r.Status === 'DNF').length}
+                  </Typography>
+                </Tooltip>
+                <Tooltip title={cp ? 'Active checkpoint for this race' : 'No checkpoint assigned — set one in Admin'}>
+                  <Typography variant="body2" color={cp ? 'success.main' : 'error.main'}>
+                    {cp ? `${cp.Code} – ${cp.DisplayName}` : 'No active CP'}
+                  </Typography>
+                </Tooltip>
               </Paper>
             )
           })}
         </Stack>
-      )}
-
-      {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
       )}
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
@@ -175,8 +210,13 @@ export default function DataEntryTab() {
               error={!!bibError}
               helperText={bibError}
               autoFocus
+              disabled={!hasActiveCheckpoint}
             />
-            <Button variant="contained" onClick={submitBib} disabled={!bib}>
+            <Button
+              variant="contained"
+              onClick={submitBib}
+              disabled={!bib || !hasActiveCheckpoint}
+            >
               Log
             </Button>
           </Stack>
@@ -192,6 +232,7 @@ export default function DataEntryTab() {
               size="small"
               sx={{ width: 100 }}
               onChange={(e) => setStatusBib(e.target.value)}
+              disabled={!hasActiveCheckpoint}
             />
             <FormControl size="small" sx={{ width: 90 }}>
               <InputLabel>Status</InputLabel>
@@ -199,12 +240,17 @@ export default function DataEntryTab() {
                 value={status}
                 label="Status"
                 onChange={(e) => setStatus(e.target.value as 'DNS' | 'DNF')}
+                disabled={!hasActiveCheckpoint}
               >
                 <MenuItem value="DNS">DNS</MenuItem>
                 <MenuItem value="DNF">DNF</MenuItem>
               </Select>
             </FormControl>
-            <Button variant="outlined" onClick={submitStatus} disabled={!statusBib}>
+            <Button
+              variant="outlined"
+              onClick={submitStatus}
+              disabled={!statusBib || !hasActiveCheckpoint}
+            >
               Submit
             </Button>
           </Stack>
@@ -267,7 +313,7 @@ export default function DataEntryTab() {
             {recentLogs.map((entry, i) => {
               const race = races.find((r) => r.ID === entry.runner.RaceID)
               return (
-                <TableRow key={i} sx={{ bgcolor: entry.is_duplicate ? 'warning.light' : undefined }}>
+                <TableRow key={i} sx={{ bgcolor: entry.is_duplicate ? 'warning.dark' : undefined }}>
                   <TableCell>{entry.runner.BibNumber}</TableCell>
                   <TableCell>{entry.runner.FirstName} {entry.runner.LastName}</TableCell>
                   <TableCell>{race?.Name ?? `Race ${entry.runner.RaceID}`}</TableCell>

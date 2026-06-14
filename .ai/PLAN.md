@@ -309,54 +309,55 @@ Three sections:
 - [x] 2026-06-13 — Created `.env.example`
 - [x] 2026-06-13 — Created `.gitignore`
 - [x] 2026-06-13 — Created `Makefile`
-- [x] 2026-06-13 — Created `docker-compose.yml`
+- [x] 2026-06-13 — Created `docker-compose.yml` (includes Mosquitto MQTT broker)
 - [x] 2026-06-13 — Created `backend/go.mod`
 - [x] 2026-06-13 — Scaffolded hexagonal directory structure (backend + frontend)
 - [x] 2026-06-13 — Frontend init: package.json, Vite, TypeScript, React, Vitest, ESLint, Prettier
-- [ ] Add Material UI (`@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`) to frontend
 - [x] 2026-06-13 — Captured project background, domain model, features, and open questions in plan
 - [x] 2026-06-13 — Analyzed GDR spreadsheet: Winlink format, column layout, roster structure
 - [x] 2026-06-13 — Analyzed GA Jewel spreadsheet: 4 races, bib ranges, checkpoint chains, Out/In structure
+- [x] 2026-06-13 — Backend foundation: config package, `main.go`, DB migrations (Event, Race, Checkpoint, Runner, CheckpointLog, ActiveSession), HTTP server
+- [x] 2026-06-13 — Backend complete: all domain entities, port interfaces, application services, Postgres repos, HTTP handlers, MQTT adapter, Winlink import/export, roster importer
+- [x] 2026-06-13 — Frontend complete: Material UI, all five tabs (Data Entry, Winlink Import, Winlink Export, Runners, Admin), SSE real-time updates, Dockerfile
+- [x] 2026-06-13 — MUI dark theme: custom color palette, Inter font (offline via `@fontsource/inter`), component overrides throughout
+- [x] 2026-06-13 — Logo: background-removed PNG added to AppBar
+- [x] 2026-06-13 — Bug fixes (round 1): checkpoint duplicate key, roster TSV import, transferRunner API, reorderCheckpoints field name, frontend–API alignment
+- [x] 2026-06-13 — Enhancements (round 1): checkpoint delete, up/down reorder arrows, HTTP logging middleware, runner table grid lines + sortable columns, race stat tooltips
+- [x] 2026-06-13 — Archive event: migration + full stack (repo → service → handler → frontend), removes event from dropdown while preserving data
+- [x] 2026-06-13 — Lock checkpoint order: `PUT /api/races/{id}/lock-order`, hides reorder arrows and add-checkpoint form in Admin once locked
+- [x] 2026-06-13 — DNS/DNF Winlink import: now also creates a CheckpointLog entry so runners appear in checkpoint columns on Runners tab
+- [x] 2026-06-13 — `GET /api/races/{raceID}/logs` endpoint + frontend wiring: Runners tab now shows actual logged times (HH:MM) and DNS/DNF per checkpoint cell
+- [x] 2026-06-13 — Data Entry tab: refreshes runner stats after every log/DNS/DNF/transfer; shows checkpoint name+code instead of ID; disables Log/Submit when no active CP set
+- [x] 2026-06-13 — Winlink Import tab: import summary now shows Created count alongside Updated/Skipped
+- [x] 2026-06-13 — Runners tab: default sort changed to Bib ascending; MOVED chip changed to orange (warning); checkpoint columns populated from log data
+- [x] 2026-06-13 — Light/dark mode: theme factory (`createAppTheme(mode)`), sun/moon toggle icon in AppBar top-right, dark is default
 
 ## Backlog
 
-### Pending answers / research
-- [ ] Confirm Meshtastic message format and MQTT topic
-- [ ] Confirm roster import UX (xlsx upload vs CSV)
+### Frontend — Bulk DNS/DNF Entry
+- [ ] Add a "Bulk DNS/DNF" toggle on the Data Entry tab
+- [ ] When active: multi-line text area (one bib per line), DNS/DNF dropdown, submit all at once
+- [ ] Primary use case: start-of-race DNS batch (10–30 bibs from race HQ)
+- [ ] Client-side loop over `POST /api/log/status` per bib; collect errors
+- [ ] Completion summary: "X marked DNS, Y errors" with error bib numbers listed
 
-### Infrastructure
-- [ ] Add Mosquitto MQTT broker to `docker-compose.yml`
-- [ ] Add MQTT env vars to `.env.example` (MQTT_HOST, MQTT_PORT, MQTT_TOPIC)
+### Frontend — Responsive Layout
+- [ ] Data Entry tab: cards stack vertically and use full-width inputs on small screens; target tablet (768px+) as primary field-use form factor
 
-### Backend — Foundation
-- [ ] `main.go` — env config, run migrations at startup, start HTTP server
-- [ ] `config` package — load all env vars into a typed struct
-- [ ] DB schema migrations: Event, Race, Checkpoint, Runner, CheckpointLog, ActiveSession
+### Frontend + API — Pace / Projected Arrival
+- [ ] Add `distance_from_start` field to `checkpoints` table (new migration)
+- [ ] Calculate pace from checkpoint log timestamps + known distances
+- [ ] Display projected arrival at next checkpoint on Data Entry race-stats cards and/or Runners tab
+- [ ] Algorithm: pace = elapsed / distance between last two logged CPs; projection = now + (distance to next CP / pace)
+- [ ] Edge cases: single CP logged → "—"; DNS/DNF excluded; outlier pace flagged
 
-### Backend — Core Domain
-- [ ] Domain entities (Event, Race, Checkpoint, Runner, CheckpointLog, ActiveSession)
-- [ ] Port interfaces (repository + service layers)
-- [ ] Application services (CheckpointLogService, RunnerService, SessionService, WinlinkService)
-
-### Backend — Adapters
-- [ ] Postgres repository implementations
-- [ ] HTTP handlers (REST API)
-- [ ] MQTT adapter (subscribe, parse bibs, dispatch to CheckpointLogService)
-- [ ] Winlink export formatter
-- [ ] Winlink import parser (positional, optional header)
-- [ ] Roster importer (xlsx / CSV → Runner rows)
-
-### Frontend
-- [ ] Install Material UI (`@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`)
-- [ ] Admin panel: event config, checkpoint display order (locked after race start), roster import (locked after first import), active checkpoint selection per race
-- [ ] Tab 1 — Data entry: race stats, manual bib entry, DNS/DNF, recent log, duplicate alert, race transfer
-- [ ] Tab 2 — Winlink import: race + checkpoint selector, paste area, import summary
-- [ ] Tab 3 — Winlink export: race selector, auto-pulls active AS, generates column, copy button
-- [ ] Tab 4 — Runners tabular (view only): bib/name search, checkpoint columns in display order
+### Testing
+- [ ] Backend: unit tests for all domain + application packages (`testing` + `testify`, mockery mocks); target >90% coverage
+- [ ] Frontend: Vitest + React Testing Library + MSW for all tabs
+- [ ] `make coverage` enforces the threshold
 
 ### CI / Quality
-- [ ] Pre-commit hook or CI step for `make lint && make fmt`
-- [ ] Coverage enforcement
+- [ ] Pre-commit hook or CI step: `make lint && make fmt` must pass before commit
 
 ---
 
@@ -386,3 +387,6 @@ Three sections:
 | 2026-06-13 | `MQTT_ENABLED` flag for fallback mode | MQTT is optional; app runs fully in manual-entry mode when disabled — degrades gracefully, doesn't crash |
 | 2026-06-13 | All state is DB-persisted; no in-memory-only state | Container restarts must be transparent — event config, roster, checkpoints, and ActiveSession all live in Postgres; the app loads from DB on boot, not from memory |
 | 2026-06-13 | Material UI (`@mui/material`) as frontend component library | Pre-built accessible components (tabs, tables, forms, dialogs) match the app's UI well and avoid building layout primitives from scratch |
+| 2026-06-13 | `@fontsource/inter` for Inter typeface | App runs off-grid with no internet; CDN fonts are forbidden; npm-bundled font files are the only safe option |
+| 2026-06-13 | Dark mode default, user-toggleable light mode | Field use is often in low-light or tent environments — dark default reduces eye strain; light mode available for daylight use |
+| 2026-06-13 | Theme as `createAppTheme(mode)` factory | Single source of truth for both themes; `App.tsx` holds the `colorMode` state and passes it to `ThemeProvider` via `useMemo` |

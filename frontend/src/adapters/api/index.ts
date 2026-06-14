@@ -3,6 +3,7 @@ import type {
   Event,
   Race,
   Checkpoint,
+  CheckpointLog,
   Runner,
   ActiveSession,
   LogBibResult,
@@ -13,27 +14,33 @@ import type {
 // Events
 export const listEvents = () => get<Event[]>('/api/events')
 export const createEvent = (name: string) => post<Event>('/api/events', { name })
+export const archiveEvent = (id: number) => put<void>(`/api/events/${id}/archive`)
 
 // Races
 export const listRaces = (eventID: number) => get<Race[]>(`/api/events/${eventID}/races`)
 export const createRace = (eventID: number, name: string) =>
   post<Race>(`/api/events/${eventID}/races`, { name })
 export const deleteRace = (id: number) => del<void>(`/api/races/${id}`)
+export const lockRaceOrder = (id: number) => put<void>(`/api/races/${id}/lock-order`)
 
 // Checkpoints
 export const listCheckpoints = (raceID: number) =>
   get<Checkpoint[]>(`/api/races/${raceID}/checkpoints`)
 export const createCheckpoint = (raceID: number, code: string, displayName: string) =>
   post<Checkpoint>(`/api/races/${raceID}/checkpoints`, { code, display_name: displayName })
+export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>
   put<void>(`/api/races/${raceID}/checkpoints/order`, { ids })
+
+// Checkpoint logs
+export const listCheckpointLogs = (raceID: number) => get<CheckpointLog[]>(`/api/races/${raceID}/logs`)
 
 // Runners / Roster
 export const listRunners = (raceID: number) => get<Runner[]>(`/api/races/${raceID}/runners`)
 export const importRoster = (raceID: number, tsv: string) =>
   post<{ imported: number }>(`/api/races/${raceID}/roster`, { tsv })
-export const transferRunner = (runnerID: number, toRaceID: number) =>
-  post<void>('/api/runners/transfer', { runner_id: runnerID, to_race_id: toRaceID })
+export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: number) =>
+  post<void>('/api/runners/transfer', { bib_number: bibNumber, from_race_id: fromRaceID, to_race_id: toRaceID })
 
 // Bib logging
 export const logBib = (bibNumber: number) =>

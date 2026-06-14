@@ -19,7 +19,7 @@ var _ portrepo.EventRepository = (*EventRepo)(nil)
 
 func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, created_at FROM events ORDER BY created_at DESC`)
+		`SELECT id, name, archived, created_at FROM events WHERE NOT archived ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("listing events: %w", err)
 	}
@@ -28,7 +28,7 @@ func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 	var events []entity.Event
 	for rows.Next() {
 		var e entity.Event
-		if err := rows.Scan(&e.ID, &e.Name, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.Archived, &e.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning event: %w", err)
 		}
 		events = append(events, e)
@@ -39,8 +39,8 @@ func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 func (r *EventRepo) Get(ctx context.Context, id int) (entity.Event, error) {
 	var e entity.Event
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, created_at FROM events WHERE id = $1`, id).
-		Scan(&e.ID, &e.Name, &e.CreatedAt)
+		`SELECT id, name, archived, created_at FROM events WHERE id = $1`, id).
+		Scan(&e.ID, &e.Name, &e.Archived, &e.CreatedAt)
 	if err != nil {
 		return entity.Event{}, mapNotFound(err)
 	}
@@ -50,10 +50,15 @@ func (r *EventRepo) Get(ctx context.Context, id int) (entity.Event, error) {
 func (r *EventRepo) Create(ctx context.Context, name string) (entity.Event, error) {
 	var e entity.Event
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO events (name) VALUES ($1) RETURNING id, name, created_at`, name).
-		Scan(&e.ID, &e.Name, &e.CreatedAt)
+		`INSERT INTO events (name) VALUES ($1) RETURNING id, name, archived, created_at`, name).
+		Scan(&e.ID, &e.Name, &e.Archived, &e.CreatedAt)
 	if err != nil {
 		return entity.Event{}, fmt.Errorf("creating event: %w", err)
 	}
 	return e, nil
+}
+
+func (r *EventRepo) Archive(ctx context.Context, id int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE events SET archived = true WHERE id = $1`, id)
+	return err
 }

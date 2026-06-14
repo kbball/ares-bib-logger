@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Box, Chip, FormControl, InputLabel, MenuItem,
   Select, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, TextField, Typography,
+  TableRow, TableSortLabel, TextField, Typography,
 } from '@mui/material'
-import type { ActiveSession, Checkpoint, Race, Runner } from '../../domain/types'
+import type { ActiveSession, Checkpoint, CheckpointLog, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -13,17 +13,33 @@ const STATUS_COLOR: Record<string, 'default' | 'success' | 'error' | 'warning' |
   DNS: 'error',
   DNF: 'warning',
   FINISHED: 'info',
-  MOVED: 'default',
+  MOVED: 'warning',
   UNKNOWN: 'default',
 }
+
+type SortKey = 'BibNumber' | 'Name' | 'Status' | 'SortOrder'
+type SortDir = 'asc' | 'desc'
 
 export default function RunnersTab() {
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
   const [allRunners, setAllRunners] = useState<Runner[]>([])
   const [checkpointsByRace, setCheckpointsByRace] = useState<Record<number, Checkpoint[]>>({})
+  const [logsByRace, setLogsByRace] = useState<Record<number, CheckpointLog[]>>({})
   const [filterRaceID, setFilterRaceID] = useState<number | ''>('')
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('BibNumber')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  const loadRunners = (raceIDs: number[]) =>
+    Promise.all(raceIDs.map((id) => api.listRunners(id))).then((arr) =>
+      setAllRunners(arr.flat()),
+    )
+
+  const loadLogs = (raceIDs: number[]) =>
+    Promise.all(raceIDs.map((id) => api.listCheckpointLogs(id).then((logs) => [id, logs] as [number, CheckpointLog[]]))).then(
+      (entries) => setLogsByRace(Object.fromEntries(entries)),
+    )
 
   useEffect(() => {
     api.getSession().then(setSession).catch(() => {})
@@ -36,30 +52,47 @@ export default function RunnersTab() {
 
   useEffect(() => {
     if (!races.length) return
-    Promise.all(races.map((r) => api.listRunners(r.ID))).then((arr) =>
-      setAllRunners(arr.flat()),
-    )
+    const ids = races.map((r) => r.ID)
+    loadRunners(ids)
     Promise.all(
       races.map((r) => api.listCheckpoints(r.ID).then((cps) => [r.ID, cps] as [number, Checkpoint[]])),
     ).then((entries) => setCheckpointsByRace(Object.fromEntries(entries)))
+    loadLogs(ids)
   }, [races])
 
   useStream({
     onSessionChanged: (p) => setSession(p as ActiveSession),
     onBibLogged: () => {
-      // Refresh runner list on any bib event to pick up status changes
       if (races.length) {
-        Promise.all(races.map((r) => api.listRunners(r.ID))).then((arr) =>
-          setAllRunners(arr.flat()),
-        )
+        const ids = races.map((r) => r.ID)
+        loadRunners(ids)
+        loadLogs(ids)
       }
     },
   })
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   const visibleRace = filterRaceID ? races.find((r) => r.ID === filterRaceID) : null
   const checkpoints = visibleRace
     ? (checkpointsByRace[visibleRace.ID] ?? []).sort((a, b) => a.DisplayOrder - b.DisplayOrder)
     : []
+
+  // Build a fast lookup: `${runnerID}-${checkpointID}` → log
+  const logMap = useMemo(() => {
+    const m = new Map<string, CheckpointLog>()
+    Object.values(logsByRace).flat().forEach((log) => {
+      m.set(`${log.RunnerID}-${log.CheckpointID}`, log)
+    })
+    return m
+  }, [logsByRace])
 
   const filtered = useMemo(() => {
     let runners = filterRaceID
@@ -76,10 +109,39 @@ export default function RunnersTab() {
       )
     }
 
-    return [...runners].sort((a, b) => a.SortOrder - b.SortOrder)
-  }, [allRunners, filterRaceID, search])
+    return [...runners].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'BibNumber' || sortKey === 'SortOrder') {
+        cmp = a[sortKey] - b[sortKey]
+      } else if (sortKey === 'Name') {
+        cmp = `${a.LastName} ${a.FirstName}`.localeCompare(`${b.LastName} ${b.FirstName}`)
+      } else if (sortKey === 'Status') {
+        cmp = a.Status.localeCompare(b.Status)
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [allRunners, filterRaceID, search, sortKey, sortDir])
 
   const raceForRunner = (r: Runner) => races.find((rc) => rc.ID === r.RaceID)
+
+  const formatLogCell = (log: CheckpointLog | undefined) => {
+    if (!log) return '—'
+    const raw = log.RawMessage?.toUpperCase()
+    if (raw === 'DNS' || raw === 'DNF') return raw
+    return new Date(log.RecordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const col = (label: string, key: SortKey) => (
+    <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+      <TableSortLabel
+        active={sortKey === key}
+        direction={sortKey === key ? sortDir : 'asc'}
+        onClick={() => handleSort(key)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  )
 
   return (
     <Box>
@@ -117,36 +179,47 @@ export default function RunnersTab() {
       </Typography>
 
       <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small" stickyHeader>
+        <Table size="small" stickyHeader sx={{ borderCollapse: 'collapse' }}>
           <TableHead>
             <TableRow>
-              <TableCell>Bib</TableCell>
-              <TableCell>Name</TableCell>
-              {!filterRaceID && <TableCell>Race</TableCell>}
-              <TableCell>Status</TableCell>
+              {col('Bib', 'BibNumber')}
+              {col('Name', 'Name')}
+              {!filterRaceID && (
+                <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>Race</TableCell>
+              )}
+              {col('Status', 'Status')}
               {checkpoints.map((cp) => (
-                <TableCell key={cp.ID}>{cp.Code}</TableCell>
+                <TableCell key={cp.ID} sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+                  {cp.Code}
+                </TableCell>
               ))}
             </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map((runner) => (
               <TableRow key={runner.ID} hover>
-                <TableCell>{runner.BibNumber}</TableCell>
-                <TableCell>{runner.FirstName} {runner.LastName}</TableCell>
+                <TableCell sx={{ border: 1, borderColor: 'divider' }}>{runner.BibNumber}</TableCell>
+                <TableCell sx={{ border: 1, borderColor: 'divider' }}>{runner.FirstName} {runner.LastName}</TableCell>
                 {!filterRaceID && (
-                  <TableCell>{raceForRunner(runner)?.Name ?? `Race ${runner.RaceID}`}</TableCell>
+                  <TableCell sx={{ border: 1, borderColor: 'divider' }}>
+                    {raceForRunner(runner)?.Name ?? `Race ${runner.RaceID}`}
+                  </TableCell>
                 )}
-                <TableCell>
+                <TableCell sx={{ border: 1, borderColor: 'divider' }}>
                   <Chip
                     label={runner.Status}
                     size="small"
                     color={STATUS_COLOR[runner.Status] ?? 'default'}
                   />
                 </TableCell>
-                {checkpoints.map((cp) => (
-                  <TableCell key={cp.ID}>—</TableCell>
-                ))}
+                {checkpoints.map((cp) => {
+                  const log = logMap.get(`${runner.ID}-${cp.ID}`)
+                  return (
+                    <TableCell key={cp.ID} sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
+                      {formatLogCell(log)}
+                    </TableCell>
+                  )
+                })}
               </TableRow>
             ))}
           </TableBody>

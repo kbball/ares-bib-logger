@@ -1,6 +1,7 @@
 export interface Event {
   ID: number
   Name: string
+  Archived: boolean
   CreatedAt: string
 }
 
@@ -64,6 +65,7 @@ export interface LogBibResult {
 }
 
 export interface WinlinkImportResult {
+  Created: number
   Updated: number
   Skipped: number
   Errors: string[]

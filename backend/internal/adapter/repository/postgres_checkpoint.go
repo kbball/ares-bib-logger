@@ -55,6 +55,11 @@ func (r *CheckpointRepo) Get(ctx context.Context, id int) (entity.Checkpoint, er
 	return cp, nil
 }
 
+func (r *CheckpointRepo) Delete(ctx context.Context, id int) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM checkpoints WHERE id = $1`, id)
+	return err
+}
+
 func (r *CheckpointRepo) Create(ctx context.Context, cp entity.Checkpoint) (entity.Checkpoint, error) {
 	created, err := scanCheckpoint(r.db.QueryRowContext(ctx,
 		`INSERT INTO checkpoints (race_id, code, display_name, display_order)

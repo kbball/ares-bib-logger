@@ -47,15 +47,18 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/events", h.listEvents)
 	mux.HandleFunc("POST /api/events", h.createEvent)
 	mux.HandleFunc("GET /api/events/{id}", h.getEvent)
+	mux.HandleFunc("PUT /api/events/{id}/archive", h.archiveEvent)
 
 	// Races
 	mux.HandleFunc("GET /api/events/{eventID}/races", h.listRaces)
 	mux.HandleFunc("POST /api/events/{eventID}/races", h.createRace)
 	mux.HandleFunc("DELETE /api/races/{id}", h.deleteRace)
+	mux.HandleFunc("PUT /api/races/{id}/lock-order", h.lockRaceOrder)
 
 	// Checkpoints
 	mux.HandleFunc("GET /api/races/{raceID}/checkpoints", h.listCheckpoints)
 	mux.HandleFunc("POST /api/races/{raceID}/checkpoints", h.createCheckpoint)
+	mux.HandleFunc("DELETE /api/checkpoints/{id}", h.deleteCheckpoint)
 	mux.HandleFunc("PUT /api/races/{raceID}/checkpoints/order", h.reorderCheckpoints)
 
 	// Runners / Roster
@@ -66,6 +69,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Bib logging
 	mux.HandleFunc("POST /api/log/bib", h.logBib)
 	mux.HandleFunc("POST /api/log/status", h.logStatus)
+	mux.HandleFunc("GET /api/races/{raceID}/logs", h.listCheckpointLogs)
 
 	// Session
 	mux.HandleFunc("GET /api/session", h.getSession)
