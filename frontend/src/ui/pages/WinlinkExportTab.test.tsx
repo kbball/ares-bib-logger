@@ -15,31 +15,25 @@ beforeEach(() => {
   Object.assign(navigator.clipboard, { writeText: mockWriteText })
   mockWriteText.mockClear()
 })
-afterEach(() => { vi.mocked(useStream).mockReset() })
+afterEach(() => {
+  vi.mocked(useStream).mockReset()
+})
 
 describe('WinlinkExportTab', () => {
   it('shows no-event alert when session has no event', async () => {
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
     render(<WinlinkExportTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/no active event/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no active event/i)).toBeInTheDocument())
   })
 
   it('renders race selector and Generate button when session is active', async () => {
     render(<WinlinkExportTab />)
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: /race/i })).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /race/i })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument()
   })
 
   it('Generate button is disabled when no race selected', async () => {
-    server.use(
-      http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [] }),
-      ),
-    )
+    server.use(http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })))
     render(<WinlinkExportTab />)
     await waitFor(() => screen.getByRole('button', { name: /generate/i }))
     expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
@@ -97,7 +91,9 @@ describe('WinlinkExportTab', () => {
 
     await user.click(screen.getByRole('button', { name: /copy subject/i }))
 
-    await waitFor(() => expect(mockWriteText).toHaveBeenCalledWith(expect.stringMatching(/update/i)))
+    await waitFor(() =>
+      expect(mockWriteText).toHaveBeenCalledWith(expect.stringMatching(/update/i)),
+    )
   })
 
   it('shows Copied! on Copy Subject button after click', async () => {
@@ -133,9 +129,7 @@ describe('WinlinkExportTab', () => {
 
     await user.click(screen.getByRole('button', { name: /generate/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/not found/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/not found/i)).toBeInTheDocument())
   })
 
   it('copies column to clipboard on Copy button click', async () => {
@@ -156,11 +150,7 @@ describe('WinlinkExportTab', () => {
   })
 
   it('manually selecting race when no checkpoint fires onChange', async () => {
-    server.use(
-      http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [] }),
-      ),
-    )
+    server.use(http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })))
     const user = userEvent.setup()
     render(<WinlinkExportTab />)
 
@@ -173,19 +163,21 @@ describe('WinlinkExportTab', () => {
     await user.click(screen.getByRole('option', { name: /GDR/i }))
 
     // onChange fired — Generate is now enabled
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /generate/i })).toBeEnabled(),
-    )
+    await waitFor(() => expect(screen.getByRole('button', { name: /generate/i })).toBeEnabled())
   })
 
   it('handles SSE session changed event', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementation((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
     render(<WinlinkExportTab />)
 
     await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
 
-    act(() => { capturedCbs?.onSessionChanged?.({ EventID: 1, Checkpoints: [] }) })
+    act(() => {
+      capturedCbs?.onSessionChanged?.({ EventID: 1, Checkpoints: [] })
+    })
 
     await waitFor(() => expect(screen.getByRole('combobox', { name: /race/i })).toBeInTheDocument())
   })

@@ -9,15 +9,15 @@ import { useStream } from '../../adapters/sse/useStream'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
 
-afterEach(() => { vi.mocked(useStream).mockReset() })
+afterEach(() => {
+  vi.mocked(useStream).mockReset()
+})
 
 describe('DataEntryTab', () => {
   it('shows no-event alert when session has no event', async () => {
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
     render(<DataEntryTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/no active event/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no active event/i)).toBeInTheDocument())
   })
 
   it('shows race stats cards when races are loaded', async () => {
@@ -35,11 +35,7 @@ describe('DataEntryTab', () => {
   })
 
   it('Log button is disabled when no active checkpoint', async () => {
-    server.use(
-      http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [] }),
-      ),
-    )
+    server.use(http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })))
     render(<DataEntryTab />)
     await waitFor(() => screen.getByRole('button', { name: /^log$/i }))
     expect(screen.getByRole('button', { name: /^log$/i })).toBeDisabled()
@@ -54,9 +50,7 @@ describe('DataEntryTab', () => {
     await user.type(bibInput, '100')
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/alice/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/alice/i)).toBeInTheDocument())
   })
 
   it('shows validation error for invalid bib', async () => {
@@ -67,9 +61,7 @@ describe('DataEntryTab', () => {
     await user.type(screen.getAllByLabelText(/bib #/i)[0], 'abc')
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/valid bib/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/valid bib/i)).toBeInTheDocument())
   })
 
   it('shows duplicate alert when bib is already logged', async () => {
@@ -85,9 +77,7 @@ describe('DataEntryTab', () => {
     await user.type(screen.getAllByLabelText(/bib #/i)[0], '100')
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
-    await waitFor(() =>
-      expect(screen.getAllByText(/duplicate/i).length).toBeGreaterThan(0),
-    )
+    await waitFor(() => expect(screen.getAllByText(/duplicate/i).length).toBeGreaterThan(0))
   })
 
   it('shows DNS/DNF form and submits status', async () => {
@@ -102,9 +92,7 @@ describe('DataEntryTab', () => {
     await user.type(statusBibInput, '100')
     await user.click(within(statusSection).getByRole('button', { name: /submit/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/bib 100 marked dns/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/bib 100 marked dns/i)).toBeInTheDocument())
   })
 
   it('shows Transfer Runner form', async () => {
@@ -115,17 +103,11 @@ describe('DataEntryTab', () => {
 
   it('shows "No entries yet" when recent log is empty', async () => {
     render(<DataEntryTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/no entries yet/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no entries yet/i)).toBeInTheDocument())
   })
 
   it('shows DNS/DNF count without checkpoint when no active checkpoint set', async () => {
-    server.use(
-      http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [] }),
-      ),
-    )
+    server.use(http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })))
     render(<DataEntryTab />)
     // Race stats cards appear even without active CP — DNS/DNF uses fallback count
     await waitFor(() => expect(screen.getByText(/runners:/i)).toBeInTheDocument())
@@ -148,9 +130,7 @@ describe('DataEntryTab', () => {
     await user.type(within(statusSection).getAllByLabelText(/bib #/i)[0], '100')
     await user.click(within(statusSection).getByRole('button', { name: /submit/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/bib 100 marked dnf/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/bib 100 marked dnf/i)).toBeInTheDocument())
   })
 
   it('shows error alert when logBib API fails', async () => {
@@ -166,9 +146,7 @@ describe('DataEntryTab', () => {
     await user.type(screen.getAllByLabelText(/bib #/i)[0], '999')
     await user.click(screen.getByRole('button', { name: /^log$/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/bib not found/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
   })
 
   it('transfers a runner to another race', async () => {
@@ -186,9 +164,7 @@ describe('DataEntryTab', () => {
 
     await user.click(within(section).getByRole('button', { name: /transfer/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/bib 100 transferred/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/bib 100 transferred/i)).toBeInTheDocument())
   })
 
   it('closes duplicate alert when X is clicked', async () => {
@@ -214,9 +190,7 @@ describe('DataEntryTab', () => {
 
   it('counts DNS runner in DNS/DNF fallback when no active checkpoint', async () => {
     server.use(
-      http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [] }),
-      ),
+      http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })),
       http.get('/api/races/:raceID/runners', () =>
         HttpResponse.json([mockRunner, { ...mockRunner2, Status: 'DNS' }]),
       ),
@@ -233,15 +207,55 @@ describe('DataEntryTab', () => {
       ),
       http.get('/api/races/:raceID/checkpoints', () =>
         HttpResponse.json([
-          { ID: 1, RaceID: 1, Code: 'CP1', DisplayName: 'CP 1', DisplayOrder: 1, DistanceFromStart: 5.0, CreatedAt: '' },
-          { ID: 2, RaceID: 1, Code: 'CP2', DisplayName: 'CP 2', DisplayOrder: 2, DistanceFromStart: 15.0, CreatedAt: '' },
-          { ID: 3, RaceID: 1, Code: 'CP3', DisplayName: 'CP 3', DisplayOrder: 3, DistanceFromStart: 25.0, CreatedAt: '' },
+          {
+            ID: 1,
+            RaceID: 1,
+            Code: 'CP1',
+            DisplayName: 'CP 1',
+            DisplayOrder: 1,
+            DistanceFromStart: 5.0,
+            CreatedAt: '',
+          },
+          {
+            ID: 2,
+            RaceID: 1,
+            Code: 'CP2',
+            DisplayName: 'CP 2',
+            DisplayOrder: 2,
+            DistanceFromStart: 15.0,
+            CreatedAt: '',
+          },
+          {
+            ID: 3,
+            RaceID: 1,
+            Code: 'CP3',
+            DisplayName: 'CP 3',
+            DisplayOrder: 3,
+            DistanceFromStart: 25.0,
+            CreatedAt: '',
+          },
         ]),
       ),
       http.get('/api/races/:raceID/logs', () =>
         HttpResponse.json([
-          { ID: 1, RunnerID: 1, CheckpointID: 1, RecordedAt: '2026-06-14T10:00:00Z', Source: 'MANUAL', RawMessage: '10:00', CreatedAt: '' },
-          { ID: 2, RunnerID: 1, CheckpointID: 2, RecordedAt: '2026-06-14T11:00:00Z', Source: 'MANUAL', RawMessage: '11:00', CreatedAt: '' },
+          {
+            ID: 1,
+            RunnerID: 1,
+            CheckpointID: 1,
+            RecordedAt: '2026-06-14T10:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '10:00',
+            CreatedAt: '',
+          },
+          {
+            ID: 2,
+            RunnerID: 1,
+            CheckpointID: 2,
+            RecordedAt: '2026-06-14T11:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '11:00',
+            CreatedAt: '',
+          },
         ]),
       ),
     )
@@ -264,9 +278,7 @@ describe('DataEntryTab', () => {
     await user.type(within(statusSection).getAllByLabelText(/bib #/i)[0], '100')
     await user.click(within(statusSection).getByRole('button', { name: /submit/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/status update failed/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/status update failed/i)).toBeInTheDocument())
   })
 
   it('shows error when submitTransfer API fails', async () => {
@@ -287,14 +299,14 @@ describe('DataEntryTab', () => {
     await user.click(screen.getByRole('option', { name: /GDR/i }))
     await user.click(within(section).getByRole('button', { name: /transfer/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/transfer failed/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/transfer failed/i)).toBeInTheDocument())
   })
 
   it('handles SSE bib logged callback', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementation((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
     render(<DataEntryTab />)
 
     await waitFor(() => screen.getByText(/log bib/i))
@@ -308,7 +320,9 @@ describe('DataEntryTab', () => {
 
   it('handles SSE session changed callback', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementation((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
     render(<DataEntryTab />)
 
     await waitFor(() => screen.getByText(/log bib/i))
@@ -335,8 +349,6 @@ describe('DataEntryTab', () => {
 
     await user.click(within(section).getByRole('button', { name: /transfer/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/bib 999 not found/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/bib 999 not found/i)).toBeInTheDocument())
   })
 })

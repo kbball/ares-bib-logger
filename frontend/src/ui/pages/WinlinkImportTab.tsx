@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Box, Button, FormControl, InputLabel, MenuItem,
-  Paper, Select, Stack, TextField, Tooltip, Typography,
-  Table, TableHead, TableRow, TableCell, TableBody,
+  Alert,
+  Box,
+  Button,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from '@mui/material'
 import type { ActiveSession, Checkpoint, Race, WinlinkImportResult } from '../../domain/types'
 import * as api from '../../adapters/api'
@@ -31,25 +45,38 @@ export default function WinlinkImportTab() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.getSession().then(setSession).catch(() => {})
+    api
+      .getSession()
+      .then(setSession)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
     if (session?.EventID) {
-      api.listRaces(session.EventID).then(setRaces).catch(() => {})
+      api
+        .listRaces(session.EventID)
+        .then(setRaces)
+        .catch(() => {})
     }
   }, [session?.EventID])
 
   useEffect(() => {
     if (!races.length) return
-    Promise.all(races.map((r) => api.listCheckpoints(r.ID).then((cps) => [r.ID, cps] as [number, Checkpoint[]]))).then(
-      (entries) => setCheckpointsByRace(Object.fromEntries(entries)),
-    )
+    Promise.all(
+      races.map((r) =>
+        api.listCheckpoints(r.ID).then((cps) => [r.ID, cps] as [number, Checkpoint[]]),
+      ),
+    ).then((entries) => setCheckpointsByRace(Object.fromEntries(entries)))
   }, [races])
 
   useStream({ onSessionChanged: (p) => setSession(p as ActiveSession) })
 
-  const checkpoints = raceID ? (checkpointsByRace[raceID] ?? []) : []
+  const activeCheckpointID = session?.Checkpoints.find(
+    (c) => c.RaceID === Number(raceID),
+  )?.CheckpointID
+  const checkpoints = raceID
+    ? (checkpointsByRace[raceID] ?? []).filter((cp) => cp.ID !== activeCheckpointID)
+    : []
 
   const submit = async () => {
     if (!raceID || !checkpointID || !text.trim()) return
@@ -64,20 +91,38 @@ export default function WinlinkImportTab() {
 
   return (
     <Box sx={{ maxWidth: 700 }}>
-      <Typography variant="h5" gutterBottom>Winlink Import</Typography>
+      <Typography variant="h5" gutterBottom>
+        Winlink Import
+      </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No active event. Set one in Admin.
+        </Alert>
       )}
 
       <Stack spacing={2}>
         <Stack direction="row" spacing={2}>
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel id="import-race-label">Race</InputLabel>
-            <Select value={raceID} label="Race" labelId="import-race-label" onChange={(e) => { setRaceID(Number(e.target.value)); setCheckpointID('') }}>
+            <Select
+              value={raceID}
+              label="Race"
+              labelId="import-race-label"
+              onChange={(e) => {
+                setRaceID(Number(e.target.value))
+                setCheckpointID('')
+              }}
+            >
               {races.map((r) => (
-                <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                <MenuItem key={r.ID} value={r.ID}>
+                  {r.Name}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -129,13 +174,17 @@ export default function WinlinkImportTab() {
 
         {result && (
           <Paper sx={{ p: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>Import Summary</Typography>
+            <Typography variant="subtitle1" gutterBottom>
+              Import Summary
+            </Typography>
             <Typography>Created: {result.Created}</Typography>
             <Typography>Updated: {result.Updated}</Typography>
             <Typography>Skipped: {result.Skipped}</Typography>
             {result.SkippedDetails?.length > 0 && (
               <>
-                <Typography variant="body2" sx={{ mt: 1, mb: 0.5 }}>Skipped details:</Typography>
+                <Typography variant="body2" sx={{ mt: 1, mb: 0.5 }}>
+                  Skipped details:
+                </Typography>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -158,14 +207,20 @@ export default function WinlinkImportTab() {
             )}
             {result.Errors?.length > 0 && (
               <>
-                <Typography color="error" sx={{ mt: 1 }}>Errors:</Typography>
+                <Typography color="error" sx={{ mt: 1 }}>
+                  Errors:
+                </Typography>
                 <Table size="small">
                   <TableHead>
-                    <TableRow><TableCell>Message</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell>Message</TableCell>
+                    </TableRow>
                   </TableHead>
                   <TableBody>
                     {result.Errors.map((e, i) => (
-                      <TableRow key={i}><TableCell>{e}</TableCell></TableRow>
+                      <TableRow key={i}>
+                        <TableCell>{e}</TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>

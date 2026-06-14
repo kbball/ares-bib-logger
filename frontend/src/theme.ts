@@ -4,7 +4,7 @@ export type ColorMode = 'dark' | 'light'
 
 // ── Color primitives ──────────────────────────────────────────────────────────
 const brand = {
-  50:  'hsl(210, 100%, 95%)',
+  50: 'hsl(210, 100%, 95%)',
   100: 'hsl(210, 100%, 92%)',
   200: 'hsl(210, 100%, 80%)',
   300: 'hsl(210, 100%, 65%)',
@@ -17,7 +17,7 @@ const brand = {
 }
 
 const gray = {
-  50:  'hsl(220, 35%, 97%)',
+  50: 'hsl(220, 35%, 97%)',
   100: 'hsl(220, 30%, 94%)',
   200: 'hsl(220, 20%, 88%)',
   300: 'hsl(220, 20%, 80%)',
@@ -37,38 +37,38 @@ export function createAppTheme(mode: ColorMode) {
     palette: {
       mode,
       primary: {
-        main:        dark ? brand[600] : brand[500],
-        light:       brand[300],
-        dark:        brand[700],
+        main: dark ? brand[600] : brand[500],
+        light: brand[300],
+        dark: brand[700],
         contrastText: dark ? gray[50] : '#fff',
       },
       background: {
         default: dark ? gray[900] : gray[50],
-        paper:   dark ? gray[800] : '#fff',
+        paper: dark ? gray[800] : '#fff',
       },
       text: {
-        primary:   dark ? 'hsl(0, 0%, 100%)' : gray[900],
-        secondary: dark ? gray[400]           : gray[600],
+        primary: dark ? 'hsl(0, 0%, 100%)' : gray[900],
+        secondary: dark ? gray[400] : gray[600],
       },
       divider: dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8),
       action: {
-        hover:    dark ? alpha(gray[600], 0.2) : alpha(gray[200], 0.7),
+        hover: dark ? alpha(gray[600], 0.2) : alpha(gray[200], 0.7),
         selected: dark ? alpha(gray[600], 0.3) : alpha(gray[200], 0.9),
       },
     },
 
     typography: {
       fontFamily: '"Inter", system-ui, sans-serif',
-      h1: { fontSize: '3rem',     fontWeight: 600, lineHeight: 1.2 },
-      h2: { fontSize: '2.25rem',  fontWeight: 600, lineHeight: 1.2 },
+      h1: { fontSize: '3rem', fontWeight: 600, lineHeight: 1.2 },
+      h2: { fontSize: '2.25rem', fontWeight: 600, lineHeight: 1.2 },
       h3: { fontSize: '1.875rem', fontWeight: 600, lineHeight: 1.2 },
-      h4: { fontSize: '1.5rem',   fontWeight: 600, lineHeight: 1.3 },
-      h5: { fontSize: '1.25rem',  fontWeight: 600, lineHeight: 1.3 },
+      h4: { fontSize: '1.5rem', fontWeight: 600, lineHeight: 1.3 },
+      h5: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.3 },
       h6: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
-      subtitle1: { fontSize: '0.875rem',  fontWeight: 600 },
+      subtitle1: { fontSize: '0.875rem', fontWeight: 600 },
       subtitle2: { fontSize: '0.8125rem', fontWeight: 600 },
-      body1:  { fontSize: '0.875rem' },
-      body2:  { fontSize: '0.8125rem' },
+      body1: { fontSize: '0.875rem' },
+      body2: { fontSize: '0.8125rem' },
       caption: { fontSize: '0.75rem' },
       button: { fontSize: '0.875rem', fontWeight: 600, textTransform: 'none' },
     },
@@ -282,7 +282,9 @@ export function createAppTheme(mode: ColorMode) {
       // ── Tabs ──────────────────────────────────────────────────────────────
       MuiTabs: {
         styleOverrides: {
-          root: { borderBottom: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}` },
+          root: {
+            borderBottom: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}`,
+          },
         },
       },
       MuiTab: {

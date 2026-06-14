@@ -79,9 +79,7 @@ describe('App', () => {
 
     // After toggle, button should offer switching back to light
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: /switch to light mode/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument(),
     )
   })
 })

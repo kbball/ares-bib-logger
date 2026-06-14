@@ -23,7 +23,7 @@ type mockSessionPublishErr struct{}
 func (m *mockSessionPublishErr) Get(_ context.Context) (entity.ActiveSession, error) {
 	return entity.ActiveSession{}, errors.New("get failed")
 }
-func (m *mockSessionPublishErr) SetEvent(_ context.Context, _ int) error        { return nil }
+func (m *mockSessionPublishErr) SetEvent(_ context.Context, _ int) error         { return nil }
 func (m *mockSessionPublishErr) SetCheckpoint(_ context.Context, _, _ int) error { return nil }
 func (m *mockSessionPublishErr) ClearCheckpoint(_ context.Context, _ int) error  { return nil }
 

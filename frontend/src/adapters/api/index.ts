@@ -26,23 +26,46 @@ export const lockRaceOrder = (id: number) => put<void>(`/api/races/${id}/lock-or
 // Checkpoints
 export const listCheckpoints = (raceID: number) =>
   get<Checkpoint[]>(`/api/races/${raceID}/checkpoints`)
-export const createCheckpoint = (raceID: number, code: string, displayName: string, distance?: number | null) =>
-  post<Checkpoint>(`/api/races/${raceID}/checkpoints`, { code, display_name: displayName, distance_from_start: distance ?? null })
-export const updateCheckpoint = (id: number, code: string, displayName: string, distance?: number | null) =>
-  put<Checkpoint>(`/api/checkpoints/${id}`, { code, display_name: displayName, distance_from_start: distance ?? null })
+export const createCheckpoint = (
+  raceID: number,
+  code: string,
+  displayName: string,
+  distance?: number | null,
+) =>
+  post<Checkpoint>(`/api/races/${raceID}/checkpoints`, {
+    code,
+    display_name: displayName,
+    distance_from_start: distance ?? null,
+  })
+export const updateCheckpoint = (
+  id: number,
+  code: string,
+  displayName: string,
+  distance?: number | null,
+) =>
+  put<Checkpoint>(`/api/checkpoints/${id}`, {
+    code,
+    display_name: displayName,
+    distance_from_start: distance ?? null,
+  })
 export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>
   put<void>(`/api/races/${raceID}/checkpoints/order`, { ids })
 
 // Checkpoint logs
-export const listCheckpointLogs = (raceID: number) => get<CheckpointLog[]>(`/api/races/${raceID}/logs`)
+export const listCheckpointLogs = (raceID: number) =>
+  get<CheckpointLog[]>(`/api/races/${raceID}/logs`)
 
 // Runners / Roster
 export const listRunners = (raceID: number) => get<Runner[]>(`/api/races/${raceID}/runners`)
 export const importRoster = (raceID: number, tsv: string) =>
   post<{ imported: number }>(`/api/races/${raceID}/roster`, { tsv })
 export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: number) =>
-  post<void>('/api/runners/transfer', { bib_number: bibNumber, from_race_id: fromRaceID, to_race_id: toRaceID })
+  post<void>('/api/runners/transfer', {
+    bib_number: bibNumber,
+    from_race_id: fromRaceID,
+    to_race_id: toRaceID,
+  })
 
 // Bib logging
 export const logBib = (bibNumber: number) =>
@@ -63,4 +86,8 @@ export const clearSessionCheckpoint = (raceID: number) =>
 export const exportWinlink = (raceID: number) =>
   fetch(`/api/winlink/export/${raceID}`).then((r) => r.text())
 export const importWinlink = (raceID: number, checkpointID: number, text: string) =>
-  post<WinlinkImportResult>('/api/winlink/import', { race_id: raceID, checkpoint_id: checkpointID, text })
+  post<WinlinkImportResult>('/api/winlink/import', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    text,
+  })

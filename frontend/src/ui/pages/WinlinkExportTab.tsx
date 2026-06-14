@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Box, Button, FormControl, InputLabel, MenuItem,
-  Select, Stack, TextField, Tooltip, Typography,
+  Alert,
+  Box,
+  Button,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
 } from '@mui/material'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import type { ActiveSession, Checkpoint, Race } from '../../domain/types'
@@ -25,25 +34,37 @@ export default function WinlinkExportTab() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.getSession().then(setSession).catch(() => {})
+    api
+      .getSession()
+      .then(setSession)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!session?.EventID) return
     const eventID = session.EventID
     const sessionCheckpoints = session.Checkpoints
-    api.listRaces(eventID).then((r) => {
-      setRaces(r)
-      const activeRaceID = sessionCheckpoints?.[0]?.RaceID
-      if (activeRaceID && r.find((race) => race.ID === activeRaceID)) {
-        setRaceID(activeRaceID)
-      }
-    }).catch(() => {})
+    api
+      .listRaces(eventID)
+      .then((r) => {
+        setRaces(r)
+        const activeRaceID = sessionCheckpoints?.[0]?.RaceID
+        if (activeRaceID && r.find((race) => race.ID === activeRaceID)) {
+          setRaceID(activeRaceID)
+        }
+      })
+      .catch(() => {})
   }, [session?.EventID, session?.Checkpoints])
 
   useEffect(() => {
-    if (!raceID) { setCheckpoints([]); return }
-    api.listCheckpoints(Number(raceID)).then(setCheckpoints).catch(() => {})
+    if (!raceID) {
+      setCheckpoints([])
+      return
+    }
+    api
+      .listCheckpoints(Number(raceID))
+      .then(setCheckpoints)
+      .catch(() => {})
   }, [raceID])
 
   useStream({
@@ -57,9 +78,7 @@ export default function WinlinkExportTab() {
     const race = races.find((r) => r.ID === Number(raceID))
     const sessionCp = session?.Checkpoints.find((c) => c.RaceID === Number(raceID))
     const cp = checkpoints.find((c) => c.ID === sessionCp?.CheckpointID)
-    return [cp?.DisplayName, race?.Name, currentHHMM(), 'update']
-      .filter(Boolean)
-      .join(' ')
+    return [cp?.DisplayName, race?.Name, currentHHMM(), 'update'].filter(Boolean).join(' ')
   }
 
   const generate = async () => {
@@ -92,20 +111,39 @@ export default function WinlinkExportTab() {
 
   return (
     <Box sx={{ maxWidth: 700 }}>
-      <Typography variant="h5" gutterBottom>Winlink Export</Typography>
+      <Typography variant="h5" gutterBottom>
+        Winlink Export
+      </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No active event. Set one in Admin.
+        </Alert>
       )}
 
       <Stack spacing={2}>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel id="export-race-label">Race</InputLabel>
-            <Select value={raceID} label="Race" labelId="export-race-label" onChange={(e) => { setRaceID(Number(e.target.value)); setColumn(''); setSubject('') }}>
+            <Select
+              value={raceID}
+              label="Race"
+              labelId="export-race-label"
+              onChange={(e) => {
+                setRaceID(Number(e.target.value))
+                setColumn('')
+                setSubject('')
+              }}
+            >
               {races.map((r) => (
-                <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                <MenuItem key={r.ID} value={r.ID}>
+                  {r.Name}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -118,11 +156,16 @@ export default function WinlinkExportTab() {
 
         {column && (
           <>
-            <Typography variant="subtitle2" color="text.secondary">Email Subject</Typography>
+            <Typography variant="subtitle2" color="text.secondary">
+              Email Subject
+            </Typography>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <TextField
                 value={subject}
-                slotProps={{ input: { readOnly: true }, htmlInput: { 'aria-label': 'Email subject' } }}
+                slotProps={{
+                  input: { readOnly: true },
+                  htmlInput: { 'aria-label': 'Email subject' },
+                }}
                 size="small"
                 fullWidth
               />
@@ -138,7 +181,9 @@ export default function WinlinkExportTab() {
               </Tooltip>
             </Stack>
 
-            <Typography variant="subtitle2" color="text.secondary">Column</Typography>
+            <Typography variant="subtitle2" color="text.secondary">
+              Column
+            </Typography>
             <TextField
               multiline
               rows={20}
@@ -149,11 +194,7 @@ export default function WinlinkExportTab() {
             />
             <Box>
               <Tooltip title="Copy column to clipboard" describeChild>
-                <Button
-                  variant="outlined"
-                  startIcon={<ContentCopyIcon />}
-                  onClick={copy}
-                >
+                <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copy}>
                   {copied ? 'Copied!' : 'Copy to Clipboard'}
                 </Button>
               </Tooltip>

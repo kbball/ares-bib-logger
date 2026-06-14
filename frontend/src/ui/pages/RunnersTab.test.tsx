@@ -13,9 +13,7 @@ describe('RunnersTab', () => {
   it('shows no-event alert when session has no event', async () => {
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
     render(<RunnersTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/no active event/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no active event/i)).toBeInTheDocument())
   })
 
   it('renders runner rows when data loads', async () => {
@@ -69,9 +67,7 @@ describe('RunnersTab', () => {
     await waitFor(() => screen.getByText(/alice smith/i))
     await user.click(screen.getByText(/alice smith/i).closest('tr')!)
 
-    await waitFor(() =>
-      expect(screen.getByRole('dialog')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
     expect(screen.getAllByText(/alice smith/i).length).toBeGreaterThan(0)
   })
 
@@ -96,9 +92,7 @@ describe('RunnersTab', () => {
     await user.click(screen.getByText(/alice smith/i).closest('tr')!)
 
     await waitFor(() => screen.getByRole('dialog'))
-    await waitFor(() =>
-      expect(screen.getByText(/checkpoint log/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/checkpoint log/i)).toBeInTheDocument())
     // "AS1 – Aid Station 1" appears in the log table cell
     expect(screen.getAllByText(/aid station 1/i).length).toBeGreaterThan(0)
   })
@@ -110,12 +104,22 @@ describe('RunnersTab', () => {
       http.get('/api/races/:raceID/logs', () =>
         HttpResponse.json([
           {
-            ID: 1, RunnerID: 1, CheckpointID: 1,
-            RecordedAt: '2026-06-14T10:00:00Z', Source: 'MANUAL', RawMessage: '10:00', CreatedAt: '',
+            ID: 1,
+            RunnerID: 1,
+            CheckpointID: 1,
+            RecordedAt: '2026-06-14T10:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '10:00',
+            CreatedAt: '',
           },
           {
-            ID: 2, RunnerID: 1, CheckpointID: 2,
-            RecordedAt: '2026-06-14T11:00:00Z', Source: 'MANUAL', RawMessage: '11:00', CreatedAt: '',
+            ID: 2,
+            RunnerID: 1,
+            CheckpointID: 2,
+            RecordedAt: '2026-06-14T11:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '11:00',
+            CreatedAt: '',
           },
         ]),
       ),
@@ -130,9 +134,7 @@ describe('RunnersTab', () => {
     await user.click(screen.getByText(/alice smith/i).closest('tr')!)
 
     await waitFor(() => screen.getByRole('dialog'))
-    await waitFor(() =>
-      expect(screen.getByText(/proj\. arrival at/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/proj\. arrival at/i)).toBeInTheDocument())
   })
 
   it('closing modal by Escape dismisses it', async () => {
@@ -145,9 +147,7 @@ describe('RunnersTab', () => {
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.keyboard('{Escape}')
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('sorts runners by name when Name column header is clicked', async () => {
@@ -227,14 +227,14 @@ describe('RunnersTab', () => {
     await user.type(screen.getByLabelText(/search bib \/ name/i), 'zzznomatch')
 
     // Race column reappears because filterRaceID is reset to ''
-    await waitFor(() =>
-      expect(screen.queryByRole('tab', { name: /GDR/i })).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByRole('tab', { name: /GDR/i })).not.toBeInTheDocument())
   })
 
   it('handles SSE onSessionChanged callback', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementation((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
 
     render(<RunnersTab />)
     await waitFor(() => screen.getByText(/alice smith/i))
@@ -248,23 +248,31 @@ describe('RunnersTab', () => {
 
   it('handles SSE onBibLogged callback after races loaded (if-true branch)', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementation((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
 
     render(<RunnersTab />)
 
     // Call onBibLogged immediately — races is still [] at first render (if-false branch)
-    act(() => { capturedCbs?.onBibLogged?.({}) })
+    act(() => {
+      capturedCbs?.onBibLogged?.({})
+    })
 
     // Wait for races to load so capturedCbs now has races.length > 0 in closure
     await waitFor(() => screen.getByText(/alice smith/i))
 
     // Call onBibLogged again — races is loaded now (if-true branch)
-    act(() => { capturedCbs?.onBibLogged?.({}) })
+    act(() => {
+      capturedCbs?.onBibLogged?.({})
+    })
 
     await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
   })
 
-  afterEach(() => { vi.mocked(useStream).mockReset() })
+  afterEach(() => {
+    vi.mocked(useStream).mockReset()
+  })
 
   it('shows Pace and Proj. Next columns when filtering by race with distances', async () => {
     const user = userEvent.setup()

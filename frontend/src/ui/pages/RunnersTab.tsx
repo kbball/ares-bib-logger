@@ -1,8 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert, Box, Chip, Dialog, DialogContent, DialogTitle, Divider,
-  Stack, Tab, Table, TableBody, TableCell, TableHead,
-  TableRow, TableSortLabel, Tabs, TextField, Tooltip, Typography,
+  Alert,
+  Box,
+  Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Stack,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TableSortLabel,
+  Tabs,
+  TextField,
+  Tooltip,
+  Typography,
 } from '@mui/material'
 import type { ActiveSession, Checkpoint, CheckpointLog, Race, Runner } from '../../domain/types'
 import * as api from '../../adapters/api'
@@ -34,22 +50,28 @@ export default function RunnersTab() {
   const [selectedRunner, setSelectedRunner] = useState<Runner | null>(null)
 
   const loadRunners = (raceIDs: number[]) =>
-    Promise.all(raceIDs.map((id) => api.listRunners(id))).then((arr) =>
-      setAllRunners(arr.flat()),
-    )
+    Promise.all(raceIDs.map((id) => api.listRunners(id))).then((arr) => setAllRunners(arr.flat()))
 
   const loadLogs = (raceIDs: number[]) =>
-    Promise.all(raceIDs.map((id) => api.listCheckpointLogs(id).then((logs) => [id, logs] as [number, CheckpointLog[]]))).then(
-      (entries) => setLogsByRace(Object.fromEntries(entries)),
-    )
+    Promise.all(
+      raceIDs.map((id) =>
+        api.listCheckpointLogs(id).then((logs) => [id, logs] as [number, CheckpointLog[]]),
+      ),
+    ).then((entries) => setLogsByRace(Object.fromEntries(entries)))
 
   useEffect(() => {
-    api.getSession().then(setSession).catch(() => {})
+    api
+      .getSession()
+      .then(setSession)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!session?.EventID) return
-    api.listRaces(session.EventID).then(setRaces).catch(() => {})
+    api
+      .listRaces(session.EventID)
+      .then(setRaces)
+      .catch(() => {})
   }, [session?.EventID])
 
   useEffect(() => {
@@ -57,7 +79,9 @@ export default function RunnersTab() {
     const ids = races.map((r) => r.ID)
     loadRunners(ids)
     Promise.all(
-      races.map((r) => api.listCheckpoints(r.ID).then((cps) => [r.ID, cps] as [number, Checkpoint[]])),
+      races.map((r) =>
+        api.listCheckpoints(r.ID).then((cps) => [r.ID, cps] as [number, Checkpoint[]]),
+      ),
     ).then((entries) => setCheckpointsByRace(Object.fromEntries(entries)))
     loadLogs(ids)
   }, [races])
@@ -112,16 +136,16 @@ export default function RunnersTab() {
 
   const logMap = useMemo(() => {
     const m = new Map<string, CheckpointLog>()
-    Object.values(logsByRace).flat().forEach((log) => {
-      m.set(`${log.RunnerID}-${log.CheckpointID}`, log)
-    })
+    Object.values(logsByRace)
+      .flat()
+      .forEach((log) => {
+        m.set(`${log.RunnerID}-${log.CheckpointID}`, log)
+      })
     return m
   }, [logsByRace])
 
   const filtered = useMemo(() => {
-    let runners = filterRaceID
-      ? allRunners.filter((r) => r.RaceID === filterRaceID)
-      : allRunners
+    let runners = filterRaceID ? allRunners.filter((r) => r.RaceID === filterRaceID) : allRunners
 
     const q = search.toLowerCase().trim()
     if (q) {
@@ -174,7 +198,9 @@ export default function RunnersTab() {
     const allLogs = Object.values(logsByRace).flat()
     const m = new Map<number, Checkpoint | null>()
     filtered.forEach((runner) => {
-      const loggedIDs = new Set(allLogs.filter((l) => l.RunnerID === runner.ID).map((l) => l.CheckpointID))
+      const loggedIDs = new Set(
+        allLogs.filter((l) => l.RunnerID === runner.ID).map((l) => l.CheckpointID),
+      )
       m.set(runner.ID, cps.find((cp) => !loggedIDs.has(cp.ID)) ?? null)
     })
     return m
@@ -186,7 +212,11 @@ export default function RunnersTab() {
     if (!log) return '—'
     const raw = log.RawMessage?.toUpperCase()
     if (raw === 'DNS' || raw === 'DNF') return raw
-    return new Date(log.RecordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    return new Date(log.RecordedAt).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
   }
 
   const col = (label: string, key: SortKey) => (
@@ -219,10 +249,14 @@ export default function RunnersTab() {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>Runners</Typography>
+      <Typography variant="h5" gutterBottom>
+        Runners
+      </Typography>
 
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No active event. Set one in Admin.
+        </Alert>
       )}
 
       <Stack direction="row" spacing={2} sx={{ mb: 1 }}>
@@ -242,10 +276,7 @@ export default function RunnersTab() {
         scrollButtons="auto"
         sx={{ mb: 1, borderBottom: 1, borderColor: 'divider' }}
       >
-        <Tab
-          label={matchCountFor('') !== null ? `All (${matchCountFor('')})` : 'All'}
-          value=""
-        />
+        <Tab label={matchCountFor('') !== null ? `All (${matchCountFor('')})` : 'All'} value="" />
         {visibleRaces.map((race) => {
           const count = matchCountFor(race.ID)
           return (
@@ -269,11 +300,16 @@ export default function RunnersTab() {
               {col('Bib', 'BibNumber')}
               {col('Name', 'Name')}
               {!filterRaceID && (
-                <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>Race</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+                  Race
+                </TableCell>
               )}
               {col('Status', 'Status')}
               {checkpoints.map((cp) => (
-                <TableCell key={cp.ID} sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+                <TableCell
+                  key={cp.ID}
+                  sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}
+                >
                   {cp.DisplayName}
                   {cp.DistanceFromStart != null && (
                     <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
@@ -284,7 +320,9 @@ export default function RunnersTab() {
               ))}
               {showPace && (
                 <>
-                  <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>Pace</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
+                    Pace
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 'bold', border: 1, borderColor: 'divider' }}>
                     <Tooltip title="Projected arrival at next checkpoint based on current pace">
                       <span>Proj. Next</span>
@@ -303,7 +341,9 @@ export default function RunnersTab() {
                 sx={{ cursor: 'pointer' }}
               >
                 <TableCell sx={{ border: 1, borderColor: 'divider' }}>{runner.BibNumber}</TableCell>
-                <TableCell sx={{ border: 1, borderColor: 'divider' }}>{runner.FirstName} {runner.LastName}</TableCell>
+                <TableCell sx={{ border: 1, borderColor: 'divider' }}>
+                  {runner.FirstName} {runner.LastName}
+                </TableCell>
                 {!filterRaceID && (
                   <TableCell sx={{ border: 1, borderColor: 'divider' }}>
                     {raceForRunner(runner)?.Name ?? `Race ${runner.RaceID}`}
@@ -319,113 +359,155 @@ export default function RunnersTab() {
                 {checkpoints.map((cp) => {
                   const log = logMap.get(`${runner.ID}-${cp.ID}`)
                   return (
-                    <TableCell key={cp.ID} sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
+                    <TableCell
+                      key={cp.ID}
+                      sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}
+                    >
                       {formatLogCell(log)}
                     </TableCell>
                   )
                 })}
-                {showPace && (() => {
-                  const pace = paceMap.get(runner.ID)
-                  const nextCP = nextCPMap.get(runner.ID) ?? null
-                  const proj = pace && nextCP?.DistanceFromStart != null
-                    ? projectArrival(pace, nextCP.DistanceFromStart)
-                    : null
-                  return (
-                    <>
-                      <TableCell sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
-                        {pace?.paceMinPerMile != null ? formatPace(pace.paceMinPerMile) : '—'}
-                      </TableCell>
-                      <TableCell sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}>
-                        {proj
-                          ? proj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-                          : '—'}
-                      </TableCell>
-                    </>
-                  )
-                })()}
+                {showPace &&
+                  (() => {
+                    const pace = paceMap.get(runner.ID)
+                    const nextCP = nextCPMap.get(runner.ID) ?? null
+                    const proj =
+                      pace && nextCP?.DistanceFromStart != null
+                        ? projectArrival(pace, nextCP.DistanceFromStart)
+                        : null
+                    return (
+                      <>
+                        <TableCell
+                          sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}
+                        >
+                          {pace?.paceMinPerMile != null ? formatPace(pace.paceMinPerMile) : '—'}
+                        </TableCell>
+                        <TableCell
+                          sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}
+                        >
+                          {proj
+                            ? proj.toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                              })
+                            : '—'}
+                        </TableCell>
+                      </>
+                    )
+                  })()}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Box>
       {/* ── Runner detail modal ── */}
-      {selectedRunner && (() => {
-        const race = raceForRunner(selectedRunner)
-        const cps = [...(checkpointsByRace[selectedRunner.RaceID] ?? [])].sort(
-          (a, b) => a.DisplayOrder - b.DisplayOrder,
-        )
-        const runnerLogs = (logsByRace[selectedRunner.RaceID] ?? []).filter(
-          (l) => l.RunnerID === selectedRunner.ID,
-        )
-        const logByCp = new Map(runnerLogs.map((l) => [l.CheckpointID, l]))
+      {selectedRunner &&
+        (() => {
+          const race = raceForRunner(selectedRunner)
+          const cps = [...(checkpointsByRace[selectedRunner.RaceID] ?? [])].sort(
+            (a, b) => a.DisplayOrder - b.DisplayOrder,
+          )
+          const runnerLogs = (logsByRace[selectedRunner.RaceID] ?? []).filter(
+            (l) => l.RunnerID === selectedRunner.ID,
+          )
+          const logByCp = new Map(runnerLogs.map((l) => [l.CheckpointID, l]))
 
-        const activeCheckpointID = session?.Checkpoints?.find(
-          (c) => c.RaceID === selectedRunner.RaceID,
-        )?.CheckpointID ?? null
-        const activeCP = activeCheckpointID != null ? cps.find((cp) => cp.ID === activeCheckpointID) ?? null : null
-        const pace = computeRunnerPace(selectedRunner, cps, runnerLogs)
-        const projectedArrival =
-          activeCP?.DistanceFromStart != null && !logByCp.has(activeCP.ID)
-            ? projectArrival(pace, activeCP.DistanceFromStart)
-            : null
-        return (
-          <Dialog open onClose={() => setSelectedRunner(null)} maxWidth="xs" fullWidth>
-            <DialogTitle>
-              {selectedRunner.FirstName} {selectedRunner.LastName}
-            </DialogTitle>
-            <DialogContent dividers>
-              <Stack spacing={0.5} sx={{ mb: 2 }}>
-                <Typography variant="body2"><strong>Bib:</strong> {selectedRunner.BibNumber}</Typography>
-                <Typography variant="body2"><strong>Race:</strong> {race?.Name ?? `Race ${selectedRunner.RaceID}`}</Typography>
-                <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <strong>Status:</strong>
-                  <Chip label={selectedRunner.Status} size="small" color={STATUS_COLOR[selectedRunner.Status] ?? 'default'} />
-                </Typography>
-                {pace.paceMinPerMile != null && (
+          const activeCheckpointID =
+            session?.Checkpoints?.find((c) => c.RaceID === selectedRunner.RaceID)?.CheckpointID ??
+            null
+          const activeCP =
+            activeCheckpointID != null
+              ? (cps.find((cp) => cp.ID === activeCheckpointID) ?? null)
+              : null
+          const pace = computeRunnerPace(selectedRunner, cps, runnerLogs)
+          const projectedArrival =
+            activeCP?.DistanceFromStart != null && !logByCp.has(activeCP.ID)
+              ? projectArrival(pace, activeCP.DistanceFromStart)
+              : null
+          return (
+            <Dialog open onClose={() => setSelectedRunner(null)} maxWidth="xs" fullWidth>
+              <DialogTitle>
+                {selectedRunner.FirstName} {selectedRunner.LastName}
+              </DialogTitle>
+              <DialogContent dividers>
+                <Stack spacing={0.5} sx={{ mb: 2 }}>
                   <Typography variant="body2">
-                    <strong>Current pace:</strong> {formatPace(pace.paceMinPerMile)}
+                    <strong>Bib:</strong> {selectedRunner.BibNumber}
                   </Typography>
-                )}
-                {activeCP && (
                   <Typography variant="body2">
-                    <strong>Proj. arrival at {activeCP.DisplayName}:</strong>{' '}
-                    {projectedArrival
-                      ? projectedArrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-                      : logByCp.has(activeCP.ID)
-                        ? 'Already logged'
-                        : 'Insufficient data'}
+                    <strong>Race:</strong> {race?.Name ?? `Race ${selectedRunner.RaceID}`}
                   </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
+                    <strong>Status:</strong>
+                    <Chip
+                      label={selectedRunner.Status}
+                      size="small"
+                      color={STATUS_COLOR[selectedRunner.Status] ?? 'default'}
+                    />
+                  </Typography>
+                  {pace.paceMinPerMile != null && (
+                    <Typography variant="body2">
+                      <strong>Current pace:</strong> {formatPace(pace.paceMinPerMile)}
+                    </Typography>
+                  )}
+                  {activeCP && (
+                    <Typography variant="body2">
+                      <strong>Proj. arrival at {activeCP.DisplayName}:</strong>{' '}
+                      {projectedArrival
+                        ? projectedArrival.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false,
+                          })
+                        : logByCp.has(activeCP.ID)
+                          ? 'Already logged'
+                          : 'Insufficient data'}
+                    </Typography>
+                  )}
+                </Stack>
+                {cps.length > 0 && (
+                  <>
+                    <Divider sx={{ mb: 1 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      Checkpoint Log
+                    </Typography>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>
+                            <strong>Checkpoint</strong>
+                          </TableCell>
+                          <TableCell>
+                            <strong>Time</strong>
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cps.map((cp) => {
+                          const log = logByCp.get(cp.ID)
+                          return (
+                            <TableRow key={cp.ID}>
+                              <TableCell>
+                                {cp.Code} – {cp.DisplayName}
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace' }}>
+                                {formatLogCell(log)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </>
                 )}
-              </Stack>
-              {cps.length > 0 && (
-                <>
-                  <Divider sx={{ mb: 1 }} />
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Checkpoint Log</Typography>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell><strong>Checkpoint</strong></TableCell>
-                        <TableCell><strong>Time</strong></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {cps.map((cp) => {
-                        const log = logByCp.get(cp.ID)
-                        return (
-                          <TableRow key={cp.ID}>
-                            <TableCell>{cp.Code} – {cp.DisplayName}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace' }}>{formatLogCell(log)}</TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </>
-              )}
-            </DialogContent>
-          </Dialog>
-        )
-      })()}
+              </DialogContent>
+            </Dialog>
+          )
+        })()}
     </Box>
   )
 }

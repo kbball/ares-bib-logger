@@ -13,7 +13,12 @@ export function computeRunnerPace(
   checkpoints: Checkpoint[],
   logs: CheckpointLog[],
 ): RunnerPace {
-  if (runner.Status === 'DNS' || runner.Status === 'DNF' || runner.Status === 'MOVED' || runner.Status === 'FINISHED') {
+  if (
+    runner.Status === 'DNS' ||
+    runner.Status === 'DNF' ||
+    runner.Status === 'MOVED' ||
+    runner.Status === 'FINISHED'
+  ) {
     return { paceMinPerMile: null, lastLoggedDist: null, lastLoggedAt: null }
   }
 
@@ -42,7 +47,8 @@ export function computeRunnerPace(
   const last = withDist[withDist.length - 1]
 
   const distDelta = last.cp.DistanceFromStart! - prev.cp.DistanceFromStart!
-  const timeDeltaMs = new Date(last.log.RecordedAt).getTime() - new Date(prev.log.RecordedAt).getTime()
+  const timeDeltaMs =
+    new Date(last.log.RecordedAt).getTime() - new Date(prev.log.RecordedAt).getTime()
 
   if (distDelta <= 0 || timeDeltaMs <= 0) {
     return {
@@ -62,11 +68,8 @@ export function computeRunnerPace(
 // Projects arrival at a target checkpoint using a computed pace.
 // Returns null if pace or target distance is unavailable.
 export function projectArrival(pace: RunnerPace, targetDist: number): Date | null {
-  if (
-    pace.paceMinPerMile === null ||
-    pace.lastLoggedDist === null ||
-    pace.lastLoggedAt === null
-  ) return null
+  if (pace.paceMinPerMile === null || pace.lastLoggedDist === null || pace.lastLoggedAt === null)
+    return null
 
   const distToGo = targetDist - pace.lastLoggedDist
   if (distToGo <= 0) return null

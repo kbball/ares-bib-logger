@@ -12,16 +12,12 @@ vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
 describe('AdminTab — Active Event', () => {
   it('renders the Active Event section', async () => {
     render(<AdminTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/active event/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/active event/i)).toBeInTheDocument())
   })
 
   it('shows event chip when session has an active event', async () => {
     render(<AdminTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/event #1 active/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/event #1 active/i)).toBeInTheDocument())
   })
 
   it('allows creating a new event', async () => {
@@ -32,9 +28,7 @@ describe('AdminTab — Active Event', () => {
     await user.type(screen.getByLabelText(/new event name/i), 'Test Event')
     await user.click(screen.getByRole('button', { name: /create event/i }))
 
-    await waitFor(() =>
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
   it('shows error when creating event fails', async () => {
@@ -50,9 +44,7 @@ describe('AdminTab — Active Event', () => {
     await user.type(screen.getByLabelText(/new event name/i), 'Bad')
     await user.click(screen.getByRole('button', { name: /create event/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/name required/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/name required/i)).toBeInTheDocument())
   })
 })
 
@@ -95,9 +87,7 @@ describe('AdminTab — Races', () => {
     await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
     await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
 
-    await waitFor(() =>
-      expect(screen.getByRole('dialog')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
     expect(screen.getByText(/confirm delete/i)).toBeInTheDocument()
   })
 
@@ -110,18 +100,14 @@ describe('AdminTab — Races', () => {
     await waitFor(() => screen.getByRole('dialog'))
 
     await user.click(screen.getByRole('button', { name: /cancel/i }))
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })
 
 describe('AdminTab — Roster Import', () => {
   it('renders the Roster Import section', async () => {
     render(<AdminTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/roster import/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/roster import/i)).toBeInTheDocument())
   })
 
   it('Import Roster button is disabled when no race or TSV', async () => {
@@ -134,9 +120,7 @@ describe('AdminTab — Roster Import', () => {
 describe('AdminTab — Change Runner Status', () => {
   it('renders the Change Runner Status section', async () => {
     render(<AdminTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/change runner status/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/change runner status/i)).toBeInTheDocument())
   })
 
   it('shows no-event info when session lacks event', async () => {
@@ -171,17 +155,13 @@ describe('AdminTab — Change Runner Status', () => {
     await user.type(within(form).getByLabelText(/bib number/i), '100')
     await user.click(within(form).getByRole('button', { name: /search/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/alice smith/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /set/i })).toBeInTheDocument()
   })
 
   it('shows error when bib not found', async () => {
     const user = userEvent.setup()
-    server.use(
-      http.get('/api/races/:raceID/runners', () => HttpResponse.json([])),
-    )
+    server.use(http.get('/api/races/:raceID/runners', () => HttpResponse.json([])))
     render(<AdminTab />)
 
     await waitFor(() => screen.getByTestId('runner-status-form'))
@@ -195,9 +175,7 @@ describe('AdminTab — Change Runner Status', () => {
     await user.type(within(form).getByLabelText(/bib number/i), '999')
     await user.click(within(form).getByRole('button', { name: /search/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/not found/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/not found/i)).toBeInTheDocument())
   })
 
   it('shows error when searchRunner API fails', async () => {
@@ -266,9 +244,7 @@ describe('AdminTab — Change Runner Status', () => {
 
     await user.click(screen.getByRole('button', { name: /^set$/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/status updated to DNF/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/status updated to DNF/i)).toBeInTheDocument())
   })
 })
 
@@ -340,7 +316,9 @@ describe('AdminTab — Lock Order', () => {
     await waitFor(() => screen.getByRole('dialog'))
     expect(screen.getByText(/lock checkpoint order/i)).toBeInTheDocument()
 
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /lock order/i }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /lock order/i }),
+    )
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
@@ -374,7 +352,9 @@ describe('AdminTab — Roster Import (with confirmation)', () => {
     await user.click(screen.getByRole('button', { name: /import roster/i }))
     await waitFor(() => screen.getByRole('dialog'))
 
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /import & lock/i }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /import & lock/i }),
+    )
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByText(/imported 2 runners/i)).toBeInTheDocument())
@@ -419,7 +399,9 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+    await waitFor(
+      () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
+    )
     await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
 
     // Type in each edit field to cover their onChange handlers
@@ -441,7 +423,9 @@ describe('AdminTab — Checkpoint Management', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
 
-    await waitFor(() => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+    await waitFor(
+      () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
+    )
     await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
 
     await waitFor(() => screen.getByDisplayValue('AS1'))
@@ -480,7 +464,9 @@ describe('AdminTab — Checkpoint Management', () => {
     await waitFor(() => screen.getByRole('option', { name: /AS2/i }))
     await user.click(screen.getByRole('option', { name: /AS2/i }))
 
-    await waitFor(() => expect(screen.queryByRole('alert', { name: /error/i })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('alert', { name: /error/i })).not.toBeInTheDocument(),
+    )
   })
 })
 
@@ -543,7 +529,9 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
 describe('AdminTab — SSE Callbacks', () => {
   it('handles SSE session changed event', async () => {
     let capturedCbs: Parameters<typeof useStream>[0] | null = null
-    vi.mocked(useStream).mockImplementationOnce((cbs) => { capturedCbs = cbs })
+    vi.mocked(useStream).mockImplementationOnce((cbs) => {
+      capturedCbs = cbs
+    })
     render(<AdminTab />)
 
     await waitFor(() => screen.getByText(/active event/i))
@@ -583,6 +571,8 @@ describe('AdminTab — Event Selection', () => {
     await waitFor(() => screen.getByRole('option', { name: /— none —/i }))
     await user.click(screen.getByRole('option', { name: /— none —/i }))
 
-    await waitFor(() => expect(screen.queryByRole('alert', { name: /error/i })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('alert', { name: /error/i })).not.toBeInTheDocument(),
+    )
   })
 })

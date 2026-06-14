@@ -12,16 +12,12 @@ describe('WinlinkImportTab', () => {
   it('shows no-event alert when session has no event', async () => {
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
     render(<WinlinkImportTab />)
-    await waitFor(() =>
-      expect(screen.getByText(/no active event/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no active event/i)).toBeInTheDocument())
   })
 
   it('renders race and checkpoint selects when session is active', async () => {
     render(<WinlinkImportTab />)
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: /race/i })).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /race/i })).toBeInTheDocument())
     expect(screen.getByRole('combobox', { name: /checkpoint/i })).toBeInTheDocument()
   })
 
@@ -42,8 +38,8 @@ describe('WinlinkImportTab', () => {
 
     await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
-    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
-    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
 
     await user.click(screen.getByLabelText(/paste winlink column/i))
     await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')
@@ -70,17 +66,15 @@ describe('WinlinkImportTab', () => {
 
     await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
-    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
-    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
 
     await user.click(screen.getByLabelText(/paste winlink column/i))
     await user.type(screen.getByLabelText(/paste winlink column/i), 'bad')
 
     await user.click(screen.getByRole('button', { name: /import/i }))
 
-    await waitFor(() =>
-      expect(screen.getByText(/no active checkpoint/i)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText(/no active checkpoint/i)).toBeInTheDocument())
   })
 
   it('shows errors table when import returns errors', async () => {
@@ -105,8 +99,8 @@ describe('WinlinkImportTab', () => {
 
     await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
-    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
-    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
 
     await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')
     await user.click(screen.getByRole('button', { name: /import/i }))
@@ -137,8 +131,8 @@ describe('WinlinkImportTab', () => {
 
     await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
-    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
-    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
 
     await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')
     await user.click(screen.getByRole('button', { name: /import/i }))
@@ -168,8 +162,8 @@ describe('WinlinkImportTab', () => {
 
     await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
-    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
-    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
 
     await user.click(screen.getByLabelText(/paste winlink column/i))
     await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')

@@ -1,10 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Alert, Box, Button, Chip, Divider, FormControl, InputLabel,
-  MenuItem, Paper, Select, Stack, Table, TableBody, TableCell,
-  TableHead, TableRow, TextField, Tooltip, Typography,
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Divider,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Tooltip,
+  Typography,
 } from '@mui/material'
-import type { ActiveSession, Checkpoint, CheckpointLog, LogBibResult, Race, Runner } from '../../domain/types'
+import type {
+  ActiveSession,
+  Checkpoint,
+  CheckpointLog,
+  LogBibResult,
+  Race,
+  Runner,
+} from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 import { computeRunnerPace, projectArrival } from '../../domain/pace'
@@ -41,9 +64,20 @@ export default function DataEntryTab() {
 
   const [error, setError] = useState('')
 
-  const loadSession = useCallback(() => api.getSession().then(setSession).catch(() => {}), [])
+  const loadSession = useCallback(
+    () =>
+      api
+        .getSession()
+        .then(setSession)
+        .catch(() => {}),
+    [],
+  )
   const loadRaces = useCallback(
-    (eventID: number) => api.listRaces(eventID).then(setRaces).catch(() => {}),
+    (eventID: number) =>
+      api
+        .listRaces(eventID)
+        .then(setRaces)
+        .catch(() => {}),
     [],
   )
   const loadRunners = useCallback(async (raceIDs: number[]) => {
@@ -52,18 +86,22 @@ export default function DataEntryTab() {
   }, [])
   const loadCheckpoints = useCallback(async (raceIDs: number[]) => {
     const entries = await Promise.all(
-      raceIDs.map(async (id) => [id, await api.listCheckpoints(id)] as [number, Checkpoint[]])
+      raceIDs.map(async (id) => [id, await api.listCheckpoints(id)] as [number, Checkpoint[]]),
     )
     setCheckpointsByRace(Object.fromEntries(entries))
   }, [])
   const loadLogs = useCallback(async (raceIDs: number[]) => {
     const entries = await Promise.all(
-      raceIDs.map(async (id) => [id, await api.listCheckpointLogs(id)] as [number, CheckpointLog[]])
+      raceIDs.map(
+        async (id) => [id, await api.listCheckpointLogs(id)] as [number, CheckpointLog[]],
+      ),
     )
     setLogsByRace(Object.fromEntries(entries))
   }, [])
 
-  useEffect(() => { loadSession() }, [loadSession])
+  useEffect(() => {
+    loadSession()
+  }, [loadSession])
 
   useEffect(() => {
     if (session?.EventID) loadRaces(session.EventID)
@@ -80,7 +118,9 @@ export default function DataEntryTab() {
 
   const pushLog = useCallback((result: LogBibResult) => {
     if (result.is_duplicate) {
-      setDupAlert(`DUPLICATE: Bib ${result.runner.BibNumber} (${result.runner.FirstName} ${result.runner.LastName})`)
+      setDupAlert(
+        `DUPLICATE: Bib ${result.runner.BibNumber} (${result.runner.FirstName} ${result.runner.LastName})`,
+      )
       setTimeout(() => setDupAlert(null), 8000)
     }
     setRecentLogs((prev) => [result, ...prev].slice(0, 50))
@@ -100,7 +140,10 @@ export default function DataEntryTab() {
 
   const submitBib = async () => {
     const n = parseInt(bib, 10)
-    if (isNaN(n) || n <= 0) { setBibError('Enter a valid bib number'); return }
+    if (isNaN(n) || n <= 0) {
+      setBibError('Enter a valid bib number')
+      return
+    }
     try {
       const result = await api.logBib(n)
       pushLog(result)
@@ -118,7 +161,10 @@ export default function DataEntryTab() {
 
   const submitStatus = async () => {
     const n = parseInt(statusBib, 10)
-    if (isNaN(n)) { setStatusMsg('Invalid bib'); return }
+    if (isNaN(n)) {
+      setStatusMsg('Invalid bib')
+      return
+    }
     try {
       await api.logStatus(n, status)
       setStatusMsg(`Bib ${n} marked ${status}`)
@@ -136,7 +182,10 @@ export default function DataEntryTab() {
     const n = parseInt(transferBib, 10)
     if (isNaN(n) || !transferRace) return
     const runner = runners.find((r) => r.BibNumber === n)
-    if (!runner) { setTransferMsg(`Bib ${n} not found`); return }
+    if (!runner) {
+      setTransferMsg(`Bib ${n} not found`)
+      return
+    }
     try {
       await api.transferRunner(runner.BibNumber, runner.RaceID, Number(transferRace))
       setTransferMsg(`Bib ${n} transferred`)
@@ -158,9 +207,15 @@ export default function DataEntryTab() {
 
   return (
     <Box sx={{ maxWidth: 900 }}>
-      <Typography variant="h5" gutterBottom>Data Entry</Typography>
+      <Typography variant="h5" gutterBottom>
+        Data Entry
+      </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       {dupAlert && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDupAlert(null)}>
           {dupAlert}
@@ -173,7 +228,9 @@ export default function DataEntryTab() {
       )}
 
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>No active event. Set one in Admin.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No active event. Set one in Admin.
+        </Alert>
       )}
 
       {/* ── Race stats ── */}
@@ -183,7 +240,9 @@ export default function DataEntryTab() {
             const raceRunners = runners.filter((r) => r.RaceID === race.ID)
             const cp = activeCheckpointFor(race.ID)
             const raceLogs = logsByRace[race.ID] ?? []
-            const raceCPs = (checkpointsByRace[race.ID] ?? []).sort((a, b) => a.DisplayOrder - b.DisplayOrder)
+            const raceCPs = (checkpointsByRace[race.ID] ?? []).sort(
+              (a, b) => a.DisplayOrder - b.DisplayOrder,
+            )
             // Runners with a real time log at the active checkpoint (DNS/DNF raw messages don't count as "through")
             const throughSet = new Set(
               raceLogs
@@ -192,12 +251,16 @@ export default function DataEntryTab() {
                   const raw = l.RawMessage?.toUpperCase()
                   return raw !== 'DNS' && raw !== 'DNF'
                 })
-                .map((l) => l.RunnerID)
+                .map((l) => l.RunnerID),
             )
             // Exclusive three-way partition — all three sum to raceRunners.length
             const through = raceRunners.filter((r) => throughSet.has(r.ID))
-            const dnsDnf = raceRunners.filter((r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'))
-            const stillToCome = raceRunners.filter((r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF')
+            const dnsDnf = raceRunners.filter(
+              (r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'),
+            )
+            const stillToCome = raceRunners.filter(
+              (r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF',
+            )
 
             // Projected next arrival — earliest among runners not yet through, if CP has a distance
             let nextExpected: string | null = null
@@ -211,44 +274,65 @@ export default function DataEntryTab() {
                 })
                 .filter((x): x is { arrival: Date; bib: number } => x !== null)
               if (arrivals.length > 0) {
-                const earliest = arrivals.reduce((best, x) => x.arrival < best.arrival ? x : best)
-                nextExpected = earliest.arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                const earliest = arrivals.reduce((best, x) => (x.arrival < best.arrival ? x : best))
+                nextExpected = earliest.arrival.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                })
                 nextExpectedBib = earliest.bib
               }
             }
 
             return (
               <Paper key={race.ID} sx={{ p: 1.5, minWidth: 160 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                  {race.Name}
+                </Typography>
                 <Tooltip title="Total runners in this race — equals Still to come + Through + DNS/DNF">
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Runners: {raceRunners.length}
                   </Typography>
                 </Tooltip>
                 <Tooltip title="Runners not yet logged at this checkpoint (on course, moved, or finished elsewhere)">
-                  <Typography variant="body2" color={stillToCome.length === 0 && cp ? 'success.main' : 'text.primary'}>
+                  <Typography
+                    variant="body2"
+                    color={stillToCome.length === 0 && cp ? 'success.main' : 'text.primary'}
+                  >
                     Still to come: {cp ? stillToCome.length : '—'}
                   </Typography>
                 </Tooltip>
                 <Tooltip title="Runners physically logged through this checkpoint">
-                  <Typography variant="body2">
-                    Through: {cp ? through.length : '—'}
-                  </Typography>
+                  <Typography variant="body2">Through: {cp ? through.length : '—'}</Typography>
                 </Tooltip>
                 <Tooltip title="Runners marked DNS or DNF (not logged through this checkpoint)">
                   <Typography variant="body2">
-                    DNS/DNF: {cp ? dnsDnf.length : raceRunners.filter((r) => r.Status === 'DNS' || r.Status === 'DNF').length}
+                    DNS/DNF:{' '}
+                    {cp
+                      ? dnsDnf.length
+                      : raceRunners.filter((r) => r.Status === 'DNS' || r.Status === 'DNF').length}
                   </Typography>
                 </Tooltip>
-                <Tooltip title={cp ? 'Active checkpoint for this race' : 'No checkpoint assigned — set one in Admin'}>
-                  <Typography variant="body2" color={cp ? 'success.main' : 'error.main'} sx={{ mt: 0.5 }}>
+                <Tooltip
+                  title={
+                    cp
+                      ? 'Active checkpoint for this race'
+                      : 'No checkpoint assigned — set one in Admin'
+                  }
+                >
+                  <Typography
+                    variant="body2"
+                    color={cp ? 'success.main' : 'error.main'}
+                    sx={{ mt: 0.5 }}
+                  >
                     {cp ? `${cp.Code} – ${cp.DisplayName}` : 'No active CP'}
                   </Typography>
                 </Tooltip>
                 {cp?.DistanceFromStart != null && (
                   <Tooltip title="Earliest projected arrival at this checkpoint based on runner paces">
                     <Typography variant="body2" sx={{ mt: 0.5 }}>
-                      Next expected: {nextExpected ?? '—'}{nextExpectedBib != null && ` (bib ${nextExpectedBib})`}
+                      Next expected: {nextExpected ?? '—'}
+                      {nextExpectedBib != null && ` (bib ${nextExpectedBib})`}
                     </Typography>
                   </Tooltip>
                 )}
@@ -261,7 +345,9 @@ export default function DataEntryTab() {
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
         {/* ── Manual bib entry ── */}
         <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" gutterBottom>Log Bib</Typography>
+          <Typography variant="h6" gutterBottom>
+            Log Bib
+          </Typography>
           <Stack direction="row" spacing={1}>
             <TextField
               inputRef={bibRef}
@@ -292,7 +378,9 @@ export default function DataEntryTab() {
 
         {/* ── DNS / DNF ── */}
         <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" gutterBottom>DNS / DNF</Typography>
+          <Typography variant="h6" gutterBottom>
+            DNS / DNF
+          </Typography>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
             <TextField
               label="Bib #"
@@ -326,12 +414,18 @@ export default function DataEntryTab() {
               </span>
             </Tooltip>
           </Stack>
-          {statusMsg && <Typography variant="body2" sx={{ mt: 1 }}>{statusMsg}</Typography>}
+          {statusMsg && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {statusMsg}
+            </Typography>
+          )}
         </Paper>
 
         {/* ── Race transfer ── */}
         <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" gutterBottom>Transfer Runner</Typography>
+          <Typography variant="h6" gutterBottom>
+            Transfer Runner
+          </Typography>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
             <TextField
               label="Bib #"
@@ -348,7 +442,9 @@ export default function DataEntryTab() {
                 onChange={(e) => setTransferRace(Number(e.target.value))}
               >
                 {races.map((r) => (
-                  <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                  <MenuItem key={r.ID} value={r.ID}>
+                    {r.Name}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -364,16 +460,24 @@ export default function DataEntryTab() {
               </span>
             </Tooltip>
           </Stack>
-          {transferMsg && <Typography variant="body2" sx={{ mt: 1 }}>{transferMsg}</Typography>}
+          {transferMsg && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {transferMsg}
+            </Typography>
+          )}
         </Paper>
       </Stack>
 
       <Divider sx={{ my: 3 }} />
 
       {/* ── Recent log ── */}
-      <Typography variant="h6" gutterBottom>Recent Log</Typography>
+      <Typography variant="h6" gutterBottom>
+        Recent Log
+      </Typography>
       {recentLogs.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">No entries yet.</Typography>
+        <Typography variant="body2" color="text.secondary">
+          No entries yet.
+        </Typography>
       ) : (
         <Table size="small">
           <TableHead>
@@ -391,7 +495,9 @@ export default function DataEntryTab() {
               return (
                 <TableRow key={i} sx={{ bgcolor: entry.is_duplicate ? 'warning.dark' : undefined }}>
                   <TableCell>{entry.runner.BibNumber}</TableCell>
-                  <TableCell>{entry.runner.FirstName} {entry.runner.LastName}</TableCell>
+                  <TableCell>
+                    {entry.runner.FirstName} {entry.runner.LastName}
+                  </TableCell>
                   <TableCell>{race?.Name ?? `Race ${entry.runner.RaceID}`}</TableCell>
                   <TableCell>
                     {entry.log && (

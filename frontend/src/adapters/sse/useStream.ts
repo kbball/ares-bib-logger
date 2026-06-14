@@ -12,7 +12,9 @@ export function useStream(handlers: StreamHandlers) {
   // Keep a ref that always points to the latest handlers so the EventSource
   // callback is never stale without recreating the connection on every render.
   const handlersRef = useRef(handlers)
-  useEffect(() => { handlersRef.current = handlers })
+  useEffect(() => {
+    handlersRef.current = handlers
+  })
 
   useEffect(() => {
     const es = new EventSource('/api/stream')

@@ -71,9 +71,9 @@ func TestWinlinkService_Export_Format(t *testing.T) {
 
 	assert.Equal(t, "AS6", lines[0])
 	assert.Equal(t, "17:45", lines[1]) // seen
-	assert.Equal(t, "DNS", lines[2])      // DNS status
-	assert.Equal(t, "DNF", lines[3])      // DNF status
-	assert.Equal(t, "", lines[4])         // not seen, no status
+	assert.Equal(t, "DNS", lines[2])   // DNS status
+	assert.Equal(t, "DNF", lines[3])   // DNF status
+	assert.Equal(t, "", lines[4])      // not seen, no status
 }
 
 func TestWinlinkService_Export_MovedRunner(t *testing.T) {
@@ -241,8 +241,8 @@ func TestWinlinkService_Import_MovedAtPositionOne(t *testing.T) {
 	result, err := svc.Import(context.Background(), 1, 10, column)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.Created)  // bib 101 created
-	assert.Equal(t, 1, result.Skipped)  // bib 100 skipped (moved)
+	assert.Equal(t, 1, result.Created) // bib 101 created
+	assert.Equal(t, 1, result.Skipped) // bib 100 skipped (moved)
 	require.Len(t, result.SkippedDetails, 1)
 	assert.Equal(t, 1, result.SkippedDetails[0].Position)
 	assert.Equal(t, 100, result.SkippedDetails[0].BibNumber)
@@ -270,8 +270,8 @@ func TestWinlinkService_Import_BlankAtPositionOnePreservesOrder(t *testing.T) {
 	result, err := svc.Import(context.Background(), 1, 10, column)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.Created)  // bib 101 created
-	assert.Equal(t, 1, result.Skipped)  // bib 100 skipped (blank)
+	assert.Equal(t, 1, result.Created) // bib 101 created
+	assert.Equal(t, 1, result.Skipped) // bib 100 skipped (blank)
 	require.Len(t, result.SkippedDetails, 1)
 	assert.Equal(t, 1, result.SkippedDetails[0].Position)
 	assert.Equal(t, "blank", result.SkippedDetails[0].Reason)
@@ -429,7 +429,7 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 		{"", true},
 		{"17:45:00", true},
 		{"08:00", true},
-		{"7:35", true},  // single-digit hour must not be treated as a header
+		{"7:35", true}, // single-digit hour must not be treated as a header
 		{"9:05:30", true},
 		{"AS6", false},
 		{"HELLO", false},

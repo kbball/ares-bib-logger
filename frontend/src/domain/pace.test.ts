@@ -74,10 +74,7 @@ describe('computeRunnerPace', () => {
   it('computes pace from two distance-tagged checkpoints', () => {
     const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 20.0)]
     // 60 minutes between checkpoints, 10 miles apart → 6 min/mi
-    const logs = [
-      makeLog(1, 1, '2026-06-14T10:00:00Z'),
-      makeLog(1, 2, '2026-06-14T11:00:00Z'),
-    ]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z'), makeLog(1, 2, '2026-06-14T11:00:00Z')]
     const result = computeRunnerPace(makeRunner(), cps, logs)
     expect(result.paceMinPerMile).toBeCloseTo(6.0)
     expect(result.lastLoggedDist).toBe(20.0)
@@ -85,11 +82,7 @@ describe('computeRunnerPace', () => {
   })
 
   it('uses the last two distance checkpoints when more than two are logged', () => {
-    const cps = [
-      makeCheckpoint(1, 1, 5.0),
-      makeCheckpoint(2, 2, 15.0),
-      makeCheckpoint(3, 3, 25.0),
-    ]
+    const cps = [makeCheckpoint(1, 1, 5.0), makeCheckpoint(2, 2, 15.0), makeCheckpoint(3, 3, 25.0)]
     // Between cp2 and cp3: 10 miles in 90 min → 9 min/mi
     const logs = [
       makeLog(1, 1, '2026-06-14T09:00:00Z'),
@@ -118,10 +111,7 @@ describe('computeRunnerPace', () => {
 
   it('returns null pace when distance delta is zero', () => {
     const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 10.0)]
-    const logs = [
-      makeLog(1, 1, '2026-06-14T10:00:00Z'),
-      makeLog(1, 2, '2026-06-14T11:00:00Z'),
-    ]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z'), makeLog(1, 2, '2026-06-14T11:00:00Z')]
     const result = computeRunnerPace(makeRunner(), cps, logs)
     expect(result.paceMinPerMile).toBeNull()
   })

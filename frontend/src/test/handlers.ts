@@ -1,12 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type {
-  ActiveSession,
-  Checkpoint,
-  CheckpointLog,
-  Event,
-  Race,
-  Runner,
-} from '../domain/types'
+import type { ActiveSession, Checkpoint, CheckpointLog, Event, Race, Runner } from '../domain/types'
 
 // ── Shared mock data ─────────────────────────────────────────────────────────
 

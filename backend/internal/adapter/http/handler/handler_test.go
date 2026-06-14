@@ -53,7 +53,7 @@ func (m *mockRaceService) Get(_ context.Context, id int) (entity.Race, error) {
 func (m *mockRaceService) Create(_ context.Context, eventID int, name string) (entity.Race, error) {
 	return entity.Race{ID: 1, EventID: eventID, Name: name}, m.err
 }
-func (m *mockRaceService) Delete(_ context.Context, id int) error   { return m.err }
+func (m *mockRaceService) Delete(_ context.Context, id int) error    { return m.err }
 func (m *mockRaceService) LockOrder(_ context.Context, id int) error { return m.err }
 
 type mockCheckpointService struct {

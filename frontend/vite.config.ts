@@ -9,12 +9,9 @@ export default defineConfig({
       // bare-directory imports that MUI makes. Point directly at the CJS files.
       'react-transition-group/TransitionGroupContext':
         'react-transition-group/cjs/TransitionGroupContext.js',
-      'react-transition-group/Transition':
-        'react-transition-group/cjs/Transition.js',
-      'react-transition-group/CSSTransition':
-        'react-transition-group/cjs/CSSTransition.js',
-      'react-transition-group/TransitionGroup':
-        'react-transition-group/cjs/TransitionGroup.js',
+      'react-transition-group/Transition': 'react-transition-group/cjs/Transition.js',
+      'react-transition-group/CSSTransition': 'react-transition-group/cjs/CSSTransition.js',
+      'react-transition-group/TransitionGroup': 'react-transition-group/cjs/TransitionGroup.js',
     },
   },
   server: {

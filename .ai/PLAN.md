@@ -345,6 +345,11 @@ Three sections:
 - [x] 2026-06-14 — Developer vs. Deployment docs: README split into Operator (Docker-only) and Developer tracks; `docker-compose.operator.yml` added for operators pulling pre-built image from GHCR; `.github/workflows/ci.yml` added — runs `test` and `lint` jobs on PRs, then builds and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-*` tag to GHCR on merge to main using GitHub Actions cache for layer reuse
 - [x] 2026-06-14 — Winlink Export email subject line: subject field (`<CP DisplayName> <Race Name> <HH:MM> update`) appears above the column textarea after Generate; read-only text field + Copy Subject button; Copy Subject recomputes the current time at click time; 4 new tests (subject visible, correct content, clipboard copy, Copied! feedback)
 - [x] 2026-06-14 — Tooltips on all action buttons and icons: MUI `Tooltip` added to every action button (Generate, Copy Subject, Copy to Clipboard, Import, Log, Submit, Transfer) and all AdminTab icon buttons (Archive, Lock Order, Delete Race, Save, Cancel, Move Up/Down, Edit CP, Delete CP); `describeChild` used on text buttons so tooltip uses `aria-describedby` rather than overriding the button accessible name with `aria-label`; test queries migrated from `getByTitle` to `getByRole('button', { name: ... })`; all 166 tests pass
+- [x] 2026-06-14 — Bug fix (Data Entry cards not refreshing): `useStream` captured handlers once at mount with empty deps so `races` was always `[]` inside the SSE callback; fixed with a `handlersRef` updated each render so the EventSource always invokes the latest closure; also added `loadLogs` to `submitBib` and `submitStatus` for direct refresh
+- [x] 2026-06-14 — Bug fix (Winlink timezone): Docker container timezone is UTC; `parseTimeOfDay` used `time.Local` (= UTC), storing imported times as UTC and the export formatting `RecordedAt.Local()` also produced UTC; fixed by adding `TIMEZONE` env var (IANA name, e.g. `America/New_York`) to config, threading `*time.Location` into `WinlinkService`, and using it in both import parsing and export formatting
+- [x] 2026-06-14 — Bulk Checkpoint Import: Admin tab "Bulk Checkpoint Import" section — race selector + TSV textarea (`Code\tDisplayName\tDist`); creates each row via the existing create-checkpoint API sequentially; reports created count and per-row errors inline
+- [x] 2026-06-14 — Winlink Import: excluded active checkpoint from CP selector (prevents self-import); filter: `session.Checkpoints.find(c => c.RaceID === raceID)?.CheckpointID`; tests updated to select non-active checkpoint
+- [x] 2026-06-14 — Context-Sensitive Help Panel: `?` icon button in AppBar opens right-side MUI Drawer with per-tab help content; HELP array in App.tsx maps each of the 5 tab indices to a title + 3–5 items; drawer closes on backdrop click or X button; all 166 tests pass
 
 ## Backlog
 
@@ -388,14 +393,14 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### UI — Enhancement — Reorder tabs (Priority: Low)
 - [ ] New tab order: Data Entry → Runners → Winlink Import → Winlink Export → Admin
 
-### UI — Enhancement — Winlink Import should exclude the active checkpoint from the CP selector (Priority: Medium)
-- [ ] The checkpoint dropdown on Winlink Import should not offer the station's own active checkpoint; importing your own station's column is nonsensical and risks overwriting live data
+### ~~UI — Enhancement — Winlink Import should exclude the active checkpoint from the CP selector~~ ✅ Completed 2026-06-14
+- [x] The checkpoint dropdown on Winlink Import now excludes the station's active checkpoint for the selected race; prevents accidental self-import; filter applied via `session.Checkpoints.find(c => c.RaceID === raceID).CheckpointID`; tests updated to select Aid Station 2 (the non-active one)
 
 ### UI — Enhancement — Winlink export column header should use CP display name not code (Priority: Low)
 - [ ] The first line of the generated export column currently emits the CP code (e.g. `AS1`); change it to emit the CP display name (e.g. `Aid Station 1`) to match the Winlink convention used by other stations
 
-### UI — Context-Sensitive Help Panel (Priority: Medium)
-- [ ] Persistent help icon (question mark) in the lower-right corner of every tab; clicking opens a slide-in side panel explaining what the current screen does and how to use it
+### ~~UI — Context-Sensitive Help Panel~~ ✅ Completed 2026-06-14
+- [x] `?` (HelpOutlined) icon button in AppBar top-right; clicking opens a right-side MUI Drawer with tab-specific help content (title + 3–5 bullet items); content updates as the active tab changes; all five tabs have written help content (Data Entry, Winlink Import, Winlink Export, Runners, Admin); Close button in drawer header; no new component file — implemented inline in App.tsx with a `HELP` array
 
 ### ~~UI — Tooltip on All Action Buttons and Icons~~ ✅ Completed 2026-06-14
 - [x] Added MUI `Tooltip` to every action button and icon across all tabs

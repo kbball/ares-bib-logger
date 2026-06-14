@@ -1,9 +1,29 @@
 import { useEffect, useState } from 'react'
 import {
-  Box, Typography, Divider, TextField, Button, Select, MenuItem,
-  FormControl, InputLabel, Stack, Chip, Alert, Paper,
-  Table, TableHead, TableRow, TableCell, TableBody,
-  IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Box,
+  Typography,
+  Divider,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Stack,
+  Chip,
+  Alert,
+  Paper,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
   Tooltip,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -14,7 +34,14 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
-import type { Event, Race, Checkpoint, ActiveSession, Runner, RunnerStatus } from '../../domain/types'
+import type {
+  Event,
+  Race,
+  Checkpoint,
+  ActiveSession,
+  Runner,
+  RunnerStatus,
+} from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -56,23 +83,36 @@ export default function AdminTab() {
   const [statusSearchErr, setStatusSearchErr] = useState('')
 
   // Confirmation dialogs
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'race' | 'checkpoint'; id: number; label: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'race' | 'checkpoint'
+    id: number
+    label: string
+  } | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string } | null>(null)
   const [lockTarget, setLockTarget] = useState<{ id: number; label: string } | null>(null)
   const [rosterConfirm, setRosterConfirm] = useState(false)
 
   const loadSession = () =>
-    api.getSession().then(setSession).catch(() => {})
+    api
+      .getSession()
+      .then(setSession)
+      .catch(() => {})
 
   const loadEvents = () =>
-    api.listEvents().then(setEvents).catch(() => {})
+    api
+      .listEvents()
+      .then(setEvents)
+      .catch(() => {})
 
   const loadRaces = (eventID: number) =>
-    api.listRaces(eventID).then(setRaces).catch(() => {})
+    api
+      .listRaces(eventID)
+      .then(setRaces)
+      .catch(() => {})
 
   const loadCheckpoints = async (raceIDs: number[]) => {
     const entries = await Promise.all(
-      raceIDs.map(async (id) => [id, await api.listCheckpoints(id)] as [number, Checkpoint[]])
+      raceIDs.map(async (id) => [id, await api.listCheckpoints(id)] as [number, Checkpoint[]]),
     )
     setCheckpointsByRace(Object.fromEntries(entries))
   }
@@ -100,14 +140,20 @@ export default function AdminTab() {
 
   const wrap = (fn: () => Promise<unknown>, onDone?: () => void) =>
     fn()
-      .then(() => { setError(''); onDone?.() })
+      .then(() => {
+        setError('')
+        onDone?.()
+      })
       .catch((e: Error) => setError(e.message))
 
   const confirmDelete = () => {
     if (!deleteTarget) return
     const { type, id } = deleteTarget
     if (type === 'race') {
-      wrap(() => api.deleteRace(id).then(() => loadRaces(session!.EventID!)), () => setDeleteTarget(null))
+      wrap(
+        () => api.deleteRace(id).then(() => loadRaces(session!.EventID!)),
+        () => setDeleteTarget(null),
+      )
     } else {
       wrap(
         () => api.deleteCheckpoint(id).then(() => loadCheckpoints(races.map((r) => r.ID))),
@@ -118,8 +164,8 @@ export default function AdminTab() {
 
   const confirmArchive = () => {
     if (!archiveTarget) return
-    wrap(
-      () => api.archiveEvent(archiveTarget.id).then(() => {
+    wrap(() =>
+      api.archiveEvent(archiveTarget.id).then(() => {
         setArchiveTarget(null)
         return Promise.all([loadEvents(), loadSession()])
       }),
@@ -128,8 +174,8 @@ export default function AdminTab() {
 
   const confirmLockOrder = () => {
     if (!lockTarget) return
-    wrap(
-      () => api.lockRaceOrder(lockTarget.id).then(() => {
+    wrap(() =>
+      api.lockRaceOrder(lockTarget.id).then(() => {
         setLockTarget(null)
         return loadRaces(session!.EventID!)
       }),
@@ -138,12 +184,12 @@ export default function AdminTab() {
 
   const confirmRosterImport = () => {
     setRosterConfirm(false)
-    wrap(
-      () => api.importRoster(Number(rosterRaceID), rosterTsv).then((r) => {
+    wrap(() =>
+      api.importRoster(Number(rosterRaceID), rosterTsv).then((r) => {
         setRosterMsg(`Imported ${r.imported} runners.`)
         setRosterTsv('')
         return loadRaces(session!.EventID!)
-      })
+      }),
     )
   }
 
@@ -159,7 +205,9 @@ export default function AdminTab() {
         setStatusSearchErr(`Bib ${statusBib} not found in this race.`)
       } else {
         setStatusRunner(found)
-        setStatusNew(found.Status === 'MOVED' || found.Status === 'UNKNOWN' ? 'ACTIVE' : found.Status)
+        setStatusNew(
+          found.Status === 'MOVED' || found.Status === 'UNKNOWN' ? 'ACTIVE' : found.Status,
+        )
       }
     } catch (e: unknown) {
       setStatusSearchErr((e as Error).message)
@@ -179,14 +227,20 @@ export default function AdminTab() {
   }
 
   const moveCheckpoint = (raceID: number, cp: Checkpoint, direction: 'up' | 'down') => {
-    const cps = [...(checkpointsByRace[raceID] ?? [])].sort((a, b) => a.DisplayOrder - b.DisplayOrder)
+    const cps = [...(checkpointsByRace[raceID] ?? [])].sort(
+      (a, b) => a.DisplayOrder - b.DisplayOrder,
+    )
     const idx = cps.findIndex((c) => c.ID === cp.ID)
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
     if (swapIdx < 0 || swapIdx >= cps.length) return
     const reordered = [...cps]
     ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
-    wrap(
-      () => api.reorderCheckpoints(raceID, reordered.map((c) => c.ID))
+    wrap(() =>
+      api
+        .reorderCheckpoints(
+          raceID,
+          reordered.map((c) => c.ID),
+        )
         .then(() => loadCheckpoints(races.map((r) => r.ID))),
     )
   }
@@ -201,12 +255,11 @@ export default function AdminTab() {
   const saveEditCp = () => {
     if (!editingCpID || !editCode.trim() || !editName.trim()) return
     const dist = editDist.trim() ? parseFloat(editDist) : null
-    wrap(
-      () => api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist)
-        .then(() => {
-          setEditingCpID(null)
-          return loadCheckpoints(races.map((r) => r.ID))
-        }),
+    wrap(() =>
+      api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist).then(() => {
+        setEditingCpID(null)
+        return loadCheckpoints(races.map((r) => r.ID))
+      }),
     )
   }
 
@@ -214,12 +267,20 @@ export default function AdminTab() {
 
   return (
     <Box sx={{ maxWidth: 800 }}>
-      <Typography variant="h5" gutterBottom>Admin</Typography>
+      <Typography variant="h5" gutterBottom>
+        Admin
+      </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* ── Active event ── */}
-      <Typography variant="h6" gutterBottom>Active Event</Typography>
+      <Typography variant="h6" gutterBottom>
+        Active Event
+      </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 220 }}>
           <InputLabel id="event-label">Event</InputLabel>
@@ -227,12 +288,12 @@ export default function AdminTab() {
             value={session?.EventID ?? ''}
             label="Event"
             labelId="event-label"
-            onChange={(e) =>
-              wrap(() => api.setSessionEvent(Number(e.target.value)), loadSession)
-            }
+            onChange={(e) => wrap(() => api.setSessionEvent(Number(e.target.value)), loadSession)}
           >
             {events.map((ev) => (
-              <MenuItem key={ev.ID} value={ev.ID}>{ev.Name}</MenuItem>
+              <MenuItem key={ev.ID} value={ev.ID}>
+                {ev.Name}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -268,10 +329,12 @@ export default function AdminTab() {
               variant="outlined"
               disabled={!newEventName.trim()}
               onClick={() =>
-                wrap(() => api.createEvent(newEventName.trim()).then(() => {
-                  setNewEventName('')
-                  return loadEvents()
-                }))
+                wrap(() =>
+                  api.createEvent(newEventName.trim()).then(() => {
+                    setNewEventName('')
+                    return loadEvents()
+                  }),
+                )
               }
             >
               Create Event
@@ -283,9 +346,13 @@ export default function AdminTab() {
       <Divider sx={{ my: 2 }} />
 
       {/* ── Races ── */}
-      <Typography variant="h6" gutterBottom>Races</Typography>
+      <Typography variant="h6" gutterBottom>
+        Races
+      </Typography>
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>Select an active event first.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Select an active event first.
+        </Alert>
       )}
       {session?.EventID && (
         <>
@@ -306,7 +373,7 @@ export default function AdminTab() {
                       api.createRace(session.EventID!, newRaceName.trim()).then(() => {
                         setNewRaceName('')
                         return loadRaces(session.EventID!)
-                      })
+                      }),
                     )
                   }
                 >
@@ -319,29 +386,32 @@ export default function AdminTab() {
           {races.map((race) => (
             <Paper key={race.ID} sx={{ p: 2, mb: 2 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{race.Name}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                  {race.Name}
+                </Typography>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   {race.RosterLocked && <Chip label="Roster locked" size="small" color="warning" />}
-                  {race.OrderLocked
-                    ? <Chip label="Order locked" size="small" color="warning" />
-                    : (
-                      <Tooltip title="Lock checkpoint order — prevents mid-race column shifts that break Winlink import">
-                        <IconButton
-                          size="small"
-                          aria-label="Lock checkpoint order"
-                          onClick={() => setLockTarget({ id: race.ID, label: race.Name })}
-                        >
-                          <LockIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )
-                  }
+                  {race.OrderLocked ? (
+                    <Chip label="Order locked" size="small" color="warning" />
+                  ) : (
+                    <Tooltip title="Lock checkpoint order — prevents mid-race column shifts that break Winlink import">
+                      <IconButton
+                        size="small"
+                        aria-label="Lock checkpoint order"
+                        onClick={() => setLockTarget({ id: race.ID, label: race.Name })}
+                      >
+                        <LockIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <Tooltip title="Delete race and all its data">
                     <IconButton
                       size="small"
                       color="error"
                       aria-label="Delete race and all its data"
-                      onClick={() => setDeleteTarget({ type: 'race', id: race.ID, label: race.Name })}
+                      onClick={() =>
+                        setDeleteTarget({ type: 'race', id: race.ID, label: race.Name })
+                      }
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -429,7 +499,9 @@ export default function AdminTab() {
                           <>
                             <TableCell>{cp.Code}</TableCell>
                             <TableCell>{cp.DisplayName}</TableCell>
-                            <TableCell>{cp.DistanceFromStart != null ? cp.DistanceFromStart : '—'}</TableCell>
+                            <TableCell>
+                              {cp.DistanceFromStart != null ? cp.DistanceFromStart : '—'}
+                            </TableCell>
                           </>
                         )}
                         <TableCell align="right">
@@ -437,12 +509,21 @@ export default function AdminTab() {
                             {editingCpID === cp.ID ? (
                               <>
                                 <Tooltip title="Save">
-                                  <IconButton size="small" color="success" aria-label="Save" onClick={saveEditCp}>
+                                  <IconButton
+                                    size="small"
+                                    color="success"
+                                    aria-label="Save"
+                                    onClick={saveEditCp}
+                                  >
                                     <CheckIcon fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Cancel">
-                                  <IconButton size="small" aria-label="Cancel" onClick={cancelEditCp}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Cancel"
+                                    onClick={cancelEditCp}
+                                  >
                                     <CloseIcon fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
@@ -489,7 +570,13 @@ export default function AdminTab() {
                                         size="small"
                                         color="error"
                                         aria-label="Delete checkpoint"
-                                        onClick={() => setDeleteTarget({ type: 'checkpoint', id: cp.ID, label: `${cp.Code} – ${cp.DisplayName}` })}
+                                        onClick={() =>
+                                          setDeleteTarget({
+                                            type: 'checkpoint',
+                                            id: cp.ID,
+                                            label: `${cp.Code} – ${cp.DisplayName}`,
+                                          })
+                                        }
                                       >
                                         <DeleteIcon fontSize="small" />
                                       </IconButton>
@@ -507,25 +594,56 @@ export default function AdminTab() {
 
               {!race.OrderLocked && (
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <TextField size="small" label="Code" value={cpRaceID === race.ID ? cpCode : ''}
-                    onChange={(e) => { setCpRaceID(race.ID); setCpCode(e.target.value) }} sx={{ width: 100 }} />
-                  <TextField size="small" label="Display name" value={cpRaceID === race.ID ? cpName : ''}
-                    onChange={(e) => { setCpRaceID(race.ID); setCpName(e.target.value) }} sx={{ width: 180 }} />
-                  <TextField size="small" label="Dist (mi)" type="number"
+                  <TextField
+                    size="small"
+                    label="Code"
+                    value={cpRaceID === race.ID ? cpCode : ''}
+                    onChange={(e) => {
+                      setCpRaceID(race.ID)
+                      setCpCode(e.target.value)
+                    }}
+                    sx={{ width: 100 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Display name"
+                    value={cpRaceID === race.ID ? cpName : ''}
+                    onChange={(e) => {
+                      setCpRaceID(race.ID)
+                      setCpName(e.target.value)
+                    }}
+                    sx={{ width: 180 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Dist (mi)"
+                    type="number"
                     value={cpRaceID === race.ID ? cpDist : ''}
-                    onChange={(e) => { setCpRaceID(race.ID); setCpDist(e.target.value) }}
-                    sx={{ width: 90 }} slotProps={{ htmlInput: { step: '0.1', min: '0' } }} />
+                    onChange={(e) => {
+                      setCpRaceID(race.ID)
+                      setCpDist(e.target.value)
+                    }}
+                    sx={{ width: 90 }}
+                    slotProps={{ htmlInput: { step: '0.1', min: '0' } }}
+                  />
                   <Tooltip title="Add checkpoint to this race">
                     <span>
-                      <Button variant="outlined" size="small"
+                      <Button
+                        variant="outlined"
+                        size="small"
                         disabled={cpRaceID !== race.ID || !cpCode.trim() || !cpName.trim()}
                         onClick={() => {
                           const dist = cpDist.trim() ? parseFloat(cpDist) : null
-                          wrap(
-                            () => api.createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist).then(() => {
-                              setCpCode(''); setCpName(''); setCpDist(''); setCpRaceID('')
-                              return loadCheckpoints(races.map((r) => r.ID))
-                            })
+                          wrap(() =>
+                            api
+                              .createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist)
+                              .then(() => {
+                                setCpCode('')
+                                setCpName('')
+                                setCpDist('')
+                                setCpRaceID('')
+                                return loadCheckpoints(races.map((r) => r.ID))
+                              }),
                           )
                         }}
                       >
@@ -543,23 +661,36 @@ export default function AdminTab() {
       <Divider sx={{ my: 2 }} />
 
       {/* ── Roster Import ── */}
-      <Typography variant="h6" gutterBottom>Roster Import</Typography>
+      <Typography variant="h6" gutterBottom>
+        Roster Import
+      </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Paste TSV with columns: BibNumber, FirstName, LastName (no header row). Importing locks the roster permanently.
+        Paste TSV with columns: BibNumber, FirstName, LastName (no header row). Importing locks the
+        roster permanently.
       </Typography>
       <Stack spacing={1} data-testid="roster-section">
         <FormControl size="small" sx={{ maxWidth: 220 }}>
           <InputLabel id="roster-race-label">Race</InputLabel>
-          <Select value={rosterRaceID} label="Race" labelId="roster-race-label" onChange={(e) => setRosterRaceID(Number(e.target.value))}>
+          <Select
+            value={rosterRaceID}
+            label="Race"
+            labelId="roster-race-label"
+            onChange={(e) => setRosterRaceID(Number(e.target.value))}
+          >
             {races
               .filter((r) => !r.RosterLocked)
               .map((r) => (
-                <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                <MenuItem key={r.ID} value={r.ID}>
+                  {r.Name}
+                </MenuItem>
               ))}
           </Select>
         </FormControl>
         <TextField
-          multiline rows={6} size="small" placeholder="101&#9;Alice&#9;Smith&#10;102&#9;Bob&#9;Jones"
+          multiline
+          rows={6}
+          size="small"
+          placeholder="101&#9;Alice&#9;Smith&#10;102&#9;Bob&#9;Jones"
           value={rosterTsv}
           onChange={(e) => setRosterTsv(e.target.value)}
           sx={{ fontFamily: 'monospace' }}
@@ -576,28 +707,48 @@ export default function AdminTab() {
               </Button>
             </span>
           </Tooltip>
-          {rosterMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{rosterMsg}</Typography>}
+          {rosterMsg && (
+            <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>
+              {rosterMsg}
+            </Typography>
+          )}
         </Box>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
 
       {/* ── Bulk Checkpoint Import ── */}
-      <Typography variant="h6" gutterBottom>Bulk Checkpoint Import</Typography>
+      <Typography variant="h6" gutterBottom>
+        Bulk Checkpoint Import
+      </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Paste TSV with columns: Code, DisplayName, DistFromStart (distance optional, no header row).
       </Typography>
       <Stack spacing={1}>
         <FormControl size="small" sx={{ maxWidth: 220 }}>
           <InputLabel id="bulk-cp-race-label">Race</InputLabel>
-          <Select value={bulkCpRaceID} label="Race" labelId="bulk-cp-race-label" onChange={(e) => { setBulkCpRaceID(Number(e.target.value)); setBulkCpMsg('') }}>
-            {races.filter((r) => !r.OrderLocked).map((r) => (
-              <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
-            ))}
+          <Select
+            value={bulkCpRaceID}
+            label="Race"
+            labelId="bulk-cp-race-label"
+            onChange={(e) => {
+              setBulkCpRaceID(Number(e.target.value))
+              setBulkCpMsg('')
+            }}
+          >
+            {races
+              .filter((r) => !r.OrderLocked)
+              .map((r) => (
+                <MenuItem key={r.ID} value={r.ID}>
+                  {r.Name}
+                </MenuItem>
+              ))}
           </Select>
         </FormControl>
         <TextField
-          multiline rows={6} size="small"
+          multiline
+          rows={6}
+          size="small"
           placeholder={'AS1\tAid Station 1\t10.5\nAS2\tAid Station 2\t21.0'}
           value={bulkCpTsv}
           onChange={(e) => setBulkCpTsv(e.target.value)}
@@ -610,14 +761,25 @@ export default function AdminTab() {
                 variant="contained"
                 disabled={!bulkCpRaceID || !bulkCpTsv.trim()}
                 onClick={async () => {
-                  const rows = bulkCpTsv.trim().split('\n').map((l) => l.split('\t'))
+                  const rows = bulkCpTsv
+                    .trim()
+                    .split('\n')
+                    .map((l) => l.split('\t'))
                   let created = 0
                   const errs: string[] = []
                   for (const [code, name, dist] of rows) {
-                    if (!code?.trim() || !name?.trim()) { errs.push(`Skipped: "${code ?? ''}" — code and name required`); continue }
+                    if (!code?.trim() || !name?.trim()) {
+                      errs.push(`Skipped: "${code ?? ''}" — code and name required`)
+                      continue
+                    }
                     const distVal = dist?.trim() ? parseFloat(dist.trim()) : null
                     try {
-                      await api.createCheckpoint(Number(bulkCpRaceID), code.trim(), name.trim(), distVal)
+                      await api.createCheckpoint(
+                        Number(bulkCpRaceID),
+                        code.trim(),
+                        name.trim(),
+                        distVal,
+                      )
                       created++
                     } catch (e: unknown) {
                       errs.push(`${code.trim()}: ${(e as Error).message}`)
@@ -625,23 +787,33 @@ export default function AdminTab() {
                   }
                   await loadCheckpoints(races.map((r) => r.ID))
                   setBulkCpTsv('')
-                  setBulkCpMsg(`Created ${created}${errs.length ? ` — errors: ${errs.join('; ')}` : ''}`)
+                  setBulkCpMsg(
+                    `Created ${created}${errs.length ? ` — errors: ${errs.join('; ')}` : ''}`,
+                  )
                 }}
               >
                 Import Checkpoints
               </Button>
             </span>
           </Tooltip>
-          {bulkCpMsg && <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>{bulkCpMsg}</Typography>}
+          {bulkCpMsg && (
+            <Typography variant="body2" sx={{ ml: 2, display: 'inline' }}>
+              {bulkCpMsg}
+            </Typography>
+          )}
         </Box>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
 
       {/* ── Runner Status ── */}
-      <Typography variant="h6" gutterBottom>Change Runner Status</Typography>
+      <Typography variant="h6" gutterBottom>
+        Change Runner Status
+      </Typography>
       {!session?.EventID && (
-        <Alert severity="info" sx={{ mb: 2 }}>Select an active event first.</Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Select an active event first.
+        </Alert>
       )}
       {session?.EventID && (
         <Stack spacing={2} data-testid="runner-status-form">
@@ -652,10 +824,16 @@ export default function AdminTab() {
                 value={statusRaceID}
                 label="Race"
                 labelId="status-race-label"
-                onChange={(e) => { setStatusRaceID(Number(e.target.value)); setStatusRunner(null); setStatusMsg('') }}
+                onChange={(e) => {
+                  setStatusRaceID(Number(e.target.value))
+                  setStatusRunner(null)
+                  setStatusMsg('')
+                }}
               >
                 {races.map((r) => (
-                  <MenuItem key={r.ID} value={r.ID}>{r.Name}</MenuItem>
+                  <MenuItem key={r.ID} value={r.ID}>
+                    {r.Name}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -664,7 +842,11 @@ export default function AdminTab() {
               label="Bib number"
               type="number"
               value={statusBib}
-              onChange={(e) => { setStatusBib(e.target.value); setStatusRunner(null); setStatusMsg('') }}
+              onChange={(e) => {
+                setStatusBib(e.target.value)
+                setStatusRunner(null)
+                setStatusMsg('')
+              }}
               onKeyDown={(e) => e.key === 'Enter' && searchRunner()}
               sx={{ width: 120 }}
             />
@@ -686,7 +868,10 @@ export default function AdminTab() {
           {statusRunner && (
             <Paper sx={{ p: 2 }}>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                <strong>{statusRunner.FirstName} {statusRunner.LastName}</strong> — Bib {statusRunner.BibNumber}
+                <strong>
+                  {statusRunner.FirstName} {statusRunner.LastName}
+                </strong>{' '}
+                — Bib {statusRunner.BibNumber}
               </Typography>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <Chip label={statusRunner.Status} size="small" />
@@ -700,7 +885,9 @@ export default function AdminTab() {
                     onChange={(e) => setStatusNew(e.target.value as RunnerStatus)}
                   >
                     {(['ACTIVE', 'DNS', 'DNF', 'FINISHED'] as RunnerStatus[]).map((s) => (
-                      <MenuItem key={s} value={s}>{s}</MenuItem>
+                      <MenuItem key={s} value={s}>
+                        {s}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -711,7 +898,9 @@ export default function AdminTab() {
                 </Tooltip>
               </Stack>
               {statusMsg && (
-                <Alert severity="success" sx={{ mt: 1 }}>{statusMsg}</Alert>
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  {statusMsg}
+                </Alert>
               )}
             </Paper>
           )}
@@ -723,12 +912,15 @@ export default function AdminTab() {
         <DialogTitle>Archive Event</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Archive "{archiveTarget?.label}"? It will be hidden from the event dropdown. All race data is preserved and can be recovered by a developer if needed.
+            Archive "{archiveTarget?.label}"? It will be hidden from the event dropdown. All race
+            data is preserved and can be recovered by a developer if needed.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setArchiveTarget(null)}>Cancel</Button>
-          <Button color="warning" variant="contained" onClick={confirmArchive}>Archive</Button>
+          <Button color="warning" variant="contained" onClick={confirmArchive}>
+            Archive
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -737,12 +929,16 @@ export default function AdminTab() {
         <DialogTitle>Lock Checkpoint Order</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Lock the checkpoint order for "{lockTarget?.label}"? Once locked, checkpoints cannot be reordered, edited, or deleted. This is required before Winlink import to ensure bib positions don't shift.
+            Lock the checkpoint order for "{lockTarget?.label}"? Once locked, checkpoints cannot be
+            reordered, edited, or deleted. This is required before Winlink import to ensure bib
+            positions don't shift.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setLockTarget(null)}>Cancel</Button>
-          <Button color="warning" variant="contained" onClick={confirmLockOrder}>Lock Order</Button>
+          <Button color="warning" variant="contained" onClick={confirmLockOrder}>
+            Lock Order
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -751,12 +947,15 @@ export default function AdminTab() {
         <DialogTitle>Import Roster</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Import this roster? This will permanently lock the roster for the selected race — runners cannot be added or removed via import again.
+            Import this roster? This will permanently lock the roster for the selected race —
+            runners cannot be added or removed via import again.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRosterConfirm(false)}>Cancel</Button>
-          <Button color="warning" variant="contained" onClick={confirmRosterImport}>Import &amp; Lock</Button>
+          <Button color="warning" variant="contained" onClick={confirmRosterImport}>
+            Import &amp; Lock
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -772,7 +971,9 @@ export default function AdminTab() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={confirmDelete}>Delete</Button>
+          <Button color="error" variant="contained" onClick={confirmDelete}>
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
