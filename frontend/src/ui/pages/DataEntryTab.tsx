@@ -345,9 +345,9 @@ export default function DataEntryTab() {
         </Stack>
       )}
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
         {/* ── Manual bib entry ── */}
-        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
+        <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
             Log Bib
           </Typography>
@@ -380,7 +380,7 @@ export default function DataEntryTab() {
         </Paper>
 
         {/* ── DNS / DNF ── */}
-        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
+        <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
             DNS / DNF
           </Typography>
@@ -425,7 +425,7 @@ export default function DataEntryTab() {
         </Paper>
 
         {/* ── Race transfer ── */}
-        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
+        <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
             Transfer Runner
           </Typography>
@@ -469,7 +469,7 @@ export default function DataEntryTab() {
             </Typography>
           )}
         </Paper>
-      </Stack>
+      </Box>
 
       <Divider sx={{ my: 3 }} />
 
