@@ -91,3 +91,9 @@ export const importWinlink = (raceID: number, checkpointID: number, text: string
     checkpoint_id: checkpointID,
     text,
   })
+
+// Event config export / import
+export const exportEventConfig = (eventID: number) =>
+  fetch(`/api/events/${eventID}/export`).then((r) => r.text())
+export const importEventConfig = (json: string) =>
+  post<{ event_id: number }>('/api/events/import', JSON.parse(json))

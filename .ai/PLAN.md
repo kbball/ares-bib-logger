@@ -353,7 +353,9 @@ Three sections:
 - [x] 2026-06-14 — Tab reorder: Data Entry → Runners → Winlink Import → Winlink Export → Admin; HELP array and tab rendering updated in App.tsx
 - [x] 2026-06-14 — Winlink Export: "Copy to Clipboard" renamed to "Copy Column Data"; export column header now uses CP DisplayName instead of Code; backend test assertions updated
 - [x] 2026-06-14 — Pre-commit hook: `scripts/pre-commit` runs `make fmt` (fails if files changed) then `make lint`; `make install-hooks` installs it; `make install` now calls `install-hooks` so new devs get it automatically
-- [x] 2026-06-14 — Responsive layout: Data Entry race cards stack full-width on mobile (xs) and side-by-side on tablet+ (sm); action cards (Log Bib, DNS/DNF, Transfer) break to column layout on xs, row on sm+
+- [x] 2026-06-14 — Responsive layout: Data Entry race cards stack full-width on mobile (xs) and side-by-side on tablet+ (sm); action cards (Log Bib, DNS/DNF, Transfer) break to column layout on xs, row on sm+; action cards changed to CSS grid `repeat(3, 1fr)` so all three remain equal-width on desktop/iPad (flex-wrap caused Transfer card to expand to full width when wrapping)
+- [x] 2026-06-14 — Event Export / Import: version-tagged JSON download (admin icon button), paste-and-import in Admin; full backend service + handler + frontend API wiring + tests
+- [x] 2026-06-14 — Guide tab: 6th tab with MUI Accordion sections covering Before Race Day, On Race Day, Winlink Workflow, Transferring a Runner, and Tips & Troubleshooting
 
 ## Backlog
 
@@ -410,13 +412,14 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### ~~UI — Tooltip on All Action Buttons and Icons~~ ✅ Completed 2026-06-14
 - [x] Added MUI `Tooltip` to every action button and icon across all tabs
 
-### UI — Training / Onboarding Section (Priority: Low)
-- [ ] Dedicated training section (tab or modal) that walks a new operator through how to use the application end-to-end before race day
+### ~~UI — Training / Onboarding Section~~ ✅ Completed 2026-06-14
+- [x] "Guide" tab (6th tab) — MUI Accordion layout with 5 sections: Before Race Day, On Race Day, Winlink Workflow, Transferring a Runner Between Races, Tips & Troubleshooting; help panel entry added for Guide tab in App.tsx
 
-### UI / API — Event Export / Import (Priority: Low)
-- [ ] Export a complete event configuration (event, races, checkpoints, roster) to a compact JSON or YAML file
-- [ ] Import that file to recreate the event configuration on another station; enables one person to configure once and share via Winlink
-- [ ] File size must be minimal to be Winlink-transmittable; omit logs, only include structural config
+### ~~UI / API — Event Export / Import~~ ✅ Completed 2026-06-14
+- [x] Export: GET `/api/events/{id}/export` → version-tagged JSON (event, races, checkpoints, runners); download triggered by FileDownload icon next to active event in Admin
+- [x] Import: POST `/api/events/import` → creates event + races + checkpoints + runners; Import Config section in Admin (paste JSON → Import Config button → success/error alert)
+- [x] Backend: `EventExportImportService` in application layer; port interface in `domain/port/service/event_export.go`; handler in `adapter/http/handler/event_export.go`; all wired in `main.go`
+- [x] Frontend: `exportEventConfig` / `importEventConfig` in `adapters/api/index.ts`
 
 ### ~~.env.example — MQTT Disabled by Default~~ ✅ Completed
 - [x] `MQTT_ENABLED` default changed to `false` in `.env.example`; operators explicitly opt in when Meshtastic infrastructure is present

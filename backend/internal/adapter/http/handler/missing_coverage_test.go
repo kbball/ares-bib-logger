@@ -180,7 +180,7 @@ func TestHandler_PublishSession_GetError(t *testing.T) {
 	// Use handler.New directly: newHandler is typed to *mockSessionService, but we need
 	// a session where SetEvent succeeds and Get fails to exercise publishSession's error branch.
 	h := handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
-		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionPublishErr{}, &mockWinlinkService{}, noopPublisher{})
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionPublishErr{}, &mockWinlinkService{}, nil, noopPublisher{})
 	w := putJSON(t, h, "/api/session/event", map[string]int{"event_id": 1})
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }

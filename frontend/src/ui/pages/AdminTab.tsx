@@ -28,6 +28,7 @@ import {
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import ArchiveIcon from '@mui/icons-material/Archive'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import LockIcon from '@mui/icons-material/Lock'
 import EditIcon from '@mui/icons-material/Edit'
 import CheckIcon from '@mui/icons-material/Check'
@@ -74,6 +75,10 @@ export default function AdminTab() {
   const [bulkCpRaceID, setBulkCpRaceID] = useState<number | ''>('')
   const [bulkCpTsv, setBulkCpTsv] = useState('')
   const [bulkCpMsg, setBulkCpMsg] = useState('')
+  // Event config import
+  const [importConfigJson, setImportConfigJson] = useState('')
+  const [importConfigMsg, setImportConfigMsg] = useState('')
+
   // Runner status
   const [statusRaceID, setStatusRaceID] = useState<number | ''>('')
   const [statusBib, setStatusBib] = useState('')
@@ -301,6 +306,33 @@ export default function AdminTab() {
           <Chip label={`Event #${session.EventID} active`} color="success" size="small" />
         )}
         {session?.EventID && (
+          <Tooltip title="Export event config (races, checkpoints, roster) as JSON for sharing with other stations" describeChild>
+            <IconButton
+              size="small"
+              aria-label="Export event config"
+              onClick={async () => {
+                const eventID = session?.EventID
+                if (!eventID) return
+                const ev = events.find((e) => e.ID === eventID)
+                try {
+                  const json = await api.exportEventConfig(eventID)
+                  const blob = new Blob([json], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `event-${(ev?.Name ?? session.EventID).toString().replace(/\s+/g, '-').toLowerCase()}.json`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                } catch {
+                  setError('Failed to export event config')
+                }
+              }}
+            >
+              <FileDownloadIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {session?.EventID && (
           <Tooltip title="Archive event — hides it from the dropdown; data is preserved">
             <IconButton
               size="small"
@@ -342,6 +374,44 @@ export default function AdminTab() {
           </span>
         </Tooltip>
       </Stack>
+
+      <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'flex-start' }}>
+        <TextField
+          size="small"
+          multiline
+          rows={3}
+          label="Import event config (paste JSON)"
+          placeholder='{"version":1,"event":{"name":"..."},...}'
+          value={importConfigJson}
+          onChange={(e) => { setImportConfigJson(e.target.value); setImportConfigMsg('') }}
+          sx={{ flex: 1 }}
+        />
+        <Tooltip title="Import event config — creates a new event with races, checkpoints, and roster from the JSON" describeChild>
+          <span>
+            <Button
+              variant="outlined"
+              disabled={!importConfigJson.trim()}
+              onClick={async () => {
+                try {
+                  const result = await api.importEventConfig(importConfigJson.trim())
+                  setImportConfigMsg(`Imported event #${result.event_id}`)
+                  setImportConfigJson('')
+                  await loadEvents()
+                } catch (e: unknown) {
+                  setImportConfigMsg(`Error: ${(e as Error).message}`)
+                }
+              }}
+            >
+              Import Config
+            </Button>
+          </span>
+        </Tooltip>
+      </Stack>
+      {importConfigMsg && (
+        <Alert severity={importConfigMsg.startsWith('Error') ? 'error' : 'success'} sx={{ mb: 2 }}>
+          {importConfigMsg}
+        </Alert>
+      )}
 
       <Divider sx={{ my: 2 }} />
 

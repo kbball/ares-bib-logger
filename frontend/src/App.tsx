@@ -26,8 +26,9 @@ import WinlinkImportTab from './ui/pages/WinlinkImportTab'
 import WinlinkExportTab from './ui/pages/WinlinkExportTab'
 import RunnersTab from './ui/pages/RunnersTab'
 import AdminTab from './ui/pages/AdminTab'
+import GuideTab from './ui/pages/GuideTab'
 
-const TABS = ['Data Entry', 'Runners', 'Winlink Import', 'Winlink Export', 'Admin']
+const TABS = ['Data Entry', 'Runners', 'Winlink Import', 'Winlink Export', 'Admin', 'Guide']
 
 type HelpItem = { heading: string; text: string }
 
@@ -134,6 +135,15 @@ const HELP: { title: string; items: HelpItem[] }[] = [
       },
     ],
   },
+  {
+    title: 'Guide',
+    items: [
+      {
+        heading: 'Operator Guide',
+        text: 'Step-by-step instructions for setting up and running the app at a race event. Expand each section for details.',
+      },
+    ],
+  },
 ]
 
 export default function App() {
@@ -195,6 +205,7 @@ export default function App() {
         {tab === 2 && <WinlinkImportTab />}
         {tab === 3 && <WinlinkExportTab />}
         {tab === 4 && <AdminTab />}
+        {tab === 5 && <GuideTab />}
       </Box>
 
       <Drawer anchor="right" open={helpOpen} onClose={() => setHelpOpen(false)}>

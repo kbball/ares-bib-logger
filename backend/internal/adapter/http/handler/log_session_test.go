@@ -25,7 +25,7 @@ func newHandler(
 	session *mockSessionService,
 	winlink *mockWinlinkService,
 ) *handler.Handler {
-	return handler.New(events, races, cps, runners, logs, session, winlink, noopPublisher{})
+	return handler.New(events, races, cps, runners, logs, session, winlink, nil, noopPublisher{})
 }
 
 func defaultHandler() *handler.Handler {

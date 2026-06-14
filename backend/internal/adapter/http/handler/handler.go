@@ -16,6 +16,7 @@ type Handler struct {
 	checkpointLogs portsvc.CheckpointLogService
 	session        portsvc.SessionService
 	winlink        portsvc.WinlinkService
+	eventExport    portsvc.EventExportService
 	stream         sse.Publisher
 }
 
@@ -27,6 +28,7 @@ func New(
 	checkpointLogs portsvc.CheckpointLogService,
 	session portsvc.SessionService,
 	winlink portsvc.WinlinkService,
+	eventExport portsvc.EventExportService,
 	stream sse.Publisher,
 ) *Handler {
 	return &Handler{
@@ -37,6 +39,7 @@ func New(
 		checkpointLogs: checkpointLogs,
 		session:        session,
 		winlink:        winlink,
+		eventExport:    eventExport,
 		stream:         stream,
 	}
 }
@@ -48,6 +51,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events", h.createEvent)
 	mux.HandleFunc("GET /api/events/{id}", h.getEvent)
 	mux.HandleFunc("PUT /api/events/{id}/archive", h.archiveEvent)
+	mux.HandleFunc("GET /api/events/{id}/export", h.exportEventConfig)
 
 	// Races
 	mux.HandleFunc("GET /api/events/{eventID}/races", h.listRaces)
@@ -81,4 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Winlink
 	mux.HandleFunc("GET /api/winlink/export/{raceID}", h.exportWinlink)
 	mux.HandleFunc("POST /api/winlink/import", h.importWinlink)
+
+	// Event config export / import
+	mux.HandleFunc("POST /api/events/import", h.importEventConfig)
 }
