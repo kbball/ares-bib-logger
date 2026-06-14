@@ -427,6 +427,12 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### ~~UI — Roster Import: Support `bib,fullName` TSV Format~~ ✅ Completed 2026-06-13
 `parseTSVRoster` auto-detects 2-column (`bib\tFull Name`) vs 3-column (`bib\tfirst\tlast`); first-space split derives first/last for 2-column case.
 
+### User Testing — MQTT Gateway and Meshtastic Messaging (Priority: Medium) 🚧 BLOCKED
+- [ ] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
+- [ ] Verify duplicate-bib detection and outbound alert publish back to the mesh
+- [ ] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
+- **Blocked:** test hardware (Meshtastic nodes + gateway) not yet configured
+
 ### CI / Quality
 - [x] Pre-commit hook: `scripts/pre-commit` runs `make fmt` (aborts if files changed) then `make lint`; install via `make install-hooks`; wired into `make install` so new devs get it automatically
 - [x] GitHub Actions Node.js 24 migration — set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in before the forced 2026-06-16 deadline
