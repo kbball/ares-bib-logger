@@ -148,9 +148,11 @@ export default function WinlinkExportTab() {
             </Select>
           </FormControl>
           <Tooltip title="Generate Winlink export column for the selected race">
-            <Button variant="contained" onClick={generate} disabled={!raceID}>
-              Generate
-            </Button>
+            <span>
+              <Button variant="contained" onClick={generate} disabled={!raceID}>
+                Generate
+              </Button>
+            </span>
           </Tooltip>
         </Stack>
 
