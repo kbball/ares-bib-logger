@@ -51,30 +51,77 @@ Two tracks depending on your role:
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) only.
 
+#### First-time setup
+
+<details>
+<summary>macOS / Linux</summary>
+
 ```bash
 # Download the operator compose file and config
 curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/docker-compose.operator.yml
 curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.conf
 
-# Create your local config (edit values for your station)
+# Create your local config
 curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
 cp .env.example .env
-# Open .env and set MQTT_GATEWAY_NODE_ID and adjust SERVER_PORT if needed
+# Open .env and set MQTT_GATEWAY_NODE_ID; adjust SERVER_PORT if needed
 
 # Pull the latest image and start everything
 docker compose -f docker-compose.operator.yml up -d
 ```
 
+</details>
+
+<details>
+<summary>Windows (PowerShell)</summary>
+
+```powershell
+# Download the operator compose file and config
+curl.exe -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/docker-compose.operator.yml
+curl.exe -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.conf
+
+# Create your local config
+curl.exe -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
+Copy-Item .env.example .env
+# Open .env in Notepad and set MQTT_GATEWAY_NODE_ID; adjust SERVER_PORT if needed
+notepad .env
+
+# Pull the latest image and start everything
+docker compose -f docker-compose.operator.yml up -d
+```
+
+</details>
+
+<details>
+<summary>Windows (Command Prompt)</summary>
+
+```cmd
+:: Download the operator compose file and config
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/docker-compose.operator.yml
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.conf
+
+:: Create your local config
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
+copy .env.example .env
+:: Open .env in Notepad and set MQTT_GATEWAY_NODE_ID; adjust SERVER_PORT if needed
+notepad .env
+
+:: Pull the latest image and start everything
+docker compose -f docker-compose.operator.yml up -d
+```
+
+</details>
+
 The app is available at `http://localhost:8080`.
 
-To update to the latest release:
+#### Update to the latest release
 
 ```bash
 docker compose -f docker-compose.operator.yml pull
 docker compose -f docker-compose.operator.yml up -d
 ```
 
-To stop:
+#### Stop
 
 ```bash
 docker compose -f docker-compose.operator.yml down
