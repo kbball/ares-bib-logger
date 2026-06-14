@@ -69,7 +69,7 @@ func TestWinlinkService_Export_Format(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	require.Len(t, lines, 5) // header + 4 runners
 
-	assert.Equal(t, "AS6", lines[0])
+	assert.Equal(t, "Aid Station 6", lines[0])
 	assert.Equal(t, "17:45", lines[1]) // seen
 	assert.Equal(t, "DNS", lines[2])   // DNS status
 	assert.Equal(t, "DNF", lines[3])   // DNF status
@@ -110,7 +110,7 @@ func TestWinlinkService_Export_MovedRunner(t *testing.T) {
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	require.Len(t, lines, 3) // header + 2 runners
-	assert.Equal(t, "AS6", lines[0])
+	assert.Equal(t, "Aid Station 6", lines[0])
 	assert.Equal(t, "", lines[1])               // runner 100 not yet seen
 	assert.Equal(t, "MOVED Marathon", lines[2]) // runner 101 moved to Marathon
 }

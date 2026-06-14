@@ -350,14 +350,19 @@ Three sections:
 - [x] 2026-06-14 — Bulk Checkpoint Import: Admin tab "Bulk Checkpoint Import" section — race selector + TSV textarea (`Code\tDisplayName\tDist`); creates each row via the existing create-checkpoint API sequentially; reports created count and per-row errors inline
 - [x] 2026-06-14 — Winlink Import: excluded active checkpoint from CP selector (prevents self-import); filter: `session.Checkpoints.find(c => c.RaceID === raceID)?.CheckpointID`; tests updated to select non-active checkpoint
 - [x] 2026-06-14 — Context-Sensitive Help Panel: `?` icon button in AppBar opens right-side MUI Drawer with per-tab help content; HELP array in App.tsx maps each of the 5 tab indices to a title + 3–5 items; drawer closes on backdrop click or X button; all 166 tests pass
+- [x] 2026-06-14 — Tab reorder: Data Entry → Runners → Winlink Import → Winlink Export → Admin; HELP array and tab rendering updated in App.tsx
+- [x] 2026-06-14 — Winlink Export: "Copy to Clipboard" renamed to "Copy Column Data"; export column header now uses CP DisplayName instead of Code; backend test assertions updated
+- [x] 2026-06-14 — Pre-commit hook: `scripts/pre-commit` runs `make fmt` (fails if files changed) then `make lint`; `make install-hooks` installs it; `make install` now calls `install-hooks` so new devs get it automatically
+- [x] 2026-06-14 — Responsive layout: Data Entry race cards stack full-width on mobile (xs) and side-by-side on tablet+ (sm); action cards (Log Bib, DNS/DNF, Transfer) break to column layout on xs, row on sm+
 
 ## Backlog
 
 ### ~~Winlink Import — Blank Line Positional Investigation~~ ✅ Resolved 2026-06-14
 Root cause identified and fixed: single-digit-hour times (e.g. `7:35`) were 4 chars and failed the `len(s) >= 5` guard in `looksLikeTimeOrStatus`, causing the first data row to be skipped as a phantom header.
 
-### Frontend — Responsive Layout
-- [ ] Data Entry tab: cards stack vertically and use full-width inputs on small screens; target tablet (768px+) as primary field-use form factor
+### ~~Frontend — Responsive Layout~~ ✅ Completed 2026-06-14
+- [x] Data Entry race cards: `flex: '1 1 160px'`, `minWidth: { xs: '100%', sm: 160 }` — stack full-width on mobile, side-by-side on tablet+
+- [x] Action card row (Log Bib / DNS-DNF / Transfer): changed from `md` breakpoint to `sm` so they appear side-by-side on tablet; each card has `minWidth: { xs: '100%', sm: 'auto' }` for full-width stacking on mobile
 
 ### ~~Frontend + API — Pace / Projected Arrival~~ ✅ Completed 2026-06-13
 
@@ -387,17 +392,17 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 - [x] `docker-compose.operator.yml` — pulls `ghcr.io/kbball/ares-bib-logger:latest`, operators need only Docker Desktop
 - [x] `.github/workflows/ci.yml` — test + lint on PRs; build and push to GHCR on merge to main
 
-### UI — Enhancement — Rename "Copy to Clipboard" to "Copy Column Data" on Winlink Export (Priority: Low)
-- [ ] Button label on Winlink Export tab: change "Copy to Clipboard" → "Copy Column Data" for clarity
+### ~~UI — Enhancement — Rename "Copy to Clipboard" to "Copy Column Data" on Winlink Export~~ ✅ Completed 2026-06-14
+- [x] Button label and tooltip updated; tests updated to match
 
-### UI — Enhancement — Reorder tabs (Priority: Low)
-- [ ] New tab order: Data Entry → Runners → Winlink Import → Winlink Export → Admin
+### ~~UI — Enhancement — Reorder tabs~~ ✅ Completed 2026-06-14
+- [x] New order: Data Entry → Runners → Winlink Import → Winlink Export → Admin; HELP array reordered to match; tab index mapping updated in App.tsx
 
 ### ~~UI — Enhancement — Winlink Import should exclude the active checkpoint from the CP selector~~ ✅ Completed 2026-06-14
 - [x] The checkpoint dropdown on Winlink Import now excludes the station's active checkpoint for the selected race; prevents accidental self-import; filter applied via `session.Checkpoints.find(c => c.RaceID === raceID).CheckpointID`; tests updated to select Aid Station 2 (the non-active one)
 
-### UI — Enhancement — Winlink export column header should use CP display name not code (Priority: Low)
-- [ ] The first line of the generated export column currently emits the CP code (e.g. `AS1`); change it to emit the CP display name (e.g. `Aid Station 1`) to match the Winlink convention used by other stations
+### ~~UI — Enhancement — Winlink export column header should use CP display name not code~~ ✅ Completed 2026-06-14
+- [x] `WinlinkService.Export` now writes `cp.DisplayName` instead of `cp.Code` as the first line; test assertions updated
 
 ### ~~UI — Context-Sensitive Help Panel~~ ✅ Completed 2026-06-14
 - [x] `?` (HelpOutlined) icon button in AppBar top-right; clicking opens a right-side MUI Drawer with tab-specific help content (title + 3–5 bullet items); content updates as the active tab changes; all five tabs have written help content (Data Entry, Winlink Import, Winlink Export, Runners, Admin); Close button in drawer header; no new component file — implemented inline in App.tsx with a `HELP` array
@@ -420,7 +425,7 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 `parseTSVRoster` auto-detects 2-column (`bib\tFull Name`) vs 3-column (`bib\tfirst\tlast`); first-space split derives first/last for 2-column case.
 
 ### CI / Quality
-- [ ] Pre-commit hook or CI step: `make lint && make fmt` must pass before commit
+- [x] Pre-commit hook: `scripts/pre-commit` runs `make fmt` (aborts if files changed) then `make lint`; install via `make install-hooks`; wired into `make install` so new devs get it automatically
 - [x] GitHub Actions Node.js 24 migration — set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in before the forced 2026-06-16 deadline
 
 ---

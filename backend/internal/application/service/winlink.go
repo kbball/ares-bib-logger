@@ -111,7 +111,7 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(cp.Code)
+	sb.WriteString(cp.DisplayName)
 	sb.WriteByte('\n')
 
 	for _, r := range runners {

@@ -51,7 +51,7 @@ describe('WinlinkExportTab', () => {
     await user.click(screen.getByRole('button', { name: /generate/i }))
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /copy to clipboard/i })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /copy column data/i })).toBeInTheDocument(),
     )
     expect(screen.getByRole('textbox', { name: /email subject/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /copy subject/i })).toBeInTheDocument()
@@ -142,9 +142,9 @@ describe('WinlinkExportTab', () => {
     await user.click(screen.getByRole('option', { name: /GDR/i }))
 
     await user.click(screen.getByRole('button', { name: /generate/i }))
-    await waitFor(() => screen.getByRole('button', { name: /copy to clipboard/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy column data/i }))
 
-    await user.click(screen.getByRole('button', { name: /copy to clipboard/i }))
+    await user.click(screen.getByRole('button', { name: /copy column data/i }))
 
     await waitFor(() => expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('AS1')))
   })
@@ -192,9 +192,9 @@ describe('WinlinkExportTab', () => {
     await user.click(screen.getByRole('option', { name: /GDR/i }))
 
     await user.click(screen.getByRole('button', { name: /generate/i }))
-    await waitFor(() => screen.getByRole('button', { name: /copy to clipboard/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy column data/i }))
 
-    await user.click(screen.getByRole('button', { name: /copy to clipboard/i }))
+    await user.click(screen.getByRole('button', { name: /copy column data/i }))
 
     await waitFor(() => expect(screen.getByText(/copied!/i)).toBeInTheDocument())
   })

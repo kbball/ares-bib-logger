@@ -12,7 +12,7 @@ MIGRATIONS_DIR=internal/adapter/repository/migrations
         lint lint-backend lint-frontend \
         fmt fmt-backend fmt-frontend \
         migrate-up migrate-down migrate-create migrate-status \
-        install install-tools docker-build
+        install install-tools install-hooks docker-build
 
 help:
 	@echo "Usage: make <target>"
@@ -38,8 +38,9 @@ help:
 	@echo "  migrate-status      Show current migration version"
 	@echo ""
 	@echo "Tooling"
-	@echo "  install             Install all tools and frontend deps"
+	@echo "  install             Install all tools, hooks, and frontend deps"
 	@echo "  install-tools       Install golangci-lint and migrate CLI"
+	@echo "  install-hooks       Install pre-commit hook (make fmt + make lint)"
 	@echo "  docker-build        Build the Docker image"
 
 # ── Dev ──────────────────────────────────────────────────────────────────────
@@ -127,12 +128,17 @@ migrate-status:
 
 # ── Tooling ───────────────────────────────────────────────────────────────────
 
-install: install-tools
+install: install-tools install-hooks
 	cd frontend && npm install
 
 install-tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+install-hooks:
+	cp scripts/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
+	@echo "Pre-commit hook installed."
 
 docker-build:
 	docker build -t ares-bib-logger .

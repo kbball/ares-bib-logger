@@ -235,7 +235,7 @@ export default function DataEntryTab() {
 
       {/* ── Race stats ── */}
       {races.length > 0 && (
-        <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
+        <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
           {races.map((race) => {
             const raceRunners = runners.filter((r) => r.RaceID === race.ID)
             const cp = activeCheckpointFor(race.ID)
@@ -285,7 +285,10 @@ export default function DataEntryTab() {
             }
 
             return (
-              <Paper key={race.ID} sx={{ p: 1.5, minWidth: 160 }}>
+              <Paper
+                key={race.ID}
+                sx={{ p: 1.5, flex: '1 1 160px', minWidth: { xs: '100%', sm: 160 } }}
+              >
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
                   {race.Name}
                 </Typography>
@@ -342,9 +345,9 @@ export default function DataEntryTab() {
         </Stack>
       )}
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
         {/* ── Manual bib entry ── */}
-        <Paper sx={{ p: 2, flex: 1 }}>
+        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
           <Typography variant="h6" gutterBottom>
             Log Bib
           </Typography>
@@ -377,7 +380,7 @@ export default function DataEntryTab() {
         </Paper>
 
         {/* ── DNS / DNF ── */}
-        <Paper sx={{ p: 2, flex: 1 }}>
+        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
           <Typography variant="h6" gutterBottom>
             DNS / DNF
           </Typography>
@@ -422,7 +425,7 @@ export default function DataEntryTab() {
         </Paper>
 
         {/* ── Race transfer ── */}
-        <Paper sx={{ p: 2, flex: 1 }}>
+        <Paper sx={{ p: 2, flex: '1 1 200px', minWidth: { xs: '100%', sm: 'auto' } }}>
           <Typography variant="h6" gutterBottom>
             Transfer Runner
           </Typography>

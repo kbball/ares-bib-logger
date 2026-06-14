@@ -27,7 +27,7 @@ import WinlinkExportTab from './ui/pages/WinlinkExportTab'
 import RunnersTab from './ui/pages/RunnersTab'
 import AdminTab from './ui/pages/AdminTab'
 
-const TABS = ['Data Entry', 'Winlink Import', 'Winlink Export', 'Runners', 'Admin']
+const TABS = ['Data Entry', 'Runners', 'Winlink Import', 'Winlink Export', 'Admin']
 
 type HelpItem = { heading: string; text: string }
 
@@ -50,6 +50,20 @@ const HELP: { title: string; items: HelpItem[] }[] = [
       {
         heading: 'Race cards',
         text: 'Show live counts of still-to-come, through, and DNS/DNF at the active checkpoint. "Next expected" projects the earliest arrival based on runner paces (requires checkpoint distances in Admin).',
+      },
+    ],
+  },
+  {
+    title: 'Runners',
+    items: [
+      { heading: 'Overview', text: 'Shows every runner in the active event across all races.' },
+      {
+        heading: 'Filter and search',
+        text: 'Use the race tabs to focus on one race. Type in the search box to filter by bib number or name.',
+      },
+      {
+        heading: 'Runner detail',
+        text: 'Click any row to open the detail panel: full checkpoint log with times and sources, current pace, and projected arrival at the active checkpoint.',
       },
     ],
   },
@@ -92,20 +106,6 @@ const HELP: { title: string; items: HelpItem[] }[] = [
       {
         heading: 'Column format',
         text: 'HH:MM for logged times, DNS/DNF for status, MOVED <race> for transferred runners, blank for runners not yet seen.',
-      },
-    ],
-  },
-  {
-    title: 'Runners',
-    items: [
-      { heading: 'Overview', text: 'Shows every runner in the active event across all races.' },
-      {
-        heading: 'Filter and search',
-        text: 'Use the race tabs to focus on one race. Type in the search box to filter by bib number or name.',
-      },
-      {
-        heading: 'Runner detail',
-        text: 'Click any row to open the detail panel: full checkpoint log with times and sources, current pace, and projected arrival at the active checkpoint.',
       },
     ],
   },
@@ -191,9 +191,9 @@ export default function App() {
 
       <Box sx={{ p: 2 }}>
         {tab === 0 && <DataEntryTab />}
-        {tab === 1 && <WinlinkImportTab />}
-        {tab === 2 && <WinlinkExportTab />}
-        {tab === 3 && <RunnersTab />}
+        {tab === 1 && <RunnersTab />}
+        {tab === 2 && <WinlinkImportTab />}
+        {tab === 3 && <WinlinkExportTab />}
         {tab === 4 && <AdminTab />}
       </Box>
 

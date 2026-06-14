@@ -193,9 +193,9 @@ export default function WinlinkExportTab() {
               size="small"
             />
             <Box>
-              <Tooltip title="Copy column to clipboard" describeChild>
+              <Tooltip title="Copy column data to clipboard" describeChild>
                 <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copy}>
-                  {copied ? 'Copied!' : 'Copy to Clipboard'}
+                  {copied ? 'Copied!' : 'Copy Column Data'}
                 </Button>
               </Tooltip>
             </Box>
