@@ -201,3 +201,19 @@ func TestCheckpointLogService_LogStatus_RunnerError(t *testing.T) {
 
 	assert.ErrorContains(t, err, "999")
 }
+
+// --- CheckpointLogService.ListByRace ---
+
+func TestCheckpointLogService_ListByRace(t *testing.T) {
+	logs := &mockCheckpointLogRepository{
+		logs: []entity.CheckpointLog{
+			{ID: 1, RunnerID: 10, CheckpointID: 5},
+			{ID: 2, RunnerID: 11, CheckpointID: 5},
+		},
+	}
+	svc := newCheckpointLogSvc(&mockRunnerRepository{}, logs, &mockActiveSessionRepository{})
+
+	result, err := svc.ListByRace(context.Background(), 1)
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+}

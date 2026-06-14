@@ -2,105 +2,145 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
-	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 )
 
-func TestActiveSessionRepo_GetEmpty(t *testing.T) {
-	db := requireDB(t)
-	repo := repository.NewActiveSessionRepo(db)
+var sessionCols = []string{"event_id", "race_id", "checkpoint_id"}
 
-	sess, err := repo.Get(context.Background())
+func TestActiveSessionRepo_Get_Empty(t *testing.T) {
+	db, mock := newMock(t)
+
+	// No rows returned: session exists but has no event and no checkpoints.
+	mock.ExpectQuery("SELECT s.event_id, asc_.race_id, asc_.checkpoint_id").
+		WillReturnRows(sqlmock.NewRows(sessionCols))
+
+	sess, err := repository.NewActiveSessionRepo(db).Get(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, sess.EventID)
 	assert.Empty(t, sess.Checkpoints)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestActiveSessionRepo_SetEvent(t *testing.T) {
-	db := requireDB(t)
-	eventID := seedEvent(t, db)
-	repo := repository.NewActiveSessionRepo(db)
-	ctx := context.Background()
+func TestActiveSessionRepo_Get_WithEventNoCheckpoints(t *testing.T) {
+	db, mock := newMock(t)
 
-	err := repo.SetEvent(ctx, eventID)
-	require.NoError(t, err)
+	mock.ExpectQuery("SELECT s.event_id, asc_.race_id, asc_.checkpoint_id").
+		WillReturnRows(sqlmock.NewRows(sessionCols).
+			AddRow(3, nil, nil)) // event set, no checkpoint row
 
-	sess, err := repo.Get(ctx)
+	sess, err := repository.NewActiveSessionRepo(db).Get(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, sess.EventID)
-	assert.Equal(t, eventID, *sess.EventID)
-}
-
-func TestActiveSessionRepo_SetCheckpoint(t *testing.T) {
-	db := requireDB(t)
-	eventID := seedEvent(t, db)
-	raceID := seedRace(t, db, eventID)
-	repo := repository.NewActiveSessionRepo(db)
-	ctx := context.Background()
-
-	cp, err := repository.NewCheckpointRepo(db).Create(ctx, entity.Checkpoint{
-		RaceID: raceID, Code: "AS1", DisplayName: "Aid 1", DisplayOrder: 1,
-	})
-	require.NoError(t, err)
-
-	err = repo.SetCheckpoint(ctx, raceID, cp.ID)
-	require.NoError(t, err)
-
-	sess, err := repo.Get(ctx)
-	require.NoError(t, err)
-	require.Len(t, sess.Checkpoints, 1)
-	assert.Equal(t, raceID, sess.Checkpoints[0].RaceID)
-	assert.Equal(t, cp.ID, sess.Checkpoints[0].CheckpointID)
-}
-
-func TestActiveSessionRepo_SetCheckpoint_Upsert(t *testing.T) {
-	db := requireDB(t)
-	eventID := seedEvent(t, db)
-	raceID := seedRace(t, db, eventID)
-	cpRepo := repository.NewCheckpointRepo(db)
-	repo := repository.NewActiveSessionRepo(db)
-	ctx := context.Background()
-
-	cp1, err := cpRepo.Create(ctx, entity.Checkpoint{RaceID: raceID, Code: "AS1", DisplayName: "Aid 1", DisplayOrder: 1})
-	require.NoError(t, err)
-	cp2, err := cpRepo.Create(ctx, entity.Checkpoint{RaceID: raceID, Code: "AS2", DisplayName: "Aid 2", DisplayOrder: 2})
-	require.NoError(t, err)
-
-	err = repo.SetCheckpoint(ctx, raceID, cp1.ID)
-	require.NoError(t, err)
-	err = repo.SetCheckpoint(ctx, raceID, cp2.ID) // update same race
-	require.NoError(t, err)
-
-	sess, err := repo.Get(ctx)
-	require.NoError(t, err)
-	require.Len(t, sess.Checkpoints, 1) // still one row for this race
-	assert.Equal(t, cp2.ID, sess.Checkpoints[0].CheckpointID)
-}
-
-func TestActiveSessionRepo_ClearCheckpoint(t *testing.T) {
-	db := requireDB(t)
-	eventID := seedEvent(t, db)
-	raceID := seedRace(t, db, eventID)
-	repo := repository.NewActiveSessionRepo(db)
-	ctx := context.Background()
-
-	cp, err := repository.NewCheckpointRepo(db).Create(ctx, entity.Checkpoint{
-		RaceID: raceID, Code: "AS1", DisplayName: "Aid 1", DisplayOrder: 1,
-	})
-	require.NoError(t, err)
-
-	err = repo.SetCheckpoint(ctx, raceID, cp.ID)
-	require.NoError(t, err)
-
-	err = repo.ClearCheckpoint(ctx, raceID)
-	require.NoError(t, err)
-
-	sess, err := repo.Get(ctx)
-	require.NoError(t, err)
+	assert.Equal(t, 3, *sess.EventID)
 	assert.Empty(t, sess.Checkpoints)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_Get_WithCheckpoints(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectQuery("SELECT s.event_id, asc_.race_id, asc_.checkpoint_id").
+		WillReturnRows(sqlmock.NewRows(sessionCols).
+			AddRow(1, 10, 100).
+			AddRow(1, 20, 200))
+
+	sess, err := repository.NewActiveSessionRepo(db).Get(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, sess.EventID)
+	assert.Equal(t, 1, *sess.EventID)
+	assert.Len(t, sess.Checkpoints, 2)
+	assert.Equal(t, 10, sess.Checkpoints[0].RaceID)
+	assert.Equal(t, 100, sess.Checkpoints[0].CheckpointID)
+	assert.Equal(t, 20, sess.Checkpoints[1].RaceID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_Get_QueryError(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectQuery("SELECT s.event_id, asc_.race_id, asc_.checkpoint_id").
+		WillReturnError(errors.New("db down"))
+
+	_, err := repository.NewActiveSessionRepo(db).Get(context.Background())
+	assert.ErrorContains(t, err, "db down")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_SetEvent_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE active_session SET event_id = $1, updated_at = NOW() WHERE id = 1`)).
+		WithArgs(5).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewActiveSessionRepo(db).SetEvent(context.Background(), 5)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_SetEvent_Error(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE active_session SET event_id = $1, updated_at = NOW() WHERE id = 1`)).
+		WithArgs(99).
+		WillReturnError(errors.New("fk violation"))
+
+	err := repository.NewActiveSessionRepo(db).SetEvent(context.Background(), 99)
+	assert.ErrorContains(t, err, "fk violation")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_SetCheckpoint_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec("INSERT INTO active_session_checkpoints").
+		WithArgs(2, 10).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewActiveSessionRepo(db).SetCheckpoint(context.Background(), 2, 10)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_SetCheckpoint_Error(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec("INSERT INTO active_session_checkpoints").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnError(errors.New("conflict"))
+
+	err := repository.NewActiveSessionRepo(db).SetCheckpoint(context.Background(), 2, 10)
+	assert.ErrorContains(t, err, "conflict")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_ClearCheckpoint_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`DELETE FROM active_session_checkpoints WHERE session_id = 1 AND race_id = $1`)).
+		WithArgs(2).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewActiveSessionRepo(db).ClearCheckpoint(context.Background(), 2)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_ClearCheckpoint_Error(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`DELETE FROM active_session_checkpoints WHERE session_id = 1 AND race_id = $1`)).
+		WithArgs(2).
+		WillReturnError(errors.New("db error"))
+
+	err := repository.NewActiveSessionRepo(db).ClearCheckpoint(context.Background(), 2)
+	assert.ErrorContains(t, err, "db error")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

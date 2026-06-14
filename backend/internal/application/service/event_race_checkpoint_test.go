@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -148,4 +149,138 @@ func TestCheckpointService_Reorder_RaceNotFound(t *testing.T) {
 
 	err := svc.Reorder(context.Background(), 999, []int{1, 2})
 	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+// --- EventService.Archive ---
+
+func TestEventService_Archive(t *testing.T) {
+	svc := service.NewEventService(&mockEventRepository{})
+	err := svc.Archive(context.Background(), 1)
+	assert.NoError(t, err)
+}
+
+// --- RaceService.LockOrder ---
+
+func TestRaceService_LockOrder(t *testing.T) {
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1}}}
+	svc := service.NewRaceService(races)
+	err := svc.LockOrder(context.Background(), 1)
+	assert.NoError(t, err)
+}
+
+// --- CheckpointService.Create auto-order ---
+
+func TestCheckpointService_Create_AutoOrder(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 1, DisplayOrder: 1},
+		2: {ID: 2, RaceID: 1, DisplayOrder: 2},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1}}}
+	svc := service.NewCheckpointService(cps, races)
+
+	created, err := svc.Create(context.Background(), entity.Checkpoint{
+		RaceID: 1, Code: "AS3", DisplayName: "Aid 3", DisplayOrder: 0,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 3, created.DisplayOrder)
+}
+
+func TestCheckpointService_Create_AutoOrder_ListError(t *testing.T) {
+	cps := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{},
+		listErr:     errors.New("db failure"),
+	}
+	races := &mockRaceRepository{races: map[int]entity.Race{}}
+	svc := service.NewCheckpointService(cps, races)
+
+	_, err := svc.Create(context.Background(), entity.Checkpoint{
+		RaceID: 1, Code: "AS3", DisplayName: "Aid 3", DisplayOrder: 0,
+	})
+	assert.ErrorContains(t, err, "db failure")
+}
+
+// --- CheckpointService.Update ---
+
+func TestCheckpointService_Update_Success(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5, Code: "AS1", DisplayName: "Aid 1"},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: false}}}
+	svc := service.NewCheckpointService(cps, races)
+
+	dist := 5.0
+	updated, err := svc.Update(context.Background(), 1, "AS1-NEW", "Aid 1 Updated", &dist)
+	require.NoError(t, err)
+	assert.Equal(t, "AS1-NEW", updated.Code)
+}
+
+func TestCheckpointService_Update_CPNotFound(t *testing.T) {
+	cps := &mockCheckpointRepository{getErr: domain.ErrNotFound}
+	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
+
+	_, err := svc.Update(context.Background(), 99, "X", "Y", nil)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointService_Update_RaceNotFound(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 999},
+	}}
+	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
+
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointService_Update_Locked(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: true}}}
+	svc := service.NewCheckpointService(cps, races)
+
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil)
+	assert.ErrorIs(t, err, domain.ErrLocked)
+}
+
+// --- CheckpointService.Delete ---
+
+func TestCheckpointService_Delete_Success(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: false}}}
+	svc := service.NewCheckpointService(cps, races)
+
+	err := svc.Delete(context.Background(), 1)
+	assert.NoError(t, err)
+}
+
+func TestCheckpointService_Delete_CPNotFound(t *testing.T) {
+	cps := &mockCheckpointRepository{getErr: domain.ErrNotFound}
+	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
+
+	err := svc.Delete(context.Background(), 99)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointService_Delete_RaceNotFound(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 999},
+	}}
+	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
+
+	err := svc.Delete(context.Background(), 1)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointService_Delete_Locked(t *testing.T) {
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: true}}}
+	svc := service.NewCheckpointService(cps, races)
+
+	err := svc.Delete(context.Background(), 1)
+	assert.ErrorIs(t, err, domain.ErrLocked)
 }

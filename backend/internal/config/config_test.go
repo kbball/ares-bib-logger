@@ -8,6 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// clearEnv blanks every environment variable that config.Load() reads so that
+// pre-existing shell values don't bleed into tests.
+func clearEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"SERVER_PORT", "LOG_LEVEL",
+		"DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_SSL_MODE",
+		"MQTT_ENABLED", "MQTT_HOST", "MQTT_PORT", "MQTT_REGION",
+		"MQTT_CHANNEL_NUM", "MQTT_CHANNEL_NAME", "MQTT_GATEWAY_NODE_ID",
+	} {
+		t.Setenv(key, "")
+	}
+}
+
 func setRequired(t *testing.T) {
 	t.Helper()
 	t.Setenv("DB_PASSWORD", "secret")
@@ -15,6 +29,7 @@ func setRequired(t *testing.T) {
 }
 
 func TestLoad_Defaults(t *testing.T) {
+	clearEnv(t)
 	setRequired(t)
 
 	cfg, err := config.Load()
@@ -36,6 +51,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_Overrides(t *testing.T) {
+	clearEnv(t)
 	setRequired(t)
 	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("LOG_LEVEL", "debug")
@@ -68,6 +84,7 @@ func TestLoad_Overrides(t *testing.T) {
 }
 
 func TestLoad_MQTTDisabled_NoGatewayRequired(t *testing.T) {
+	clearEnv(t)
 	t.Setenv("DB_PASSWORD", "secret")
 	t.Setenv("MQTT_ENABLED", "false")
 
@@ -77,6 +94,7 @@ func TestLoad_MQTTDisabled_NoGatewayRequired(t *testing.T) {
 }
 
 func TestLoad_MissingDBPassword(t *testing.T) {
+	clearEnv(t)
 	t.Setenv("MQTT_ENABLED", "false")
 
 	_, err := config.Load()
@@ -85,6 +103,7 @@ func TestLoad_MissingDBPassword(t *testing.T) {
 }
 
 func TestLoad_MissingGatewayNodeID_WhenMQTTEnabled(t *testing.T) {
+	clearEnv(t)
 	t.Setenv("DB_PASSWORD", "secret")
 	t.Setenv("MQTT_ENABLED", "true")
 
@@ -94,6 +113,7 @@ func TestLoad_MissingGatewayNodeID_WhenMQTTEnabled(t *testing.T) {
 }
 
 func TestLoad_InvalidServerPort(t *testing.T) {
+	clearEnv(t)
 	setRequired(t)
 	t.Setenv("SERVER_PORT", "not-a-number")
 
@@ -103,6 +123,7 @@ func TestLoad_InvalidServerPort(t *testing.T) {
 }
 
 func TestLoad_InvalidMQTTEnabled(t *testing.T) {
+	clearEnv(t)
 	setRequired(t)
 	t.Setenv("MQTT_ENABLED", "maybe")
 

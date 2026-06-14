@@ -340,6 +340,8 @@ Three sections:
 - [x] 2026-06-14 — Default theme changed from dark to light
 - [x] 2026-06-14 — Admin: "Change Runner Status" section — select race, enter bib, click Search to find runner; shows name + current status chip → new-status dropdown (ACTIVE / DNS / DNF / FINISHED) + Set button; calls existing `POST /api/log/status`
 - [x] 2026-06-14 — Runners tab: clicking any row opens a runner detail modal — shows bib, race, status chip, current pace, projected arrival at the active checkpoint (using display name), and full checkpoint log table for that runner's race
+- [x] 2026-06-14 — Frontend test suite: Vitest + React Testing Library + MSW; 163 tests across all layers (domain/pace, API adapters, App, and all five tab components); useStream SSE callbacks covered via mock-capture pattern; 89% branch coverage (461/517), meets the 80% frontend threshold; coverage thresholds enforced in `vite.config.ts`; coverage targets split in `CLAUDE.md` (backend >90%, frontend >80%)
+- [x] 2026-06-14 — Backend test suite: full coverage pass targeting >90% per-package; config test isolation via `clearEnv(t)` + `t.Setenv` to eliminate shell env bleed; domain entity constants tests (RunnerStatus, LogSource string values locked against rename); domain sentinel error tests (distinct, wrappable, correct messages); repository layer rewritten with `go-sqlmock` (v1.5.2) to run without a live DB — 70+ sqlmock tests covering all repos (event, race, checkpoint, runner, checkpoint_log, active_session) including transactions, nullable columns, and upsert; HTTP handler tests expanded to 97.3% coverage (updateCheckpoint, deleteCheckpoint, archiveEvent, listCheckpointLogs, lockRaceOrder, LoggingMiddleware/WriteHeader, parseTSVRoster 2-column paths, publishSession error branch); application service tests expanded to 95.9% coverage (CheckpointService.Create auto-order + list-error, Update/Delete all error paths, EventService.Archive, RaceService.LockOrder, CheckpointLogService.ListByRace)
 
 ## Backlog
 
@@ -351,10 +353,42 @@ Root cause identified and fixed: single-digit-hour times (e.g. `7:35`) were 4 ch
 
 ### ~~Frontend + API — Pace / Projected Arrival~~ ✅ Completed 2026-06-13
 
-### Testing
-- [ ] Backend: unit tests for all domain + application packages (`testing` + `testify`, mockery mocks); target >90% coverage
-- [ ] Frontend: Vitest + React Testing Library + MSW for all tabs
-- [ ] `make coverage` enforces the threshold
+### ~~Frontend Testing~~ ✅ Completed 2026-06-14
+Vitest + React Testing Library + MSW; 163 tests, 89% branch coverage (461/517), thresholds enforced in `vite.config.ts`.
+
+### ~~Backend Testing~~ ✅ Completed 2026-06-14
+All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, config 93.6%, mqtt 92.7%, sse 94.4%. `make coverage` Makefile target was already wired.
+
+### UI — Bulk Checkpoint Import (Priority: High)
+- [ ] Admin tab: accept TSV paste (`code\tname\tdist_from_start`) to create multiple checkpoints at once for a race; mirrors the roster import UX pattern
+
+### UI / API — Winlink Export Email Subject Line (Priority: High)
+- [ ] Generate a ready-to-copy email subject above the column text area; format: `<CP Name> <Race Name> <HH:MM 24-hr> update`; own text field + copy button
+
+### README — Developer vs. Deployment Setup Docs (Priority: High)
+- [ ] Split setup instructions into two tracks: (1) developer / dev-mode, (2) operator deployment (no dev tools required — pull pre-built image from container registry and run)
+- [ ] Publish Docker image to a container registry (e.g. GitHub Container Registry) via CI/CD; provide `docker-compose.yml` operators can use without building
+- [ ] Add GitHub Actions CI/CD pipeline for image build and push on merge to main
+
+### UI — Context-Sensitive Help Panel (Priority: Medium)
+- [ ] Persistent help icon (question mark) in the lower-right corner of every tab; clicking opens a slide-in side panel explaining what the current screen does and how to use it
+
+### UI — Tooltip on All Action Buttons and Icons (Priority: Medium)
+- [ ] Add `Tooltip` wrappers to every button and icon that performs an action; keep tooltip text short and action-oriented
+
+### UI — Training / Onboarding Section (Priority: Low)
+- [ ] Dedicated training section (tab or modal) that walks a new operator through how to use the application end-to-end before race day
+
+### UI / API — Event Export / Import (Priority: Low)
+- [ ] Export a complete event configuration (event, races, checkpoints, roster) to a compact JSON or YAML file
+- [ ] Import that file to recreate the event configuration on another station; enables one person to configure once and share via Winlink
+- [ ] File size must be minimal to be Winlink-transmittable; omit logs, only include structural config
+
+### .env.example — MQTT Disabled by Default (Priority: Low)
+- [ ] Change `MQTT_ENABLED` default to `false` in `.env.example`; operators explicitly opt in when Meshtastic infrastructure is present
+
+### ~~UI — Roster Import: Support `bib,fullName` TSV Format~~ ✅ Completed 2026-06-13
+`parseTSVRoster` auto-detects 2-column (`bib\tFull Name`) vs 3-column (`bib\tfirst\tlast`); first-space split derives first/last for 2-column case.
 
 ### CI / Quality
 - [ ] Pre-commit hook or CI step: `make lint && make fmt` must pass before commit
