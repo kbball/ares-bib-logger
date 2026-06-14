@@ -356,6 +356,12 @@ Three sections:
 - [x] 2026-06-14 — Responsive layout: Data Entry race cards stack full-width on mobile (xs) and side-by-side on tablet+ (sm); action cards (Log Bib, DNS/DNF, Transfer) break to column layout on xs, row on sm+; action cards changed to CSS grid `repeat(3, 1fr)` so all three remain equal-width on desktop/iPad (flex-wrap caused Transfer card to expand to full width when wrapping)
 - [x] 2026-06-14 — Event Export / Import: version-tagged JSON download (admin icon button), paste-and-import in Admin; full backend service + handler + frontend API wiring + tests
 - [x] 2026-06-14 — Guide tab: 6th tab with MUI Accordion sections covering Before Race Day, On Race Day, Winlink Workflow, Transferring a Runner, and Tips & Troubleshooting
+- [x] 2026-06-14 — CI: re-enabled test job (removed `if: false`); added `test` to `publish` job's `needs` so container only builds when tests pass; fixed `handler_test.go` unused `mockEventExportService` type by adding handler tests for `exportEventConfig` and `importEventConfig`; added `coverage/` to ESLint ignore list
+- [x] 2026-06-14 — CI: added `actions/delete-package-versions@v5` step to publish job; retains the 2 most recent sha-tagged image versions after each push; `latest` tag always protected from deletion
+- [x] 2026-06-14 — Bug fix (RunnersTab HTML nesting): `<Typography variant="body2">` rendered as `<p>` wrapping a `<Chip>` (`<div>`); added `component="div"` to render as `<div>` instead, eliminating the invalid nesting and React hydration warning
+- [x] 2026-06-14 — Bug fix (DataEntryTab test timing race): on slow GHA runners, the bib input appeared before the session API resolved, leaving `hasActiveCheckpoint=false`; replaced fragile `waitFor(not.toBeDisabled)` (hit 1 s ceiling) with `waitFor(() => screen.getByText('GDR'))` — the GDR race card only renders once session + races have both loaded, guaranteeing the Log button is enabled before clicking
+- [x] 2026-06-14 — Bug fix (AdminTab MUI select warning): Active Event `<Select>` had `value=session.EventID` (1) before the events list finished loading, producing "out-of-range value" warnings on every test; guarded with `events.some(e => e.ID === session?.EventID)` so value stays `''` until the matching option exists; also fixed null-safety TypeScript error in export filename handler (`session.EventID` → `eventID`)
+- [x] 2026-06-14 — Coverage check: all backend packages >90% (handler 97.5%, repo 97.3%, service 93.8%, mqtt 92.7%, sse 94.4%, config 93.6%); frontend 91.5% statements / 86.0% branches / 89.5% functions — all above enforced thresholds
 
 ## Backlog
 
@@ -436,6 +442,8 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### CI / Quality
 - [x] Pre-commit hook: `scripts/pre-commit` runs `make fmt` (aborts if files changed) then `make lint`; install via `make install-hooks`; wired into `make install` so new devs get it automatically
 - [x] GitHub Actions Node.js 24 migration — set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in before the forced 2026-06-16 deadline
+- [x] CI test job re-enabled; `publish` now requires both `lint` and `test` to pass before building the container
+- [x] GHCR image pruning — `actions/delete-package-versions@v5` retains 2 most recent sha-tagged versions; `latest` always protected
 
 ---
 

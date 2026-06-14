@@ -11,13 +11,17 @@ Built for the NW-GA ARES team supporting the **GA Death Race (GDR)** and **GA Je
 - **Auto-capture** — subscribes to a local Mosquitto MQTT broker and parses incoming Meshtastic messages; bib numbers extracted and logged with a timestamp automatically
 - **Manual entry** — fallback bib entry, DNS, and DNF logging from the UI; `MQTT_ENABLED=false` boots the app in manual-only mode with no MQTT dependency
 - **Duplicate detection** — alerts on repeated bibs and rebroadcasts a warning back to the Meshtastic mesh via MQTT
-- **Winlink export** — generates a ready-to-copy time column (`HH:MM` / `DNS` / `DNF` / `MOVED <raceName>` / blank) for the active race checkpoint
-- **Winlink import** — paste a column received from another station; shows a per-line summary of skipped rows (position, bib, reason)
+- **Winlink export** — generates a ready-to-copy time column (`HH:MM` / `DNS` / `DNF` / `MOVED <raceName>` / blank) plus a pre-built email subject line for the active race checkpoint
+- **Winlink import** — paste a column received from another station; same column can be re-imported any number of times (upsert); shows a per-line summary of skipped rows; active checkpoint excluded from source selector to prevent self-import
 - **Pace & projected arrival** — once checkpoint distances (miles from start) are configured, displays each runner's current pace and projected arrival time at the next checkpoint; race-stats cards show the earliest expected arrival at the active checkpoint
-- **Runner table** — searchable by bib or name; all checkpoint columns with actual logged times; sortable columns; race filter tabs
+- **Runner table** — searchable by bib or name; all checkpoint columns with actual logged times; sortable columns; race filter tabs; click any row for a detail panel showing pace, projected arrival, and the full checkpoint log for that runner
 - **Race transfer** — move a runner from one GA Jewel race to another mid-event; `MOVED` shown in the original race, runner appended to the new race
-- **Event & checkpoint management** — create events and races; define checkpoint order per race (lockable to prevent mid-race shifts); archive completed events
-- **Light / dark mode** — dark by default (field use); user-toggleable from the app bar
+- **Event & checkpoint management** — create events and races; define checkpoint order per race (lockable to prevent mid-race shifts); bulk TSV checkpoint import; archive completed events
+- **Event export / import** — download a full event config (races, checkpoints, roster) as JSON; import that JSON on another station instead of re-entering everything manually; Winlink-transmittable file size
+- **Change runner status** — search by bib, view current status, set to ACTIVE / DNS / DNF / FINISHED without re-logging a bib
+- **Context-sensitive help** — `?` button in the app bar opens a per-tab help drawer explaining what each section does
+- **Operator guide** — dedicated Guide tab with accordion sections: Before Race Day, On Race Day, Winlink Workflow, Race Transfers, and Tips & Troubleshooting
+- **Light / dark mode** — light by default; user-toggleable from the app bar
 
 ## Events Supported
 
@@ -181,21 +185,25 @@ make migrate-status                  # Show current migration version
 ares-bib-logger/
 ├── .ai/                  # AI context — plan, specs, decisions
 │   └── PLAN.md           # Living project plan (work log + backlog + arch decisions)
+├── .github/workflows/
+│   └── ci.yml            # Test + lint on PRs; build & push to GHCR on merge to main
 ├── backend/
-│   ├── cmd/server/       # Entry point
+│   ├── cmd/server/       # Entry point (main.go)
 │   └── internal/
 │       ├── domain/       # Entities and port interfaces (no framework imports)
 │       ├── application/  # Use cases / services
-│       └── adapter/      # HTTP handlers, Postgres repos, MQTT client
+│       └── adapter/      # HTTP handlers, Postgres repos, MQTT client, SSE broker
 ├── frontend/
 │   └── src/
 │       ├── domain/       # Core types, interfaces, and pure domain logic (pace computation)
-│       ├── application/  # Custom hooks / use cases
-│       ├── adapters/     # API clients, storage
-│       └── ui/           # React components and pages
+│       ├── adapters/     # API clients, SSE stream hook
+│       └── ui/           # React components and pages (six tabs)
+├── scripts/
+│   └── pre-commit        # Git hook: runs make fmt then make lint before every commit
 ├── CLAUDE.md             # Ground rules for AI-assisted development
 ├── Makefile
-├── docker-compose.yml
+├── docker-compose.yml            # Developer: builds backend + frontend locally
+├── docker-compose.operator.yml   # Operator: pulls pre-built image from GHCR
 └── .env.example
 ```
 
@@ -226,13 +234,21 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 Subscribe topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#`
 Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQTT_GATEWAY_NODE_ID}`
 
+## CI / CD
+
+GitHub Actions runs on every push and PR:
+
+- **Test** — `go test ./...` + `vitest run` (backend >90% coverage, frontend >80% coverage enforced)
+- **Lint** — `golangci-lint` + ESLint; both must pass before publish
+- **Publish** — on merge to `main`: builds a multi-arch image (`linux/amd64`, `linux/arm64`) and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-<commit>` to GHCR; older images are pruned to keep the two most recent versions
+
 ## Development Guidelines
 
 See [CLAUDE.md](CLAUDE.md) for the full set of coding standards. Key points:
 
 - Hexagonal architecture — domain layer has zero framework imports
-- All code must have tests; target >90% coverage
-- Run `make lint && make fmt` before every commit
+- All code must have tests; target >90% backend coverage, >80% frontend coverage
+- Run `make lint && make fmt` before every commit (pre-commit hook enforces this automatically after `make install`)
 - All config via env vars — no hardcoded values
 
 ## License
