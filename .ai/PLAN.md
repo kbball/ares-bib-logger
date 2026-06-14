@@ -342,6 +342,7 @@ Three sections:
 - [x] 2026-06-14 — Runners tab: clicking any row opens a runner detail modal — shows bib, race, status chip, current pace, projected arrival at the active checkpoint (using display name), and full checkpoint log table for that runner's race
 - [x] 2026-06-14 — Frontend test suite: Vitest + React Testing Library + MSW; 163 tests across all layers (domain/pace, API adapters, App, and all five tab components); useStream SSE callbacks covered via mock-capture pattern; 89% branch coverage (461/517), meets the 80% frontend threshold; coverage thresholds enforced in `vite.config.ts`; coverage targets split in `CLAUDE.md` (backend >90%, frontend >80%)
 - [x] 2026-06-14 — Backend test suite: full coverage pass targeting >90% per-package; config test isolation via `clearEnv(t)` + `t.Setenv` to eliminate shell env bleed; domain entity constants tests (RunnerStatus, LogSource string values locked against rename); domain sentinel error tests (distinct, wrappable, correct messages); repository layer rewritten with `go-sqlmock` (v1.5.2) to run without a live DB — 70+ sqlmock tests covering all repos (event, race, checkpoint, runner, checkpoint_log, active_session) including transactions, nullable columns, and upsert; HTTP handler tests expanded to 97.3% coverage (updateCheckpoint, deleteCheckpoint, archiveEvent, listCheckpointLogs, lockRaceOrder, LoggingMiddleware/WriteHeader, parseTSVRoster 2-column paths, publishSession error branch); application service tests expanded to 95.9% coverage (CheckpointService.Create auto-order + list-error, Update/Delete all error paths, EventService.Archive, RaceService.LockOrder, CheckpointLogService.ListByRace)
+- [x] 2026-06-14 — Developer vs. Deployment docs: README split into Operator (Docker-only) and Developer tracks; `docker-compose.operator.yml` added for operators pulling pre-built image from GHCR; `.github/workflows/ci.yml` added — runs `test` and `lint` jobs on PRs, then builds and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-*` tag to GHCR on merge to main using GitHub Actions cache for layer reuse
 
 ## Backlog
 
@@ -365,10 +366,10 @@ All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, c
 ### UI / API — Winlink Export Email Subject Line (Priority: High)
 - [ ] Generate a ready-to-copy email subject above the column text area; format: `<CP Name> <Race Name> <HH:MM 24-hr> update`; own text field + copy button
 
-### README — Developer vs. Deployment Setup Docs (Priority: High)
-- [ ] Split setup instructions into two tracks: (1) developer / dev-mode, (2) operator deployment (no dev tools required — pull pre-built image from container registry and run)
-- [ ] Publish Docker image to a container registry (e.g. GitHub Container Registry) via CI/CD; provide `docker-compose.yml` operators can use without building
-- [ ] Add GitHub Actions CI/CD pipeline for image build and push on merge to main
+### ~~README — Developer vs. Deployment Setup Docs~~ ✅ Completed 2026-06-14
+- [x] README split into Operator (Docker-only) and Developer tracks
+- [x] `docker-compose.operator.yml` — pulls `ghcr.io/kbball/ares-bib-logger:latest`, operators need only Docker Desktop
+- [x] `.github/workflows/ci.yml` — test + lint on PRs; build and push to GHCR on merge to main
 
 ### UI — Context-Sensitive Help Panel (Priority: Medium)
 - [ ] Persistent help icon (question mark) in the lower-right corner of every tab; clicking opens a slide-in side panel explaining what the current screen does and how to use it

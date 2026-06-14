@@ -40,14 +40,58 @@ Architecture follows the **hexagonal (ports & adapters)** pattern — domain log
 
 ## Getting Started
 
-### Prerequisites
+Two tracks depending on your role:
+
+- **Operator** — running the app at a race event; no Go or Node.js required
+- **Developer** — working on the codebase
+
+---
+
+### Operator Setup (race-day deployment)
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) only.
+
+```bash
+# Download the operator compose file and config
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/docker-compose.operator.yml
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.conf
+
+# Create your local config (edit values for your station)
+curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
+cp .env.example .env
+# Open .env and set MQTT_GATEWAY_NODE_ID and adjust SERVER_PORT if needed
+
+# Pull the latest image and start everything
+docker compose -f docker-compose.operator.yml up -d
+```
+
+The app is available at `http://localhost:8080`.
+
+To update to the latest release:
+
+```bash
+docker compose -f docker-compose.operator.yml pull
+docker compose -f docker-compose.operator.yml up -d
+```
+
+To stop:
+
+```bash
+docker compose -f docker-compose.operator.yml down
+```
+
+> **Data persistence:** Postgres data survives container restarts via a named Docker volume. To wipe all data (e.g. between events), run `docker compose -f docker-compose.operator.yml down -v`.
+
+---
+
+### Developer Setup
+
+**Prerequisites:**
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Go 1.24+
 - Node.js 20+
 - [golangci-lint](https://golangci-lint.run/) and [golang-migrate CLI](https://github.com/golang-migrate/migrate) (installed via `make install-tools`)
-
-### Setup
 
 ```bash
 # Clone the repo
