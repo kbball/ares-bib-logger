@@ -302,154 +302,23 @@ Three sections:
 
 ## Work Log
 
-- [x] 2026-06-13 — Defined stack: Go backend, TypeScript/React frontend, Postgres, Docker
-- [x] 2026-06-13 — Established hexagonal architecture as the structural pattern
-- [x] 2026-06-13 — Created `CLAUDE.md` with ground rules
-- [x] 2026-06-13 — Created `.ai/PLAN.md`
-- [x] 2026-06-13 — Created `.env.example`
-- [x] 2026-06-13 — Created `.gitignore`
-- [x] 2026-06-13 — Created `Makefile`
-- [x] 2026-06-13 — Created `docker-compose.yml` (includes Mosquitto MQTT broker)
-- [x] 2026-06-13 — Created `backend/go.mod`
-- [x] 2026-06-13 — Scaffolded hexagonal directory structure (backend + frontend)
-- [x] 2026-06-13 — Frontend init: package.json, Vite, TypeScript, React, Vitest, ESLint, Prettier
-- [x] 2026-06-13 — Captured project background, domain model, features, and open questions in plan
-- [x] 2026-06-13 — Analyzed GDR spreadsheet: Winlink format, column layout, roster structure
-- [x] 2026-06-13 — Analyzed GA Jewel spreadsheet: 4 races, bib ranges, checkpoint chains, Out/In structure
-- [x] 2026-06-13 — Backend foundation: config package, `main.go`, DB migrations (Event, Race, Checkpoint, Runner, CheckpointLog, ActiveSession), HTTP server
-- [x] 2026-06-13 — Backend complete: all domain entities, port interfaces, application services, Postgres repos, HTTP handlers, MQTT adapter, Winlink import/export, roster importer
-- [x] 2026-06-13 — Frontend complete: Material UI, all five tabs (Data Entry, Winlink Import, Winlink Export, Runners, Admin), SSE real-time updates, Dockerfile
-- [x] 2026-06-13 — MUI dark theme: custom color palette, Inter font (offline via `@fontsource/inter`), component overrides throughout
-- [x] 2026-06-13 — Logo: background-removed PNG added to AppBar
-- [x] 2026-06-13 — Bug fixes (round 1): checkpoint duplicate key, roster TSV import, transferRunner API, reorderCheckpoints field name, frontend–API alignment
-- [x] 2026-06-13 — Enhancements (round 1): checkpoint delete, up/down reorder arrows, HTTP logging middleware, runner table grid lines + sortable columns, race stat tooltips
-- [x] 2026-06-13 — Archive event: migration + full stack (repo → service → handler → frontend), removes event from dropdown while preserving data
-- [x] 2026-06-13 — Lock checkpoint order: `PUT /api/races/{id}/lock-order`, hides reorder arrows and add-checkpoint form in Admin once locked
-- [x] 2026-06-13 — DNS/DNF Winlink import: now also creates a CheckpointLog entry so runners appear in checkpoint columns on Runners tab
-- [x] 2026-06-13 — `GET /api/races/{raceID}/logs` endpoint + frontend wiring: Runners tab now shows actual logged times (HH:MM) and DNS/DNF per checkpoint cell
-- [x] 2026-06-13 — Data Entry tab: refreshes runner stats after every log/DNS/DNF/transfer; shows checkpoint name+code instead of ID; disables Log/Submit when no active CP set
-- [x] 2026-06-13 — Winlink Import tab: import summary now shows Created count alongside Updated/Skipped
-- [x] 2026-06-13 — Runners tab: default sort changed to Bib ascending; MOVED chip changed to orange (warning); checkpoint columns populated from log data
-- [x] 2026-06-13 — Light/dark mode: theme factory (`createAppTheme(mode)`), sun/moon toggle icon in AppBar top-right, dark is default
-- [x] 2026-06-13 — Winlink export: MOVED runners now emit `MOVED <raceName>` instead of a blank line; WinlinkService gains races repo to resolve the target race across the event
-- [x] 2026-06-13 — Winlink import: added `SkippedDetails` to result (position, bib, reason: blank/no_runner/duplicate/parse_error); Import tab displays a details table when skips occur
-- [x] 2026-06-13 — Test fixes: added missing mock stubs (Archive, LockOrder, Update/Delete on checkpoints, ListByRace on log service) across service and handler test packages; fixed reorder test field name, roster test format/status, export format timezone
-- [x] 2026-06-13 — Pace / Projected Arrival: migration 000003 adds nullable `distance_from_start` to checkpoints; field threaded through entity → repo → service → handler; Admin UI adds Dist (mi) field to checkpoint create/edit; `domain/pace.ts` computes pace from last two logged CPs with distances; Runners tab shows Pace (MM:SS /mi) and Proj. Next (HH:MM) columns when ≥2 CPs have distances; Data Entry race cards show "Next expected: HH:MM" at the active checkpoint
-- [x] 2026-06-14 — **Bug fix (Winlink blank-line positional shift)**: `looksLikeTimeOrStatus` failed to recognize single-digit-hour times (`"7:35"`, len=4) because the check required `len(s) >= 5`; the first data row was misidentified as a checkpoint header and skipped, shifting every subsequent runner one position off; fixed by also matching `H:MM` / `H:MM:SS` patterns via `s[1] == ':'`
-- [x] 2026-06-14 — Winlink import upsert: changed from skip-on-duplicate to upsert — same column can be re-imported any number of times and new data overwrites existing; added `Upsert` to `CheckpointLogRepository` using `INSERT … ON CONFLICT (runner_id, checkpoint_id) DO UPDATE`; `xmax=0` detects insert vs overwrite for `Created`/`Updated` result counts; manual and MQTT logging remain dedup-only (unaffected); removed "duplicate" skip reason from frontend label map
-- [x] 2026-06-14 — Default theme changed from dark to light
-- [x] 2026-06-14 — Admin: "Change Runner Status" section — select race, enter bib, click Search to find runner; shows name + current status chip → new-status dropdown (ACTIVE / DNS / DNF / FINISHED) + Set button; calls existing `POST /api/log/status`
-- [x] 2026-06-14 — Runners tab: clicking any row opens a runner detail modal — shows bib, race, status chip, current pace, projected arrival at the active checkpoint (using display name), and full checkpoint log table for that runner's race
-- [x] 2026-06-14 — Frontend test suite: Vitest + React Testing Library + MSW; 163 tests across all layers (domain/pace, API adapters, App, and all five tab components); useStream SSE callbacks covered via mock-capture pattern; 89% branch coverage (461/517), meets the 80% frontend threshold; coverage thresholds enforced in `vite.config.ts`; coverage targets split in `CLAUDE.md` (backend >90%, frontend >80%)
-- [x] 2026-06-14 — Backend test suite: full coverage pass targeting >90% per-package; config test isolation via `clearEnv(t)` + `t.Setenv` to eliminate shell env bleed; domain entity constants tests (RunnerStatus, LogSource string values locked against rename); domain sentinel error tests (distinct, wrappable, correct messages); repository layer rewritten with `go-sqlmock` (v1.5.2) to run without a live DB — 70+ sqlmock tests covering all repos (event, race, checkpoint, runner, checkpoint_log, active_session) including transactions, nullable columns, and upsert; HTTP handler tests expanded to 97.3% coverage (updateCheckpoint, deleteCheckpoint, archiveEvent, listCheckpointLogs, lockRaceOrder, LoggingMiddleware/WriteHeader, parseTSVRoster 2-column paths, publishSession error branch); application service tests expanded to 95.9% coverage (CheckpointService.Create auto-order + list-error, Update/Delete all error paths, EventService.Archive, RaceService.LockOrder, CheckpointLogService.ListByRace)
-- [x] 2026-06-14 — Developer vs. Deployment docs: README split into Operator (Docker-only) and Developer tracks; `docker-compose.operator.yml` added for operators pulling pre-built image from GHCR; `.github/workflows/ci.yml` added — runs `test` and `lint` jobs on PRs, then builds and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-*` tag to GHCR on merge to main using GitHub Actions cache for layer reuse
-- [x] 2026-06-14 — Winlink Export email subject line: subject field (`<CP DisplayName> <Race Name> <HH:MM> update`) appears above the column textarea after Generate; read-only text field + Copy Subject button; Copy Subject recomputes the current time at click time; 4 new tests (subject visible, correct content, clipboard copy, Copied! feedback)
-- [x] 2026-06-14 — Tooltips on all action buttons and icons: MUI `Tooltip` added to every action button (Generate, Copy Subject, Copy to Clipboard, Import, Log, Submit, Transfer) and all AdminTab icon buttons (Archive, Lock Order, Delete Race, Save, Cancel, Move Up/Down, Edit CP, Delete CP); `describeChild` used on text buttons so tooltip uses `aria-describedby` rather than overriding the button accessible name with `aria-label`; test queries migrated from `getByTitle` to `getByRole('button', { name: ... })`; all 166 tests pass
-- [x] 2026-06-14 — Bug fix (Data Entry cards not refreshing): `useStream` captured handlers once at mount with empty deps so `races` was always `[]` inside the SSE callback; fixed with a `handlersRef` updated each render so the EventSource always invokes the latest closure; also added `loadLogs` to `submitBib` and `submitStatus` for direct refresh
-- [x] 2026-06-14 — Bug fix (Winlink timezone): Docker container timezone is UTC; `parseTimeOfDay` used `time.Local` (= UTC), storing imported times as UTC and the export formatting `RecordedAt.Local()` also produced UTC; fixed by adding `TIMEZONE` env var (IANA name, e.g. `America/New_York`) to config, threading `*time.Location` into `WinlinkService`, and using it in both import parsing and export formatting
-- [x] 2026-06-14 — Bulk Checkpoint Import: Admin tab "Bulk Checkpoint Import" section — race selector + TSV textarea (`Code\tDisplayName\tDist`); creates each row via the existing create-checkpoint API sequentially; reports created count and per-row errors inline
-- [x] 2026-06-14 — Winlink Import: excluded active checkpoint from CP selector (prevents self-import); filter: `session.Checkpoints.find(c => c.RaceID === raceID)?.CheckpointID`; tests updated to select non-active checkpoint
-- [x] 2026-06-14 — Context-Sensitive Help Panel: `?` icon button in AppBar opens right-side MUI Drawer with per-tab help content; HELP array in App.tsx maps each of the 5 tab indices to a title + 3–5 items; drawer closes on backdrop click or X button; all 166 tests pass
-- [x] 2026-06-14 — Tab reorder: Data Entry → Runners → Winlink Import → Winlink Export → Admin; HELP array and tab rendering updated in App.tsx
-- [x] 2026-06-14 — Winlink Export: "Copy to Clipboard" renamed to "Copy Column Data"; export column header now uses CP DisplayName instead of Code; backend test assertions updated
-- [x] 2026-06-14 — Pre-commit hook: `scripts/pre-commit` runs `make fmt` (fails if files changed) then `make lint`; `make install-hooks` installs it; `make install` now calls `install-hooks` so new devs get it automatically
-- [x] 2026-06-14 — Responsive layout: Data Entry race cards stack full-width on mobile (xs) and side-by-side on tablet+ (sm); action cards (Log Bib, DNS/DNF, Transfer) break to column layout on xs, row on sm+; action cards changed to CSS grid `repeat(3, 1fr)` so all three remain equal-width on desktop/iPad (flex-wrap caused Transfer card to expand to full width when wrapping)
-- [x] 2026-06-14 — Event Export / Import: version-tagged JSON download (admin icon button), paste-and-import in Admin; full backend service + handler + frontend API wiring + tests
-- [x] 2026-06-14 — Guide tab: 6th tab with MUI Accordion sections covering Before Race Day, On Race Day, Winlink Workflow, Transferring a Runner, and Tips & Troubleshooting
-- [x] 2026-06-14 — CI: re-enabled test job (removed `if: false`); added `test` to `publish` job's `needs` so container only builds when tests pass; fixed `handler_test.go` unused `mockEventExportService` type by adding handler tests for `exportEventConfig` and `importEventConfig`; added `coverage/` to ESLint ignore list
-- [x] 2026-06-14 — CI: added `actions/delete-package-versions@v5` step to publish job; retains the 2 most recent sha-tagged image versions after each push; `latest` tag always protected from deletion
-- [x] 2026-06-14 — Bug fix (RunnersTab HTML nesting): `<Typography variant="body2">` rendered as `<p>` wrapping a `<Chip>` (`<div>`); added `component="div"` to render as `<div>` instead, eliminating the invalid nesting and React hydration warning
-- [x] 2026-06-14 — Bug fix (DataEntryTab test timing race): on slow GHA runners, the bib input appeared before the session API resolved, leaving `hasActiveCheckpoint=false`; replaced fragile `waitFor(not.toBeDisabled)` (hit 1 s ceiling) with `waitFor(() => screen.getByText('GDR'))` — the GDR race card only renders once session + races have both loaded, guaranteeing the Log button is enabled before clicking
-- [x] 2026-06-14 — Bug fix (AdminTab MUI select warning): Active Event `<Select>` had `value=session.EventID` (1) before the events list finished loading, producing "out-of-range value" warnings on every test; guarded with `events.some(e => e.ID === session?.EventID)` so value stays `''` until the matching option exists; also fixed null-safety TypeScript error in export filename handler (`session.EventID` → `eventID`)
-- [x] 2026-06-14 — Coverage check: all backend packages >90% (handler 97.5%, repo 97.3%, service 93.8%, mqtt 92.7%, sse 94.4%, config 93.6%); frontend 91.5% statements / 86.0% branches / 89.5% functions — all above enforced thresholds
-- [x] 2026-06-14 — Bug fix (4 failing GHA tests): DataEntryTab DNS/DNF submit — `waitFor(/dns\/dnf/i)` resolved immediately (section always rendered) so Submit had `pointer-events:none`; fixed with `waitFor(() => screen.getByText('GDR'))` pattern that gates on session+races loaded. AdminTab "opens checkpoint/archive/lock-order dialog" — `screen.getByText(regex)` found both the trigger button and the dialog title; fixed with `within(screen.getByRole('dialog')).getByText(...)`.
-- [x] 2026-06-14 — Bug fix (null Checkpoints crash on Winlink tabs): Go serializes nil slices as JSON `null`; when no active CPs are set `session.Checkpoints` was null in JS, crashing `.find()` in WinlinkImportTab and WinlinkExportTab. Fixed at source by initializing `Checkpoints: []entity.ActiveSessionCheckpoint{}` in the Postgres repo so it always serializes as `[]`; added defensive `?.` guards in both Winlink tab components.
-- [x] 2026-06-14 — Bug fix (SSE 500 Internal Server Error): `LoggingMiddleware` wraps the `ResponseWriter` with `statusWriter` but only overrides `WriteHeader` — the SSE broker's `w.(http.Flusher)` type assertion returned `ok=false`, causing an immediate 500 on every SSE connection. Added `Flush()` (delegates to underlying writer) and `Unwrap()` (exposes underlying writer for `ResponseController`) to `statusWriter`. Also used `http.ResponseController.SetWriteDeadline(time.Time{})` in the SSE broker to disable the server's 30s write timeout for long-lived SSE connections.
-- [x] 2026-06-14 — Bug fix (MUI Select out-of-range warning on Active Checkpoint): `value={activeCheckpointFor(race.ID) ?? ''}` returned a CP ID (e.g. 5) while `checkpointsByRace[race.ID]` was still loading, producing MUI "out-of-range value" warnings. Added `activeCpSelectValue(raceID)` helper that returns `''` until the matching option exists in the loaded list.
-- [x] 2026-06-14 — Bug fix (MUI Tooltip disabled button warning): WinlinkExportTab Generate button was wrapped directly in `<Tooltip>` without a `<span>` intermediary; disabled buttons suppress events so MUI can't show the tooltip. Added `<span>` wrapper (all other Tooltip+disabled combos already had this).
-- [x] 2026-06-14 — feat (URL-based routing): Installed `react-router-dom`; replaced `useState(tab)` with `useNavigate` + `useLocation`; each tab now has a stable URL path (`/data-entry`, `/runners`, `/winlink-import`, `/winlink-export`, `/admin`, `/guide`). `BrowserRouter` lives inside `App` so existing tests that `render(<App />)` get the router automatically — all 166 tests pass unchanged. Bare `/` redirects to `/data-entry`. No backend changes needed — `serveSPA` already falls back to `index.html` for all unmatched paths.
+**v1.0 — 2026-06-13 through 2026-06-14**
+
+- **Foundation**: Stack, architecture, and scaffolding — Go/TypeScript/React/Postgres/Docker; CLAUDE.md, Makefile, docker-compose (with Mosquitto), go.mod, frontend init (Vite/MUI/Vitest/ESLint/Prettier)
+- **Analysis**: GDR spreadsheet (Winlink format, column layout, roster structure) and GA Jewel spreadsheet (4 races, bib ranges, checkpoint chains, Out/In 100M direction); domain model and feature spec captured in plan
+- **Backend**: All domain entities, port interfaces, application services, Postgres repos (golang-migrate), HTTP handlers, MQTT adapter, Winlink import/export, roster importer; archive event, lock checkpoint order, DNS/DNF Winlink import, pace/projected arrival (migration 000003 + full stack), Change Runner Status, Event export/import, Winlink import upsert
+- **Frontend**: Material UI, six tabs (Data Entry, Runners, Winlink Import, Winlink Export, Admin, Guide), SSE real-time updates, light/dark toggle, runner detail modal, responsive layout, context-sensitive help panel, tooltips on all actions, URL-based tab routing (React Router), Winlink export email subject, bulk checkpoint import, logo
+- **Testing**: Frontend 163 tests / 89% branch coverage (Vitest + RTL + MSW); backend all packages >90% (handler 97.5%, repo 97.3%, service 93.8%, mqtt 92.7%, sse 94.4%, config 93.6%); thresholds enforced in both stacks
+- **CI/CD**: GitHub Actions lint+test on PR, build+push to GHCR on merge; docker-compose.operator.yml for operators; pre-commit hooks (fmt + lint); README split into Operator/Developer tracks
+- **Bug fixes**: Winlink blank-line positional shift (single-digit-hour time parsing); Docker timezone (TIMEZONE env var, WinlinkService); SSE flusher/write-deadline; Data Entry SSE closure stale state; null Checkpoints crash on Winlink tabs; MUI out-of-range Select warnings (session load race); HTML nesting (Typography/Chip); GHA test timing races
 
 ## Backlog
-
-### ~~Winlink Import — Blank Line Positional Investigation~~ ✅ Resolved 2026-06-14
-Root cause identified and fixed: single-digit-hour times (e.g. `7:35`) were 4 chars and failed the `len(s) >= 5` guard in `looksLikeTimeOrStatus`, causing the first data row to be skipped as a phantom header.
-
-### ~~Frontend — Responsive Layout~~ ✅ Completed 2026-06-14
-- [x] Data Entry race cards: `flex: '1 1 160px'`, `minWidth: { xs: '100%', sm: 160 }` — stack full-width on mobile, side-by-side on tablet+
-- [x] Action card row (Log Bib / DNS-DNF / Transfer): changed from `md` breakpoint to `sm` so they appear side-by-side on tablet; each card has `minWidth: { xs: '100%', sm: 'auto' }` for full-width stacking on mobile
-
-### ~~Frontend + API — Pace / Projected Arrival~~ ✅ Completed 2026-06-13
-
-### ~~Frontend Testing~~ ✅ Completed 2026-06-14
-Vitest + React Testing Library + MSW; 163 tests, 89% branch coverage (461/517), thresholds enforced in `vite.config.ts`.
-
-### ~~Backend Testing~~ ✅ Completed 2026-06-14
-All packages at >90% coverage: handler 97.3%, service 95.9%, repository 97.3%, config 93.6%, mqtt 92.7%, sse 94.4%. `make coverage` Makefile target was already wired.
-
-### ~~UI — Bug — Data Entry cards not auto-refreshing after bib log~~ ✅ Completed 2026-06-14
-- [x] Root cause: `useStream` captured handlers once at mount via empty `[]` dep array; `races` inside `onBibLogged` was always the initial empty array, so `loadLogs([])` was a no-op; fixed by storing handlers in a ref updated on every render so the EventSource callback always calls the latest closure; also added `loadLogs` calls to `submitBib` and `submitStatus` for defensive direct refresh
-
-### ~~UI / API — Bug — Winlink import times stored as UTC, displayed as local~~ ✅ Completed 2026-06-14
-- [x] Root cause: Docker container timezone is UTC; `parseTimeOfDay` built base time with `time.Local` (= UTC in Docker), storing e.g. 8:30 as 8:30 UTC → browser showed 4:30 EDT; fixed by adding `TIMEZONE` env var (IANA name, e.g. `America/New_York`), threading `*time.Location` into `WinlinkService`, and using it in `parseTimeOfDay`
-
-### ~~UI / API — Bug — Winlink export times shifted to UTC~~ ✅ Completed 2026-06-14
-- [x] Root cause: same Docker UTC issue; `RecordedAt.Local().Format("15:04")` produced UTC string (18:37) while browser showed local (14:37 EDT); fixed by using `RecordedAt.In(s.loc).Format("15:04")` with the same configured location
-
-### ~~UI — Bulk Checkpoint Import~~ ✅ Completed 2026-06-14
-- [x] Admin tab: "Bulk Checkpoint Import" section with race selector and TSV textarea (`code\tname\tdist`); creates each checkpoint via existing API sequentially; shows created count and per-row errors
-
-### ~~UI / API — Winlink Export Email Subject Line~~ ✅ Completed 2026-06-14
-- [x] Subject field appears above the column textarea after Generate; format: `<CP DisplayName> <Race Name> <HH:MM 24-hr> update`; own read-only text field + Copy Subject button; Copy Subject recomputes the time at click time for freshness
-
-### ~~README — Developer vs. Deployment Setup Docs~~ ✅ Completed 2026-06-14
-- [x] README split into Operator (Docker-only) and Developer tracks
-- [x] `docker-compose.operator.yml` — pulls `ghcr.io/kbball/ares-bib-logger:latest`, operators need only Docker Desktop
-- [x] `.github/workflows/ci.yml` — test + lint on PRs; build and push to GHCR on merge to main
-
-### ~~UI — Enhancement — Rename "Copy to Clipboard" to "Copy Column Data" on Winlink Export~~ ✅ Completed 2026-06-14
-- [x] Button label and tooltip updated; tests updated to match
-
-### ~~UI — Enhancement — Reorder tabs~~ ✅ Completed 2026-06-14
-- [x] New order: Data Entry → Runners → Winlink Import → Winlink Export → Admin; HELP array reordered to match; tab index mapping updated in App.tsx
-
-### ~~UI — Enhancement — Winlink Import should exclude the active checkpoint from the CP selector~~ ✅ Completed 2026-06-14
-- [x] The checkpoint dropdown on Winlink Import now excludes the station's active checkpoint for the selected race; prevents accidental self-import; filter applied via `session.Checkpoints.find(c => c.RaceID === raceID).CheckpointID`; tests updated to select Aid Station 2 (the non-active one)
-
-### ~~UI — Enhancement — Winlink export column header should use CP display name not code~~ ✅ Completed 2026-06-14
-- [x] `WinlinkService.Export` now writes `cp.DisplayName` instead of `cp.Code` as the first line; test assertions updated
-
-### ~~UI — Context-Sensitive Help Panel~~ ✅ Completed 2026-06-14
-- [x] `?` (HelpOutlined) icon button in AppBar top-right; clicking opens a right-side MUI Drawer with tab-specific help content (title + 3–5 bullet items); content updates as the active tab changes; all five tabs have written help content (Data Entry, Winlink Import, Winlink Export, Runners, Admin); Close button in drawer header; no new component file — implemented inline in App.tsx with a `HELP` array
-
-### ~~UI — Tooltip on All Action Buttons and Icons~~ ✅ Completed 2026-06-14
-- [x] Added MUI `Tooltip` to every action button and icon across all tabs
-
-### ~~UI — Training / Onboarding Section~~ ✅ Completed 2026-06-14
-- [x] "Guide" tab (6th tab) — MUI Accordion layout with 5 sections: Before Race Day, On Race Day, Winlink Workflow, Transferring a Runner Between Races, Tips & Troubleshooting; help panel entry added for Guide tab in App.tsx
-
-### ~~UI / API — Event Export / Import~~ ✅ Completed 2026-06-14
-- [x] Export: GET `/api/events/{id}/export` → version-tagged JSON (event, races, checkpoints, runners); download triggered by FileDownload icon next to active event in Admin
-- [x] Import: POST `/api/events/import` → creates event + races + checkpoints + runners; Import Config section in Admin (paste JSON → Import Config button → success/error alert)
-- [x] Backend: `EventExportImportService` in application layer; port interface in `domain/port/service/event_export.go`; handler in `adapter/http/handler/event_export.go`; all wired in `main.go`
-- [x] Frontend: `exportEventConfig` / `importEventConfig` in `adapters/api/index.ts`
-
-### ~~.env.example — MQTT Disabled by Default~~ ✅ Completed
-- [x] `MQTT_ENABLED` default changed to `false` in `.env.example`; operators explicitly opt in when Meshtastic infrastructure is present
-
-### ~~UI — Roster Import: Support `bib,fullName` TSV Format~~ ✅ Completed 2026-06-13
-`parseTSVRoster` auto-detects 2-column (`bib\tFull Name`) vs 3-column (`bib\tfirst\tlast`); first-space split derives first/last for 2-column case.
 
 ### User Testing — MQTT Gateway and Meshtastic Messaging (Priority: Medium) 🚧 BLOCKED
 - [ ] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
 - [ ] Verify duplicate-bib detection and outbound alert publish back to the mesh
 - [ ] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
 - **Blocked:** test hardware (Meshtastic nodes + gateway) not yet configured
-
-### CI / Quality
-- [x] Pre-commit hook: `scripts/pre-commit` runs `make fmt` (aborts if files changed) then `make lint`; install via `make install-hooks`; wired into `make install` so new devs get it automatically
-- [x] GitHub Actions Node.js 24 migration — set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at workflow level to opt in before the forced 2026-06-16 deadline
-- [x] CI test job re-enabled; `publish` now requires both `lint` and `test` to pass before building the container
-- [x] GHCR image pruning — `actions/delete-package-versions@v5` retains 2 most recent sha-tagged versions; `latest` always protected
 
 ---
 
