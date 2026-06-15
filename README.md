@@ -186,7 +186,9 @@ ares-bib-logger/
 ├── .ai/                  # AI context — plan, specs, decisions
 │   └── PLAN.md           # Living project plan (work log + backlog + arch decisions)
 ├── .github/workflows/
-│   └── ci.yml            # Test + lint on PRs; build & push to GHCR on merge to main
+│   ├── ci.yml            # Lint + test on PRs to staging or main
+│   ├── staging.yml       # Lint + test + push :staging image on merge to staging
+│   └── release.yml       # Manual release: tag + push versioned image + :latest
 ├── backend/
 │   ├── cmd/server/       # Entry point (main.go)
 │   └── internal/
@@ -236,11 +238,15 @@ Publish topic: `msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!{MQT
 
 ## CI / CD
 
-GitHub Actions runs on every push and PR:
+Three GitHub Actions workflows implement a `feature → staging → main` pipeline:
 
-- **Test** — `go test ./...` + `vitest run` (backend >90% coverage, frontend >80% coverage enforced)
-- **Lint** — `golangci-lint` + ESLint; both must pass before publish
-- **Publish** — on merge to `main`: builds a multi-arch image (`linux/amd64`, `linux/arm64`) and pushes `ghcr.io/kbball/ares-bib-logger:latest` + `sha-<commit>` to GHCR; older images are pruned to keep the two most recent versions
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| **CI** | PR to `staging` or `main` | Runs lint + tests; required to pass before merge |
+| **Staging** | Push to `staging` | Runs lint + tests, then builds and pushes `ghcr.io/kbball/ares-bib-logger:staging` |
+| **Release** | Manual (`workflow_dispatch` from `main`) | Runs lint + tests, creates a `v<major>.<minor>` git tag, builds and pushes versioned image + `:latest` |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full branch model and release process.
 
 ## Development Guidelines
 
