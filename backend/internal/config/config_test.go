@@ -156,5 +156,5 @@ func TestMQTTConfig_Topics(t *testing.T) {
 	}
 
 	assert.Equal(t, "msh/US/2/e/LongFast/#", cfg.SubscribeTopic())
-	assert.Equal(t, "msh/US/2/e/LongFast/!a3b4c5d6", cfg.PublishTopic())
+	assert.Equal(t, "msh/US/2/e/LongFast/!ffffffff", cfg.PublishTopic())
 }

@@ -314,7 +314,10 @@ export default function AdminTab() {
           <Chip label={`Event #${session.EventID} active`} color="success" size="small" />
         )}
         {session?.EventID && (
-          <Tooltip title="Export event config (races, checkpoints, roster) as JSON for sharing with other stations" describeChild>
+          <Tooltip
+            title="Export event config (races, checkpoints, roster) as JSON for sharing with other stations"
+            describeChild
+          >
             <IconButton
               size="small"
               aria-label="Export event config"
@@ -391,10 +394,16 @@ export default function AdminTab() {
           label="Import event config (paste JSON)"
           placeholder='{"version":1,"event":{"name":"..."},...}'
           value={importConfigJson}
-          onChange={(e) => { setImportConfigJson(e.target.value); setImportConfigMsg('') }}
+          onChange={(e) => {
+            setImportConfigJson(e.target.value)
+            setImportConfigMsg('')
+          }}
           sx={{ flex: 1 }}
         />
-        <Tooltip title="Import event config — creates a new event with races, checkpoints, and roster from the JSON" describeChild>
+        <Tooltip
+          title="Import event config — creates a new event with races, checkpoints, and roster from the JSON"
+          describeChild
+        >
           <span>
             <Button
               variant="outlined"

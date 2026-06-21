@@ -39,6 +39,7 @@ type MQTTConfig struct {
 	Region        string
 	ChannelNum    int
 	ChannelName   string
+	ChannelIndex  uint32 // index (0-7) of the bridged channel in the gateway's channel list
 	GatewayNodeID string
 }
 
@@ -48,8 +49,10 @@ func (c MQTTConfig) SubscribeTopic() string {
 }
 
 // PublishTopic returns the topic used to send messages back through the gateway to the mesh.
+// The leaf node is a fixed broadcast address — the gateway filters messages published
+// to its own node ID (!<gatewayNodeID>) as self-originated uplink, so we must use a different leaf.
 func (c MQTTConfig) PublishTopic() string {
-	return fmt.Sprintf("msh/%s/%d/e/%s/!%s", c.Region, c.ChannelNum, c.ChannelName, c.GatewayNodeID)
+	return fmt.Sprintf("msh/%s/%d/e/%s/!ffffffff", c.Region, c.ChannelNum, c.ChannelName)
 }
 
 // Load reads all configuration from environment variables and returns a validated Config.
@@ -79,6 +82,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("MQTT_CHANNEL_NUM: %w", err)
 	}
 
+	mqttChannelIndex, err := envInt("MQTT_CHANNEL_INDEX", 0)
+	if err != nil {
+		return nil, fmt.Errorf("MQTT_CHANNEL_INDEX: %w", err)
+	}
+
 	cfg := &Config{
 		ServerPort: serverPort,
 		LogLevel:   envStr("LOG_LEVEL", "info"),
@@ -98,6 +106,7 @@ func Load() (*Config, error) {
 			Region:        envStr("MQTT_REGION", "US"),
 			ChannelNum:    mqttChannelNum,
 			ChannelName:   envStr("MQTT_CHANNEL_NAME", "LongFast"),
+			ChannelIndex:  uint32(mqttChannelIndex),
 			GatewayNodeID: envStr("MQTT_GATEWAY_NODE_ID", ""),
 		},
 	}

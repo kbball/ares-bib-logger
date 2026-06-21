@@ -55,7 +55,11 @@ func (s *CheckpointLogService) LogBib(ctx context.Context, input portsvc.LogBibI
 		return portsvc.LogBibResult{}, fmt.Errorf("checking duplicate: %w", err)
 	}
 	if exists {
-		return portsvc.LogBibResult{Runner: runner, IsDuplicate: true}, nil
+		return portsvc.LogBibResult{
+			Runner:      runner,
+			IsDuplicate: true,
+			Log:         entity.CheckpointLog{Source: input.Source},
+		}, nil
 	}
 
 	log, err := s.checkpointLogs.Create(ctx, entity.CheckpointLog{

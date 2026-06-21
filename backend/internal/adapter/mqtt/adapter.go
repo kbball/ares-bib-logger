@@ -2,14 +2,19 @@ package mqtt
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"strconv"
 	"strings"
 
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
+	"google.golang.org/protobuf/proto"
+
+	meshtastic "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
@@ -37,22 +42,32 @@ type pahoPublisher struct {
 }
 
 func (p *pahoPublisher) Publish(topic string, payload []byte) error {
-	tok := p.client.Publish(topic, 0, false, payload)
+	// QoS 1 matches the gateway's subscription QoS for reliable delivery.
+	tok := p.client.Publish(topic, 1, false, payload)
 	tok.Wait()
 	return tok.Error()
 }
 
 // Adapter is the MQTT driven adapter for Meshtastic bib input.
 type Adapter struct {
-	publisher mqttPublisher
-	stream    sse.Publisher
-	stopFn    func()
-	cfg       config.MQTTConfig
-	svc       portsvc.CheckpointLogService
+	publisher  mqttPublisher
+	stream     sse.Publisher
+	stopFn     func()
+	cfg        config.MQTTConfig
+	svc        portsvc.CheckpointLogService
+	selfNodeID uint32 // parsed from cfg.GatewayNodeID; used to drop our own echoed messages
 }
 
 func newAdapter(publisher mqttPublisher, stream sse.Publisher, stopFn func(), cfg config.MQTTConfig, svc portsvc.CheckpointLogService) *Adapter {
-	return &Adapter{publisher: publisher, stream: stream, stopFn: stopFn, cfg: cfg, svc: svc}
+	nodeUint, _ := strconv.ParseUint(cfg.GatewayNodeID, 16, 32)
+	return &Adapter{
+		publisher:  publisher,
+		stream:     stream,
+		stopFn:     stopFn,
+		cfg:        cfg,
+		svc:        svc,
+		selfNodeID: uint32(nodeUint),
+	}
 }
 
 // newFromClient wires up subscription on an already-constructed paho client.
@@ -91,36 +106,56 @@ func (a *Adapter) Stop() {
 	a.stopFn()
 }
 
-// serviceEnvelope mirrors the Meshtastic MQTT JSON ServiceEnvelope.
-type serviceEnvelope struct {
-	From    uint64 `json:"from"`
-	To      uint64 `json:"to"`
-	Channel int    `json:"channel"`
-	ID      uint64 `json:"id"`
-	RxTime  int64  `json:"rxTime"`
-	Type    string `json:"type"`
-	Payload struct {
-		Text string `json:"text"`
-	} `json:"payload"`
-}
-
-// processMessage parses a raw MQTT payload and logs any bibs found in it.
+// processMessage decodes a binary Meshtastic ServiceEnvelope and logs any bib numbers found.
 func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
-	var env serviceEnvelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		slog.Warn("mqtt: ignoring unparseable message", "error", err)
+	slog.Debug("mqtt: message received", "bytes", len(raw))
+
+	var env meshtastic.ServiceEnvelope
+	if err := proto.Unmarshal(raw, &env); err != nil {
+		slog.Warn("mqtt: ignoring unparseable protobuf message", "error", err)
 		return
 	}
 
-	if env.Type != "text" {
+	pkt := env.GetPacket()
+	// Ignore messages we published ourselves — the broker echoes them back on the
+	// wildcard subscription and would otherwise trigger an infinite alert loop.
+	if pkt.GetFrom() == a.selfNodeID {
+		slog.Debug("mqtt: dropping self-originated message", "from", fmt.Sprintf("0x%08x", pkt.GetFrom()))
+		return
+	}
+	slog.Debug("mqtt: envelope decoded",
+		"channel_id", env.GetChannelId(),
+		"gateway_id", env.GetGatewayId(),
+		"from", fmt.Sprintf("0x%08x", pkt.GetFrom()),
+	)
+
+	decoded := pkt.GetDecoded()
+	if decoded == nil {
+		slog.Debug("mqtt: dropping encrypted packet — no channel key")
 		return
 	}
 
-	for _, bib := range parseBibs(env.Payload.Text) {
+	portnum := decoded.GetPortnum()
+	if portnum != meshtastic.PortNum_TEXT_MESSAGE_APP {
+		slog.Debug("mqtt: dropping non-text packet", "portnum", portnum)
+		return
+	}
+
+	text := string(decoded.GetPayload())
+	slog.Debug("mqtt: text message received", "text", text)
+
+	// Drop our own duplicate alerts echoed back from the radio or broker — their text
+	// is not a bib number, but parseBibs would extract the number from "DUPLICATE BIB: N".
+	if strings.HasPrefix(text, "DUPLICATE BIB:") {
+		slog.Debug("mqtt: dropping duplicate alert echo")
+		return
+	}
+
+	for _, bib := range parseBibs(text) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
 			BibNumber:  bib,
 			Source:     entity.SourceMeshtastic,
-			RawMessage: string(raw),
+			RawMessage: base64.StdEncoding.EncodeToString(raw),
 		})
 		if err != nil {
 			switch {
@@ -152,44 +187,110 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	}
 }
 
-// publishDuplicateAlert sends a warning back through the gateway to the mesh.
+// publishDuplicateAlert sends a protobuf downlink ServiceEnvelope to the gateway.
 func (a *Adapter) publishDuplicateAlert(bib int) {
-	nodeID := a.cfg.GatewayNodeID
-	nodeUint, _ := strconv.ParseUint(nodeID, 16, 32)
-
-	alert := map[string]any{
-		"channel_id": a.cfg.ChannelName,
-		"gateway_id": "!" + nodeID,
-		"packet": map[string]any{
-			"from": uint32(nodeUint),
-			"to":   uint32(4294967295),
-			"decoded": map[string]any{
-				"portnum": 1,
-				"payload": fmt.Sprintf("DUPLICATE BIB: %d", bib),
-			},
-		},
+	// id must be a nonzero random uint32 — firmware silently drops packets with id=0.
+	packetID := rand.Uint32()
+	if packetID == 0 {
+		packetID = 1
 	}
 
-	// json.Marshal cannot fail for this fixed structure of basic types.
-	b, _ := json.Marshal(alert)
+	// from must NOT be selfNodeID — firmware filters self-originated MQTT downlinks
+	// (by from field AND by gateway_id field in the ServiceEnvelope). Both must be
+	// non-self values or the device silently drops the packet as "downlink we originally sent."
+	const alertFromNodeID uint32 = 1
+	const alertGatewayID = "00000001" // must not match gateway's own ID; protoEncodeDownlink prepends "!"
+	b := protoEncodeDownlink(
+		alertFromNodeID,
+		a.cfg.ChannelIndex,
+		packetID,
+		a.cfg.ChannelName,
+		alertGatewayID,
+		fmt.Sprintf("DUPLICATE BIB: %d", bib),
+	)
+
+	slog.Debug("mqtt: publishing duplicate alert",
+		"topic", a.cfg.PublishTopic(),
+		"bib", bib,
+		"packet_id", fmt.Sprintf("0x%08x", packetID),
+		"from", fmt.Sprintf("0x%08x", a.selfNodeID),
+		"channel_index", a.cfg.ChannelIndex,
+		"payload_hex", hex.EncodeToString(b),
+	)
 
 	if err := a.publisher.Publish(a.cfg.PublishTopic(), b); err != nil {
 		slog.Error("mqtt: failed to publish duplicate alert", "bib", bib, "error", err)
 	}
 }
 
-// parseBibs splits text on newlines and returns all integer values found.
-// Non-numeric and empty lines are silently skipped.
+// protoEncodeDownlink hand-encodes a Meshtastic ServiceEnvelope for MQTT downlink.
+// Fields are written in strict proto field-number order — the Go protobuf library
+// places oneof fields after higher-numbered regular fields, which confuses nanopb.
+// hop_start must equal hop_limit for a fresh packet.
+// gateway_id MUST be non-empty: the firmware's DecodedServiceEnvelope wrapper sets the
+// pointer to NULL for empty strings, and onReceiveProto rejects envelopes with a NULL
+// gateway_id even though it is optional in the proto schema.
+func protoEncodeDownlink(from, channelIndex, id uint32, channelID, gatewayID, text string) []byte {
+	// Data: portnum(1) + payload(2)
+	var data []byte
+	data = pbVarintField(data, 1, 1) // portnum = TEXT_MESSAGE_APP
+	data = pbBytesField(data, 2, []byte(text))
+
+	// MeshPacket: fields in strict field-number order
+	var pkt []byte
+	pkt = pbFixed32Field(pkt, 1, from)
+	pkt = pbFixed32Field(pkt, 2, 0xFFFFFFFF) // broadcast
+	if channelIndex != 0 {
+		pkt = pbVarintField(pkt, 3, uint64(channelIndex))
+	}
+	pkt = pbBytesField(pkt, 4, data) // decoded Data (oneof field 4)
+	pkt = pbFixed32Field(pkt, 6, id)
+	pkt = pbVarintField(pkt, 9, 3)  // hop_limit
+	pkt = pbVarintField(pkt, 15, 3) // hop_start — must equal hop_limit for a fresh packet
+
+	// ServiceEnvelope: packet(1), channel_id(2), gateway_id(3)
+	var env []byte
+	env = pbBytesField(env, 1, pkt)
+	env = pbBytesField(env, 2, []byte(channelID))
+	env = pbBytesField(env, 3, []byte("!"+gatewayID))
+	return env
+}
+
+func pbVarint(v uint64) []byte {
+	var b []byte
+	for v >= 0x80 {
+		b = append(b, byte(v)|0x80)
+		v >>= 7
+	}
+	return append(b, byte(v))
+}
+
+func pbVarintField(dst []byte, field int, v uint64) []byte {
+	dst = append(dst, pbVarint(uint64(field<<3))...) // wire type 0
+	return append(dst, pbVarint(v)...)
+}
+
+func pbFixed32Field(dst []byte, field int, v uint32) []byte {
+	dst = append(dst, pbVarint(uint64(field<<3|5))...) // wire type 5
+	return append(dst, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
+}
+
+func pbBytesField(dst []byte, field int, data []byte) []byte {
+	dst = append(dst, pbVarint(uint64(field<<3|2))...) // wire type 2
+	dst = append(dst, pbVarint(uint64(len(data)))...)
+	return append(dst, data...)
+}
+
+// parseBibs splits text on newlines, commas, and spaces, returning all integer values found.
+// Non-numeric and empty tokens are silently skipped.
 func parseBibs(text string) []int {
 	var bibs []int
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		n, err := strconv.Atoi(line)
+	for _, tok := range strings.FieldsFunc(text, func(r rune) bool {
+		return r == '\n' || r == ',' || r == ' '
+	}) {
+		n, err := strconv.Atoi(tok)
 		if err != nil {
-			slog.Debug("mqtt: skipping non-numeric bib line", "line", line)
+			slog.Debug("mqtt: skipping non-numeric token", "token", tok)
 			continue
 		}
 		bibs = append(bibs, n)

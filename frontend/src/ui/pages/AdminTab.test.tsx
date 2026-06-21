@@ -314,7 +314,9 @@ describe('AdminTab — Lock Order', () => {
     await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
 
     await waitFor(() => screen.getByRole('dialog'))
-    expect(within(screen.getByRole('dialog')).getByText(/lock checkpoint order/i)).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('dialog')).getByText(/lock checkpoint order/i),
+    ).toBeInTheDocument()
 
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: /lock order/i }),

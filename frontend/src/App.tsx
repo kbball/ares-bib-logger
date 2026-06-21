@@ -167,7 +167,10 @@ function AppInner() {
     if (pathname === '/') navigate('/data-entry', { replace: true })
   }, [pathname, navigate])
 
-  const tab = Math.max(0, TABS.findIndex((t) => t.path === pathname))
+  const tab = Math.max(
+    0,
+    TABS.findIndex((t) => t.path === pathname),
+  )
   const help = HELP[tab]
 
   return (

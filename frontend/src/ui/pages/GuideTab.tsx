@@ -20,7 +20,10 @@ function StepList({ steps }: { steps: Step[] }) {
           <ListItemText
             primary={`${i + 1}. ${s.primary}`}
             secondary={s.secondary}
-            slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 600 } }, secondary: { variant: 'body2' } }}
+            slotProps={{
+              primary: { variant: 'body2', sx: { fontWeight: 600 } },
+              secondary: { variant: 'body2' },
+            }}
           />
         </ListItem>
       ))}
@@ -135,7 +138,10 @@ const SECTIONS = [
         </Typography>
         <StepList
           steps={[
-            { primary: 'Open the Winlink message and copy the column text (everything below the subject)' },
+            {
+              primary:
+                'Open the Winlink message and copy the column text (everything below the subject)',
+            },
             { primary: 'Winlink Import tab → select the race the column belongs to' },
             {
               primary: 'Select the checkpoint the column came from',
@@ -189,7 +195,7 @@ const SECTIONS = [
           {
             primary: 'Winlink import times are off by several hours',
             secondary:
-              'Set TIMEZONE in your .env to the event venue\'s IANA timezone (e.g. America/New_York). Restart the app after changing.',
+              "Set TIMEZONE in your .env to the event venue's IANA timezone (e.g. America/New_York). Restart the app after changing.",
           },
           {
             primary: 'Checkpoint column shifted after import',

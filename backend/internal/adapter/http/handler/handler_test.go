@@ -135,9 +135,9 @@ func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int,
 }
 
 type mockEventExportService struct {
-	payload  portsvc.EventExportPayload
-	eventID  int
-	err      error
+	payload portsvc.EventExportPayload
+	eventID int
+	err     error
 }
 
 func (m *mockEventExportService) Export(_ context.Context, _ int) (portsvc.EventExportPayload, error) {

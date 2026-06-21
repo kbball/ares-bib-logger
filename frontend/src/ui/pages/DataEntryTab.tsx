@@ -345,7 +345,9 @@ export default function DataEntryTab() {
         </Stack>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+      <Box
+        sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}
+      >
         {/* ── Manual bib entry ── */}
         <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>

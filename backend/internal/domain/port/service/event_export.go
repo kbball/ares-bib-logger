@@ -19,9 +19,9 @@ type EventExportInfo struct {
 }
 
 type RaceExportData struct {
-	Name        string               `json:"name"`
-	Checkpoints []CheckpointExport   `json:"checkpoints"`
-	Runners     []RunnerExport       `json:"runners"`
+	Name        string             `json:"name"`
+	Checkpoints []CheckpointExport `json:"checkpoints"`
+	Runners     []RunnerExport     `json:"runners"`
 }
 
 type CheckpointExport struct {

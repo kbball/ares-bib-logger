@@ -3,15 +3,17 @@ module github.com/kevinball/ares-bib-logger/backend
 go 1.24.0
 
 require (
+	buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go v1.36.11-20260620003035-f8def2c02c81.1
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
