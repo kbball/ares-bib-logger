@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -107,6 +108,8 @@ func testCfg() config.MQTTConfig {
 		ChannelNum:    2,
 		ChannelName:   "LongFast",
 		GatewayNodeID: "a3b4c5d6",
+		NodeLongName:  "Auto Logger",
+		NodeShortName: "Log",
 	}
 }
 
@@ -115,13 +118,14 @@ func newTestAdapter(svc *mockLogService, pub *mockPublisher) *Adapter {
 	return newAdapter(pub, &mockSSEPublisher{}, func() {}, testCfg(), svc)
 }
 
-// textEnvelopeFrom serialises a ServiceEnvelope with a specific From node ID.
-func textEnvelopeFrom(text string, from uint32) []byte {
+// textEnvelope serialises a ServiceEnvelope containing a TEXT_MESSAGE_APP payload.
+// From is set to a non-zero node ID to simulate a real mesh sender (not our own echo).
+func textEnvelope(text string) []byte {
 	env := &meshtastic.ServiceEnvelope{
 		ChannelId: "LongFast",
 		GatewayId: "!a3b4c5d6",
 		Packet: &meshtastic.MeshPacket{
-			From: from,
+			From: 0x00000001,
 			PayloadVariant: &meshtastic.MeshPacket_Decoded{
 				Decoded: &meshtastic.Data{
 					Portnum: meshtastic.PortNum_TEXT_MESSAGE_APP,
@@ -134,14 +138,13 @@ func textEnvelopeFrom(text string, from uint32) []byte {
 	return b
 }
 
-// textEnvelope serialises a ServiceEnvelope containing a TEXT_MESSAGE_APP payload.
-// From is set to a non-zero node ID to simulate a real mesh sender (not our own echo).
-func textEnvelope(text string) []byte {
+// ackEchoEnvelope simulates the broker echoing back one of our own ack messages.
+func ackEchoEnvelope(text string) []byte {
 	env := &meshtastic.ServiceEnvelope{
 		ChannelId: "LongFast",
-		GatewayId: "!a3b4c5d6",
+		GatewayId: "!" + alertGatewayID,
 		Packet: &meshtastic.MeshPacket{
-			From: 0x00000001,
+			From: alertFromNodeID,
 			PayloadVariant: &meshtastic.MeshPacket_Decoded{
 				Decoded: &meshtastic.Data{
 					Portnum: meshtastic.PortNum_TEXT_MESSAGE_APP,
@@ -229,7 +232,11 @@ func TestProcessMessage_LogsBibs(t *testing.T) {
 	assert.Equal(t, 101, svc.calls[0].BibNumber)
 	assert.Equal(t, 202, svc.calls[1].BibNumber)
 	assert.Equal(t, entity.SourceMeshtastic, svc.calls[0].Source)
-	assert.Empty(t, pub.published)
+	// Single ack covering both bibs.
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", string(ack.GetPacket().GetDecoded().GetPayload()))
 }
 
 func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
@@ -254,7 +261,7 @@ func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
 	// own node ID or the firmware silently drops it as "downlink we originally sent".
 	assert.Equal(t, "!00000001", alert.GetGatewayId())
 	pkt := alert.GetPacket()
-	assert.Equal(t, uint32(1), pkt.GetFrom()) // must not be selfNodeID — see publishDuplicateAlert
+	assert.Equal(t, uint32(1), pkt.GetFrom()) // must not be selfNodeID — see publishAck / alertFromNodeID
 	assert.Equal(t, uint32(0xFFFFFFFF), pkt.GetTo())
 	assert.NotZero(t, pkt.GetId())
 	assert.Equal(t, uint32(3), pkt.GetHopLimit())
@@ -335,8 +342,7 @@ func TestProcessMessage_SelfOriginatedIgnored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	// Simulate our own duplicate alert echoed back by the broker.
-	// Our outgoing alerts use From=selfNodeID so the gateway can identify the sender.
+	// Simulate the broker echoing back an uplink we sent (from == selfNodeID).
 	env := &meshtastic.ServiceEnvelope{
 		Packet: &meshtastic.MeshPacket{
 			From: 0xa3b4c5d6, // matches testCfg().GatewayNodeID parsed as uint32
@@ -354,12 +360,13 @@ func TestProcessMessage_SelfOriginatedIgnored(t *testing.T) {
 	assert.Empty(t, svc.calls)
 }
 
-func TestProcessMessage_DuplicateAlertEchoIgnored(t *testing.T) {
+func TestProcessMessage_AckEchoIgnored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	// Simulate our own "DUPLICATE BIB: N" text echoed back from the radio or broker.
-	a.processMessage(context.Background(), textEnvelopeFrom("DUPLICATE BIB: 42", 1))
+	// Broker echoes our own ack back; gateway_id == "!"+alertGatewayID must drop it.
+	// Without this filter, parseBibs would extract the numbers from "LOGGED: N" lines.
+	a.processMessage(context.Background(), ackEchoEnvelope("LOGGED: 42\nDUPLICATE BIB: 7"))
 
 	assert.Empty(t, svc.calls)
 }
@@ -381,15 +388,51 @@ func TestProcessMessage_EncryptedPacketIgnored(t *testing.T) {
 	assert.Empty(t, svc.calls)
 }
 
-// --- publishDuplicateAlert ---
+// --- publishAck ---
 
-func TestPublishDuplicateAlert_PublishError(t *testing.T) {
+func TestPublishAck_PublishError(t *testing.T) {
 	pub := &mockPublisher{err: errors.New("broker gone")}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishDuplicateAlert(42)
+	a.publishAck([]int{42}, nil)
 
 	assert.Len(t, pub.published, 1)
+}
+
+func TestPublishAck_LoggedOnly(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishAck([]int{101, 202}, nil)
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", string(env.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestPublishAck_DuplicateOnly(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishAck(nil, []int{42})
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "DUPLICATE BIB: 42", string(env.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestPublishAck_Mixed(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishAck([]int{101}, []int{42})
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "LOGGED: 101\nDUPLICATE BIB: 42", string(env.GetPacket().GetDecoded().GetPayload()))
 }
 
 // --- parseBibs ---
@@ -418,6 +461,40 @@ func TestParseBibs_Empty(t *testing.T) {
 
 func TestParseBibs_SingleBib(t *testing.T) {
 	assert.Equal(t, []int{42}, parseBibs("42"))
+}
+
+// --- publishNodeInfo ---
+
+func TestPublishNodeInfo_PublishError(t *testing.T) {
+	pub := &mockPublisher{err: errors.New("broker gone")}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishNodeInfo() // must not panic; error is logged, not returned
+
+	assert.Len(t, pub.published, 1)
+}
+
+func TestPublishNodeInfo_SendsNodeInfo(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishNodeInfo()
+
+	require.Len(t, pub.published, 1)
+	assert.Equal(t, testCfg().PublishTopic(), pub.published[0].topic)
+
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	pkt := env.GetPacket()
+	assert.Equal(t, uint32(alertFromNodeID), pkt.GetFrom())
+	assert.Equal(t, uint32(0xFFFFFFFF), pkt.GetTo())
+	assert.Equal(t, meshtastic.PortNum_NODEINFO_APP, pkt.GetDecoded().GetPortnum())
+
+	var user meshtastic.User
+	require.NoError(t, proto.Unmarshal(pkt.GetDecoded().GetPayload(), &user))
+	assert.Equal(t, fmt.Sprintf("!%08x", alertFromNodeID), user.GetId())
+	assert.Equal(t, "Auto Logger", user.GetLongName())
+	assert.Equal(t, "Log", user.GetShortName())
 }
 
 // --- Stop ---

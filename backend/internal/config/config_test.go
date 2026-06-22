@@ -17,6 +17,7 @@ func clearEnv(t *testing.T) {
 		"DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_SSL_MODE",
 		"MQTT_ENABLED", "MQTT_HOST", "MQTT_PORT", "MQTT_REGION",
 		"MQTT_CHANNEL_NUM", "MQTT_CHANNEL_NAME", "MQTT_GATEWAY_NODE_ID",
+		"MQTT_NODE_LONG_NAME", "MQTT_NODE_SHORT_NAME",
 	} {
 		t.Setenv(key, "")
 	}
@@ -48,6 +49,8 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "US", cfg.MQTT.Region)
 	assert.Equal(t, 2, cfg.MQTT.ChannelNum)
 	assert.Equal(t, "LongFast", cfg.MQTT.ChannelName)
+	assert.Equal(t, "Auto Logger", cfg.MQTT.NodeLongName)
+	assert.Equal(t, "Log", cfg.MQTT.NodeShortName)
 }
 
 func TestLoad_Overrides(t *testing.T) {

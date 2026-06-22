@@ -89,6 +89,7 @@ func newFromClient(client pahoClient, cfg config.MQTTConfig, svc portsvc.Checkpo
 	}
 
 	slog.Info("MQTT adapter started", "topic", topic)
+	a.publishNodeInfo()
 	return a, nil
 }
 
@@ -106,6 +107,14 @@ func (a *Adapter) Stop() {
 	a.stopFn()
 }
 
+// alertFromNodeID and alertGatewayID identify our own downlink messages.
+// Both must differ from the gateway's own node ID — the firmware filters MQTT messages
+// where either the from field or the ServiceEnvelope gateway_id matches its own ID,
+// silently dropping them as "downlink we originally sent."
+// We also use alertGatewayID to recognise and drop our own ack echoes on the uplink subscription.
+const alertFromNodeID uint32 = 1
+const alertGatewayID = "00000001" // protoEncodeDownlink prepends "!"
+
 // processMessage decodes a binary Meshtastic ServiceEnvelope and logs any bib numbers found.
 func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	slog.Debug("mqtt: message received", "bytes", len(raw))
@@ -117,10 +126,14 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	}
 
 	pkt := env.GetPacket()
-	// Ignore messages we published ourselves — the broker echoes them back on the
-	// wildcard subscription and would otherwise trigger an infinite alert loop.
+	// Ignore uplink echoes of our own messages.
 	if pkt.GetFrom() == a.selfNodeID {
 		slog.Debug("mqtt: dropping self-originated message", "from", fmt.Sprintf("0x%08x", pkt.GetFrom()))
+		return
+	}
+	// Ignore broker echoes of our own ack/downlink messages (gateway_id is our sentinel value).
+	if env.GetGatewayId() == "!"+alertGatewayID {
+		slog.Debug("mqtt: dropping our own ack echo")
 		return
 	}
 	slog.Debug("mqtt: envelope decoded",
@@ -144,13 +157,7 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	text := string(decoded.GetPayload())
 	slog.Debug("mqtt: text message received", "text", text)
 
-	// Drop our own duplicate alerts echoed back from the radio or broker — their text
-	// is not a bib number, but parseBibs would extract the number from "DUPLICATE BIB: N".
-	if strings.HasPrefix(text, "DUPLICATE BIB:") {
-		slog.Debug("mqtt: dropping duplicate alert echo")
-		return
-	}
-
+	var loggedBibs, duplicateBibs []int
 	for _, bib := range parseBibs(text) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
 			BibNumber:  bib,
@@ -175,51 +182,71 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 			"is_duplicate": result.IsDuplicate,
 		})
 		if result.IsDuplicate {
-			slog.Info("mqtt: duplicate bib, alerting mesh", "bib", bib)
-			a.publishDuplicateAlert(bib)
+			slog.Info("mqtt: duplicate bib", "bib", bib)
+			duplicateBibs = append(duplicateBibs, bib)
 		} else {
 			slog.Info("mqtt: bib logged",
 				"bib", bib,
 				"runner", fmt.Sprintf("%s %s", result.Runner.FirstName, result.Runner.LastName),
 				"checkpoint", result.Log.CheckpointID,
 			)
+			loggedBibs = append(loggedBibs, bib)
 		}
+	}
+
+	if len(loggedBibs) > 0 || len(duplicateBibs) > 0 {
+		a.publishAck(loggedBibs, duplicateBibs)
 	}
 }
 
-// publishDuplicateAlert sends a protobuf downlink ServiceEnvelope to the gateway.
-func (a *Adapter) publishDuplicateAlert(bib int) {
-	// id must be a nonzero random uint32 — firmware silently drops packets with id=0.
+// publishNodeInfo broadcasts a NODEINFO_APP packet so the mesh displays the logger with a friendly name.
+func (a *Adapter) publishNodeInfo() {
+	packetID := rand.Uint32()
+	if packetID == 0 {
+		packetID = 1
+	}
+	b := protoEncodeNodeInfoPkt(alertFromNodeID, a.cfg.ChannelIndex, packetID, a.cfg.ChannelName, alertGatewayID, a.cfg.NodeLongName, a.cfg.NodeShortName)
+	slog.Debug("mqtt: publishing node info", "long_name", a.cfg.NodeLongName, "short_name", a.cfg.NodeShortName)
+	if err := a.publisher.Publish(a.cfg.PublishTopic(), b); err != nil {
+		slog.Error("mqtt: failed to publish node info", "error", err)
+	}
+}
+
+// publishAck sends a single ack message to the mesh summarising all bibs from one incoming message.
+// New bibs appear as "LOGGED: N", duplicates as "DUPLICATE BIB: N", one per line.
+func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
+	var lines []string
+	for _, b := range loggedBibs {
+		lines = append(lines, fmt.Sprintf("LOGGED: %d", b))
+	}
+	for _, b := range duplicateBibs {
+		lines = append(lines, fmt.Sprintf("DUPLICATE BIB: %d", b))
+	}
+	text := strings.Join(lines, "\n")
+
 	packetID := rand.Uint32()
 	if packetID == 0 {
 		packetID = 1
 	}
 
-	// from must NOT be selfNodeID — firmware filters self-originated MQTT downlinks
-	// (by from field AND by gateway_id field in the ServiceEnvelope). Both must be
-	// non-self values or the device silently drops the packet as "downlink we originally sent."
-	const alertFromNodeID uint32 = 1
-	const alertGatewayID = "00000001" // must not match gateway's own ID; protoEncodeDownlink prepends "!"
 	b := protoEncodeDownlink(
 		alertFromNodeID,
 		a.cfg.ChannelIndex,
 		packetID,
 		a.cfg.ChannelName,
 		alertGatewayID,
-		fmt.Sprintf("DUPLICATE BIB: %d", bib),
+		text,
 	)
 
-	slog.Debug("mqtt: publishing duplicate alert",
+	slog.Debug("mqtt: publishing ack",
 		"topic", a.cfg.PublishTopic(),
-		"bib", bib,
+		"text", text,
 		"packet_id", fmt.Sprintf("0x%08x", packetID),
-		"from", fmt.Sprintf("0x%08x", a.selfNodeID),
-		"channel_index", a.cfg.ChannelIndex,
 		"payload_hex", hex.EncodeToString(b),
 	)
 
 	if err := a.publisher.Publish(a.cfg.PublishTopic(), b); err != nil {
-		slog.Error("mqtt: failed to publish duplicate alert", "bib", bib, "error", err)
+		slog.Error("mqtt: failed to publish ack", "error", err)
 	}
 }
 
@@ -249,6 +276,38 @@ func protoEncodeDownlink(from, channelIndex, id uint32, channelID, gatewayID, te
 	pkt = pbVarintField(pkt, 15, 3) // hop_start — must equal hop_limit for a fresh packet
 
 	// ServiceEnvelope: packet(1), channel_id(2), gateway_id(3)
+	var env []byte
+	env = pbBytesField(env, 1, pkt)
+	env = pbBytesField(env, 2, []byte(channelID))
+	env = pbBytesField(env, 3, []byte("!"+gatewayID))
+	return env
+}
+
+// protoEncodeNodeInfoPkt hand-encodes a NODEINFO_APP ServiceEnvelope for MQTT downlink.
+// The User payload identifies the logger node with a human-readable name on the mesh.
+func protoEncodeNodeInfoPkt(from, channelIndex, id uint32, channelID, gatewayID, longName, shortName string) []byte {
+	// User: id(1), long_name(2), short_name(3)
+	var user []byte
+	user = pbBytesField(user, 1, []byte(fmt.Sprintf("!%08x", from)))
+	user = pbBytesField(user, 2, []byte(longName))
+	user = pbBytesField(user, 3, []byte(shortName))
+
+	// Data: portnum(1) = NODEINFO_APP(4), payload(2) = User
+	var data []byte
+	data = pbVarintField(data, 1, 4)
+	data = pbBytesField(data, 2, user)
+
+	var pkt []byte
+	pkt = pbFixed32Field(pkt, 1, from)
+	pkt = pbFixed32Field(pkt, 2, 0xFFFFFFFF)
+	if channelIndex != 0 {
+		pkt = pbVarintField(pkt, 3, uint64(channelIndex))
+	}
+	pkt = pbBytesField(pkt, 4, data)
+	pkt = pbFixed32Field(pkt, 6, id)
+	pkt = pbVarintField(pkt, 9, 3)
+	pkt = pbVarintField(pkt, 15, 3)
+
 	var env []byte
 	env = pbBytesField(env, 1, pkt)
 	env = pbBytesField(env, 2, []byte(channelID))

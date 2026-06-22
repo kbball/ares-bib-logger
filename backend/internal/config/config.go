@@ -41,6 +41,8 @@ type MQTTConfig struct {
 	ChannelName   string
 	ChannelIndex  uint32 // index (0-7) of the bridged channel in the gateway's channel list
 	GatewayNodeID string
+	NodeLongName  string // displayed name for the logger node on the mesh (max ~20 chars)
+	NodeShortName string // short name for the logger node on the mesh (max 4 chars)
 }
 
 // SubscribeTopic returns the wildcard topic to receive all mesh traffic on the channel.
@@ -108,6 +110,8 @@ func Load() (*Config, error) {
 			ChannelName:   envStr("MQTT_CHANNEL_NAME", "LongFast"),
 			ChannelIndex:  uint32(mqttChannelIndex),
 			GatewayNodeID: envStr("MQTT_GATEWAY_NODE_ID", ""),
+			NodeLongName:  envStr("MQTT_NODE_LONG_NAME", "Auto Logger"),
+			NodeShortName: envStr("MQTT_NODE_SHORT_NAME", "Log"),
 		},
 	}
 
