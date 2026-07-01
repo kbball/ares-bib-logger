@@ -6,7 +6,7 @@ MIGRATIONS_DIR=internal/adapter/repository/migrations
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev db-up db-down build build-backend build-frontend \
+.PHONY: help setup dev db-up db-down build build-backend build-frontend \
         test test-backend test-frontend \
         coverage coverage-backend coverage-frontend \
         lint lint-backend lint-frontend \
@@ -16,6 +16,9 @@ MIGRATIONS_DIR=internal/adapter/repository/migrations
 
 help:
 	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Setup"
+	@echo "  setup               Interactive setup — writes .env from prompted values"
 	@echo ""
 	@echo "Dev"
 	@echo "  db-up               Start Postgres in Docker (detached)"
@@ -42,6 +45,11 @@ help:
 	@echo "  install-tools       Install golangci-lint and migrate CLI"
 	@echo "  install-hooks       Install pre-commit hook (make fmt + make lint)"
 	@echo "  docker-build        Build the Docker image"
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+setup:
+	@bash scripts/setup.sh
 
 # ── Dev ──────────────────────────────────────────────────────────────────────
 

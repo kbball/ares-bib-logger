@@ -27,6 +27,21 @@ services:
       - mosquitto_data:/mosquitto/data
       - mosquitto_logs:/mosquitto/log
 
+  # meshcore-mqtt bridges a MeshCore node to the Mosquitto broker.
+  # Only starts when --profile meshcore is passed (or COMPOSE_PROFILES=meshcore).
+  # NOTE: verify env var names against the meshcoreHQ/meshcore-mqtt image documentation.
+  meshcore-mqtt:
+    image: meshcorehq/meshcore-mqtt:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - mosquitto
+    profiles:
+      - meshcore
+
   app:
     build: .
     restart: unless-stopped
