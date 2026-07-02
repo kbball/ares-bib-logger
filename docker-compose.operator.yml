@@ -30,7 +30,7 @@ services:
   # meshcore-mqtt bridges a MeshCore node to the Mosquitto broker.
   # Only starts when --profile meshcore is passed (or COMPOSE_PROFILES=meshcore).
   meshcore-mqtt:
-    image: ghcr.io/ipnet-mesh/meshcore-mqtt:latest
+    image: ghcr.io/kbball/meshcore-mqtt:main
     restart: unless-stopped
     env_file: .env
     environment:

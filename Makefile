@@ -148,4 +148,4 @@ docker-build:
 	docker build -t ares-bib-logger .
 
 meshcore-build:
-	docker build -t ghcr.io/ipnet-mesh/meshcore-mqtt:latest ~/code/docker/meshcore-mqtt
+	docker build -t ghcr.io/kbball/meshcore-mqtt:main ~/code/docker/meshcore-mqtt
