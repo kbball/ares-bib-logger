@@ -24,7 +24,7 @@ type mockToken struct{ err error }
 
 func (m *mockToken) Wait() bool                       { return true }
 func (m *mockToken) WaitTimeout(_ time.Duration) bool { return true }
-func (m *mockToken) Done() <-chan struct{}             { ch := make(chan struct{}); close(ch); return ch }
+func (m *mockToken) Done() <-chan struct{}            { ch := make(chan struct{}); close(ch); return ch }
 func (m *mockToken) Error() error                     { return m.err }
 
 type mockPahoClient struct {
@@ -101,10 +101,9 @@ func (m *mockSSEPublisher) Publish(eventType string, payload any) {
 
 func testCfg() config.MeshcoreConfig {
 	return config.MeshcoreConfig{
-		NodeAddress: "192.168.1.50:5525",
-		ChannelName: "PUBLIC",
-		MQTTHost:    "localhost",
-		MQTTPort:    1883,
+		ChannelIndex: 2,
+		MQTTHost:     "localhost",
+		MQTTPort:     1883,
 	}
 }
 
@@ -112,9 +111,15 @@ func newTestAdapter(svc *mockLogService, pub *mockPublisher) *Adapter {
 	return newAdapter(pub, &mockSSEPublisher{}, func() {}, testCfg(), svc)
 }
 
-// jsonMsg encodes a meshcore incomingMsg as a JSON payload.
-func jsonMsg(from, text, channel string) []byte {
-	b, _ := json.Marshal(incomingMsg{From: from, Text: text, Channel: channel})
+// jsonMsg encodes a MeshCore bridge message payload with the given text and channel index.
+func jsonMsg(text string, channelIdx int) []byte {
+	b, _ := json.Marshal(incomingMsg{
+		Type: "EventType.CHANNEL_MSG_RECV",
+		Payload: incomingPayload{
+			Text:       text,
+			ChannelIdx: channelIdx,
+		},
+	})
 	return b
 }
 
@@ -151,7 +156,7 @@ func TestPahoPublisher_CoversPublish(t *testing.T) {
 	a, err := newFromClient(paho, testCfg(), svc, &mockSSEPublisher{})
 	require.NoError(t, err)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "42", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 42", 2))
 
 	assert.NotEmpty(t, paho.published, "pahoPublisher.Publish should have been called")
 }
@@ -168,7 +173,7 @@ func TestProcessMessage_LogsBibs(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "101 202", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("W4KIB NODE1: 101,202", 2))
 
 	require.Len(t, svc.calls, 2)
 	assert.Equal(t, 101, svc.calls[0].BibNumber)
@@ -178,7 +183,8 @@ func TestProcessMessage_LogsBibs(t *testing.T) {
 
 	var ack outgoingMsg
 	require.NoError(t, json.Unmarshal(pub.published[0].payload, &ack))
-	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", ack.Text)
+	assert.Equal(t, 2, ack.Channel)
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", ack.Message)
 }
 
 func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
@@ -191,14 +197,15 @@ func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "42", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 42", 2))
 
 	require.Len(t, pub.published, 1)
 	assert.Equal(t, testCfg().PublishTopic(), pub.published[0].topic)
 
 	var ack outgoingMsg
 	require.NoError(t, json.Unmarshal(pub.published[0].payload, &ack))
-	assert.Equal(t, "DUPLICATE BIB: 42", ack.Text)
+	assert.Equal(t, 2, ack.Channel)
+	assert.Equal(t, "DUPLICATE BIB: 42", ack.Message)
 }
 
 func TestProcessMessage_InvalidJSONIgnored(t *testing.T) {
@@ -214,7 +221,7 @@ func TestProcessMessage_NoSession(t *testing.T) {
 	svc := &mockLogService{err: domain.ErrNoSession}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "101", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 101", 2))
 
 	assert.Len(t, svc.calls, 1)
 }
@@ -223,7 +230,7 @@ func TestProcessMessage_UnknownBib(t *testing.T) {
 	svc := &mockLogService{err: domain.ErrNotFound}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "999", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 999", 2))
 
 	assert.Len(t, svc.calls, 1)
 }
@@ -233,7 +240,7 @@ func TestProcessMessage_ServiceError(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "101", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 101", 2))
 
 	assert.Len(t, svc.calls, 1)
 	assert.Empty(t, pub.published)
@@ -243,18 +250,31 @@ func TestProcessMessage_MultipleBibsOneBad(t *testing.T) {
 	svc := &mockLogService{result: portsvc.LogBibResult{Runner: entity.Runner{BibNumber: 101}}}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "101 abc 202", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 101 abc 202", 2))
 
 	assert.Len(t, svc.calls, 2)
 	assert.Equal(t, 101, svc.calls[0].BibNumber)
 	assert.Equal(t, 202, svc.calls[1].BibNumber)
 }
 
+func TestProcessMessage_CallsignNotParsedAsBib(t *testing.T) {
+	svc := &mockLogService{result: portsvc.LogBibResult{Runner: entity.Runner{BibNumber: 17}}}
+	a := newTestAdapter(svc, &mockPublisher{})
+
+	// "W4KIB" contains "4" — must not be parsed as bib 4
+	a.processMessage(context.Background(), jsonMsg("W4KIB T1000E: 17,18,23", 2))
+
+	require.Len(t, svc.calls, 3)
+	assert.Equal(t, 17, svc.calls[0].BibNumber)
+	assert.Equal(t, 18, svc.calls[1].BibNumber)
+	assert.Equal(t, 23, svc.calls[2].BibNumber)
+}
+
 func TestProcessMessage_RawMessageStored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	raw := jsonMsg("NODE1", "101", "PUBLIC")
+	raw := jsonMsg("NODE1: 101", 2)
 	a.processMessage(context.Background(), raw)
 
 	require.Len(t, svc.calls, 1)
@@ -266,7 +286,7 @@ func TestProcessMessage_NoAckWhenNoBibs(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "hello no bibs here", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: hello no bibs here", 2))
 
 	assert.Empty(t, pub.published)
 }
@@ -279,7 +299,7 @@ func TestProcessMessage_SSEEventPublished(t *testing.T) {
 	}}
 	a := newAdapter(&mockPublisher{}, stream, func() {}, testCfg(), svc)
 
-	a.processMessage(context.Background(), jsonMsg("NODE1", "42", "PUBLIC"))
+	a.processMessage(context.Background(), jsonMsg("NODE1: 42", 2))
 
 	require.Len(t, stream.events, 1)
 	assert.Equal(t, "bib_logged", stream.events[0].eventType)
@@ -291,43 +311,44 @@ func TestPublishAck_LoggedOnly(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishAck([]int{101, 202}, nil)
+	a.publishAck(2, []int{101, 202}, nil)
 
 	require.Len(t, pub.published, 1)
 	var ack outgoingMsg
 	require.NoError(t, json.Unmarshal(pub.published[0].payload, &ack))
-	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", ack.Text)
+	assert.Equal(t, 2, ack.Channel)
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", ack.Message)
 }
 
 func TestPublishAck_DuplicateOnly(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishAck(nil, []int{42})
+	a.publishAck(2, nil, []int{42})
 
 	require.Len(t, pub.published, 1)
 	var ack outgoingMsg
 	require.NoError(t, json.Unmarshal(pub.published[0].payload, &ack))
-	assert.Equal(t, "DUPLICATE BIB: 42", ack.Text)
+	assert.Equal(t, "DUPLICATE BIB: 42", ack.Message)
 }
 
 func TestPublishAck_Mixed(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishAck([]int{101}, []int{42})
+	a.publishAck(2, []int{101}, []int{42})
 
 	require.Len(t, pub.published, 1)
 	var ack outgoingMsg
 	require.NoError(t, json.Unmarshal(pub.published[0].payload, &ack))
-	assert.Equal(t, "LOGGED: 101\nDUPLICATE BIB: 42", ack.Text)
+	assert.Equal(t, "LOGGED: 101\nDUPLICATE BIB: 42", ack.Message)
 }
 
 func TestPublishAck_PublishError(t *testing.T) {
 	pub := &mockPublisher{err: errors.New("broker gone")}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishAck([]int{42}, nil)
+	a.publishAck(2, []int{42}, nil)
 
 	assert.Len(t, pub.published, 1)
 }

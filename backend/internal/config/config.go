@@ -48,21 +48,20 @@ type MQTTConfig struct {
 }
 
 type MeshcoreConfig struct {
-	NodeAddress string // TCP address of the MeshCore node bridged by meshcore-mqtt (e.g. 192.168.1.50:5525)
-	ChannelName string // MeshCore channel to monitor and acknowledge on
-	MQTTHost    string // MQTT broker hostname (shared with Meshtastic)
-	MQTTPort    int    // MQTT broker port (shared with Meshtastic)
+	ChannelIndex int    // numeric channel index to subscribe to (MESHCORE_CHANNEL_INDEX)
+	MQTTHost     string // MQTT broker hostname (shared with Meshtastic)
+	MQTTPort     int    // MQTT broker port (shared with Meshtastic)
 }
 
-// SubscribeTopic returns the wildcard MQTT topic for incoming MeshCore messages.
-// Assumes meshcoreHQ/meshcore-mqtt format: meshcore/{channel}/{sender}
+// SubscribeTopic returns the MQTT topic for incoming MeshCore channel messages.
+// ipnet-mesh/meshcore-mqtt publishes to meshcore/message/{channel_idx}.
 func (c MeshcoreConfig) SubscribeTopic() string {
-	return fmt.Sprintf("meshcore/%s/+", c.ChannelName)
+	return fmt.Sprintf("meshcore/message/channel/%d", c.ChannelIndex)
 }
 
-// PublishTopic returns the MQTT topic for sending ACK messages back through meshcore-mqtt.
+// PublishTopic returns the MQTT command topic for sending messages back through meshcore-mqtt.
 func (c MeshcoreConfig) PublishTopic() string {
-	return fmt.Sprintf("meshcore/%s/tx", c.ChannelName)
+	return "meshcore/command/send_chan_msg"
 }
 
 // SubscribeTopic returns the wildcard topic to receive all mesh traffic on the channel.
@@ -109,6 +108,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("MQTT_CHANNEL_INDEX: %w", err)
 	}
 
+	meshcoreChannelIndex, err := envInt("MESHCORE_CHANNEL_INDEX", 0)
+	if err != nil {
+		return nil, fmt.Errorf("MESHCORE_CHANNEL_INDEX: %w", err)
+	}
+
 	cfg := &Config{
 		ServerPort:     serverPort,
 		LogLevel:       envStr("LOG_LEVEL", "info"),
@@ -135,10 +139,9 @@ func Load() (*Config, error) {
 			NodeShortName: envStr("MQTT_NODE_SHORT_NAME", "Log"),
 		},
 		Meshcore: MeshcoreConfig{
-			NodeAddress: envStr("MESHCORE_NODE_ADDRESS", ""),
-			ChannelName: envStr("MESHCORE_CHANNEL_NAME", "PUBLIC"),
-			MQTTHost:    envStr("MQTT_HOST", "localhost"),
-			MQTTPort:    mqttPort,
+			ChannelIndex: meshcoreChannelIndex,
+			MQTTHost:     envStr("MQTT_HOST", "localhost"),
+			MQTTPort:     mqttPort,
 		},
 	}
 
@@ -158,9 +161,7 @@ func (c *Config) validate() error {
 	if c.MQTT.Enabled {
 		switch c.MeshTechnology {
 		case "meshcore":
-			if c.Meshcore.NodeAddress == "" {
-				missing = append(missing, "MESHCORE_NODE_ADDRESS (required when MQTT_ENABLED=true and MESH_TECHNOLOGY=meshcore)")
-			}
+			// no additional required vars — meshcore-mqtt bridge handles the node connection
 		default: // meshtastic
 			if c.MQTT.GatewayNodeID == "" {
 				missing = append(missing, "MQTT_GATEWAY_NODE_ID (required when MQTT_ENABLED=true and MESH_TECHNOLOGY=meshtastic)")

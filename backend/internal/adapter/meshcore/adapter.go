@@ -19,18 +19,22 @@ import (
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
-// incomingMsg is the JSON payload published by meshcoreHQ/meshcore-mqtt on receive topics.
-// Topic pattern: meshcore/{channel}/{sender}
+// incomingMsg is the JSON envelope published by ipnet-mesh/meshcore-mqtt on message topics.
+// Topic pattern: meshcore/message/{channel_idx}
 type incomingMsg struct {
-	From    string `json:"from"`
-	Text    string `json:"text"`
-	Channel string `json:"channel"`
+	Type    string          `json:"type"`
+	Payload incomingPayload `json:"payload"`
 }
 
-// outgoingMsg is the JSON payload expected by meshcoreHQ/meshcore-mqtt on the TX topic.
-// Topic: meshcore/{channel}/tx
+type incomingPayload struct {
+	Text       string `json:"text"`
+	ChannelIdx int    `json:"channel_idx"`
+}
+
+// outgoingMsg is the JSON payload for the meshcore/command/send_chan_msg command topic.
 type outgoingMsg struct {
-	Text string `json:"text"`
+	Channel int    `json:"channel"`
+	Message string `json:"message"`
 }
 
 // pahoClient is the subset of pahomqtt.Client used, enabling mock injection in tests.
@@ -56,7 +60,7 @@ func (p *pahoPublisher) Publish(topic string, payload []byte) error {
 	return tok.Error()
 }
 
-// Adapter is the MeshCore MQTT driven adapter for bib input via meshcoreHQ/meshcore-mqtt.
+// Adapter is the MeshCore MQTT driven adapter for bib input via ipnet-mesh/meshcore-mqtt.
 type Adapter struct {
 	publisher mqttPublisher
 	stream    sse.Publisher
@@ -119,10 +123,12 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 		return
 	}
 
-	slog.Debug("meshcore: message decoded", "from", msg.From, "channel", msg.Channel, "text", msg.Text)
+	text := msg.Payload.Text
+	channelIdx := msg.Payload.ChannelIdx
+	slog.Debug("meshcore: message decoded", "channel_idx", channelIdx, "text", text)
 
 	var loggedBibs, duplicateBibs []int
-	for _, bib := range meshutil.ParseBibs(msg.Text) {
+	for _, bib := range parseBibsFromText(text) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
 			BibNumber:  bib,
 			Source:     entity.SourceMeshcore,
@@ -159,13 +165,24 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	}
 
 	if len(loggedBibs) > 0 || len(duplicateBibs) > 0 {
-		a.publishAck(loggedBibs, duplicateBibs)
+		a.publishAck(channelIdx, loggedBibs, duplicateBibs)
 	}
+}
+
+// parseBibsFromText extracts bib numbers from a MeshCore message text.
+// Expected format: "<node_name>: <bib>[,<bib>,...]"
+// Only the segment after the last ": " is parsed to avoid matching numbers in callsigns.
+func parseBibsFromText(text string) []int {
+	idx := strings.LastIndex(text, ": ")
+	if idx < 0 {
+		return nil
+	}
+	return meshutil.ParseBibs(text[idx+2:])
 }
 
 // publishAck sends an ACK message to the mesh summarising all bibs from one incoming message.
 // New bibs appear as "LOGGED: N", duplicates as "DUPLICATE BIB: N", one per line.
-func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
+func (a *Adapter) publishAck(channelIdx int, loggedBibs, duplicateBibs []int) {
 	var lines []string
 	for _, b := range loggedBibs {
 		lines = append(lines, fmt.Sprintf("LOGGED: %d", b))
@@ -173,16 +190,15 @@ func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
 	for _, b := range duplicateBibs {
 		lines = append(lines, fmt.Sprintf("DUPLICATE BIB: %d", b))
 	}
-	text := strings.Join(lines, "\n")
 
-	payload, err := json.Marshal(outgoingMsg{Text: text})
+	payload, err := json.Marshal(outgoingMsg{Channel: channelIdx, Message: strings.Join(lines, "\n")})
 	if err != nil {
 		slog.Error("meshcore: failed to marshal ack", "error", err)
 		return
 	}
 
 	topic := a.cfg.PublishTopic()
-	slog.Debug("meshcore: publishing ack", "topic", topic, "text", text)
+	slog.Debug("meshcore: publishing ack", "topic", topic, "channel", channelIdx)
 
 	if err := a.publisher.Publish(topic, payload); err != nil {
 		slog.Error("meshcore: failed to publish ack", "error", err)

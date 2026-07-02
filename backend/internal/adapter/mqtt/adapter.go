@@ -340,4 +340,3 @@ func pbBytesField(dst []byte, field int, data []byte) []byte {
 	dst = append(dst, pbVarint(uint64(len(data)))...)
 	return append(dst, data...)
 }
-
