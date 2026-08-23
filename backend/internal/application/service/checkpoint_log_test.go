@@ -25,7 +25,21 @@ func newCheckpointLogSvc(
 	if len(checkpoints) > 0 {
 		cps = checkpoints[0]
 	}
-	return service.NewCheckpointLogService(runners, cps, logs, sess, time.UTC)
+	races := &mockRaceRepository{races: map[int]entity.Race{}}
+	return service.NewCheckpointLogService(runners, cps, logs, sess, races, time.UTC)
+}
+
+// newCheckpointLogSvcWithRaces is like newCheckpointLogSvc but also takes a
+// race repo, for tests of station-wide commands (checkpoint/count/search/dup)
+// that need real race data.
+func newCheckpointLogSvcWithRaces(
+	runners *mockRunnerRepository,
+	checkpoints *mockCheckpointRepository,
+	logs *mockCheckpointLogRepository,
+	sess *mockActiveSessionRepository,
+	races *mockRaceRepository,
+) *service.CheckpointLogService {
+	return service.NewCheckpointLogService(runners, checkpoints, logs, sess, races, time.UTC)
 }
 
 func TestCheckpointLogService_LogBib_Success(t *testing.T) {
@@ -466,6 +480,327 @@ func TestCheckpointLogService_QueryRunner_ListLogsError(t *testing.T) {
 
 	_, err := svc.QueryRunner(context.Background(), 100)
 	assert.ErrorContains(t, err, "listing checkpoint logs")
+}
+
+// --- CheckpointLogService.StationCheckpoints ---
+
+func TestCheckpointLogService_StationCheckpoints_SingleRace(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "AS6", DisplayName: "Aid Station 6"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, cps, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.StationCheckpoints(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "GDR AS6", reply)
+}
+
+func TestCheckpointLogService_StationCheckpoints_MultiRace(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID: &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{
+			{RaceID: 1, CheckpointID: 10},
+			{RaceID: 2, CheckpointID: 20},
+		},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{
+		1: {ID: 1, EventID: 1, Name: "100M"},
+		2: {ID: 2, EventID: 1, Name: "50M"},
+	}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "StoverRoadOut"},
+		20: {ID: 20, RaceID: 2, Code: "PocketDepart"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, cps, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.StationCheckpoints(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "100M StoverRoadOut | 50M PocketDepart", reply)
+}
+
+func TestCheckpointLogService_StationCheckpoints_NoSession(t *testing.T) {
+	sess := &mockActiveSessionRepository{}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.StationCheckpoints(context.Background())
+	assert.ErrorIs(t, err, domain.ErrNoSession)
+}
+
+func TestCheckpointLogService_StationCheckpoints_SessionError(t *testing.T) {
+	sess := &mockActiveSessionRepository{getErr: errors.New("db down")}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.StationCheckpoints(context.Background())
+	assert.ErrorContains(t, err, "getting session")
+}
+
+func TestCheckpointLogService_StationCheckpoints_NoActiveCheckpoints(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	reply, err := svc.StationCheckpoints(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "no active checkpoint set for any race", reply)
+}
+
+func TestCheckpointLogService_StationCheckpoints_RaceError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.StationCheckpoints(context.Background())
+	assert.ErrorContains(t, err, "getting race")
+}
+
+func TestCheckpointLogService_StationCheckpoints_CheckpointError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	cps := &mockCheckpointRepository{getErr: errors.New("db down")}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, cps, &mockCheckpointLogRepository{}, sess, races)
+
+	_, err := svc.StationCheckpoints(context.Background())
+	assert.ErrorContains(t, err, "getting checkpoint")
+}
+
+// --- CheckpointLogService.StationCount ---
+
+func TestCheckpointLogService_StationCount_SingleRace(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	logs := &mockCheckpointLogRepository{logs: []entity.CheckpointLog{
+		{RunnerID: 1, CheckpointID: 10},
+		{RunnerID: 2, CheckpointID: 10},
+	}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "AS6"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, cps, logs, sess, &mockRaceRepository{})
+
+	reply, err := svc.StationCount(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "logged 2 at AS6", reply)
+}
+
+func TestCheckpointLogService_StationCount_MultiRace(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID: &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{
+			{RaceID: 1, CheckpointID: 10},
+			{RaceID: 2, CheckpointID: 20},
+		},
+	}}
+	logs := &mockCheckpointLogRepository{logs: []entity.CheckpointLog{
+		{RunnerID: 1, CheckpointID: 10},
+		{RunnerID: 2, CheckpointID: 20},
+		{RunnerID: 3, CheckpointID: 20},
+	}}
+	races := &mockRaceRepository{races: map[int]entity.Race{
+		1: {ID: 1, EventID: 1, Name: "100M"},
+		2: {ID: 2, EventID: 1, Name: "50M"},
+	}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "AS1"},
+		20: {ID: 20, RaceID: 2, Code: "AS2"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, cps, logs, sess, races)
+
+	reply, err := svc.StationCount(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "logged 3 total (100M AS1=1, 50M AS2=2)", reply)
+}
+
+func TestCheckpointLogService_StationCount_NoSession(t *testing.T) {
+	sess := &mockActiveSessionRepository{}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.StationCount(context.Background())
+	assert.ErrorIs(t, err, domain.ErrNoSession)
+}
+
+func TestCheckpointLogService_StationCount_NoActiveCheckpoints(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	reply, err := svc.StationCount(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "no active checkpoint set for any race", reply)
+}
+
+func TestCheckpointLogService_StationCount_ListLogsError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	logs := &mockCheckpointLogRepository{listErr: errors.New("db down")}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, logs, sess, &mockRaceRepository{})
+
+	_, err := svc.StationCount(context.Background())
+	assert.ErrorContains(t, err, "listing logs")
+}
+
+// --- CheckpointLogService.SearchRunners ---
+
+func TestCheckpointLogService_SearchRunners_NoMatches(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{
+		{ID: 1, RaceID: 1, BibNumber: 100, FirstName: "Alice", LastName: "Smith"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(runners, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.SearchRunners(context.Background(), "jones")
+	require.NoError(t, err)
+	assert.Equal(t, `no runners matching "jones"`, reply)
+}
+
+func TestCheckpointLogService_SearchRunners_CaseInsensitiveMatch(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{
+		{ID: 1, RaceID: 1, BibNumber: 100, FirstName: "Alice", LastName: "Smith"},
+		{ID: 2, RaceID: 1, BibNumber: 101, FirstName: "Bob", LastName: "Jones"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(runners, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.SearchRunners(context.Background(), "SMITH")
+	require.NoError(t, err)
+	assert.Equal(t, "1 match(es): 100 Alice Smith (GDR)", reply)
+}
+
+func TestCheckpointLogService_SearchRunners_TruncatesLongResults(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	var runnerList []entity.Runner
+	for i := 0; i < 6; i++ {
+		runnerList = append(runnerList, entity.Runner{
+			ID: i + 1, RaceID: 1, BibNumber: 100 + i, FirstName: "Runner", LastName: "Smith",
+		})
+	}
+	runners := &mockRunnerRepository{runners: runnerList}
+	svc := newCheckpointLogSvcWithRaces(runners, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.SearchRunners(context.Background(), "smith")
+	require.NoError(t, err)
+	assert.Contains(t, reply, "6 match(es):")
+	assert.Contains(t, reply, "+1 more")
+}
+
+func TestCheckpointLogService_SearchRunners_NoSession(t *testing.T) {
+	sess := &mockActiveSessionRepository{}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.SearchRunners(context.Background(), "smith")
+	assert.ErrorIs(t, err, domain.ErrNoSession)
+}
+
+func TestCheckpointLogService_SearchRunners_ListRunnersError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	runners := &mockRunnerRepository{listErr: errors.New("db down")}
+	svc := newCheckpointLogSvcWithRaces(runners, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races)
+
+	_, err := svc.SearchRunners(context.Background(), "smith")
+	assert.ErrorContains(t, err, "listing runners")
+}
+
+// --- CheckpointLogService.CheckDuplicate ---
+
+func TestCheckpointLogService_CheckDuplicate_NotFound(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	reply, err := svc.CheckDuplicate(context.Background(), 999)
+	require.NoError(t, err)
+	assert.Equal(t, "999 not found", reply)
+}
+
+func TestCheckpointLogService_CheckDuplicate_NoActiveCheckpointForRace(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1, Name: "GDR"}}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{
+		{ID: 1, RaceID: 1, BibNumber: 100, FirstName: "Alice", LastName: "Smith"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(runners, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races)
+
+	reply, err := svc.CheckDuplicate(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Alice Smith: no active checkpoint for GDR", reply)
+}
+
+func TestCheckpointLogService_CheckDuplicate_AlreadyLogged(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{
+		{ID: 1, RaceID: 1, BibNumber: 100, FirstName: "Alice", LastName: "Smith"},
+	}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "AS6"},
+	}}
+	logs := &mockCheckpointLogRepository{logs: []entity.CheckpointLog{
+		{RunnerID: 1, CheckpointID: 10, RecordedAt: mustParseTime("2026-06-14T14:32:00Z")},
+	}}
+	svc := newCheckpointLogSvcWithRaces(runners, cps, logs, sess, &mockRaceRepository{})
+
+	reply, err := svc.CheckDuplicate(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Alice Smith: already logged at AS6 14:32", reply)
+}
+
+func TestCheckpointLogService_CheckDuplicate_NotYetLogged(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 10}},
+	}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{
+		{ID: 1, RaceID: 1, BibNumber: 100, FirstName: "Alice", LastName: "Smith"},
+	}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		10: {ID: 10, RaceID: 1, Code: "AS6"},
+	}}
+	svc := newCheckpointLogSvcWithRaces(runners, cps, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	reply, err := svc.CheckDuplicate(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Alice Smith: not yet logged at AS6", reply)
+}
+
+func TestCheckpointLogService_CheckDuplicate_NoSession(t *testing.T) {
+	sess := &mockActiveSessionRepository{}
+	svc := newCheckpointLogSvcWithRaces(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, &mockRaceRepository{})
+
+	_, err := svc.CheckDuplicate(context.Background(), 100)
+	assert.ErrorIs(t, err, domain.ErrNoSession)
 }
 
 func mustParseTime(s string) time.Time {

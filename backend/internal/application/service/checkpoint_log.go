@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
@@ -13,11 +14,16 @@ import (
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
+// maxSearchResults caps the number of runners a mesh "search" reply lists,
+// keeping the reply short enough for a single mesh packet.
+const maxSearchResults = 5
+
 type CheckpointLogService struct {
 	runners        portrepo.RunnerRepository
 	checkpoints    portrepo.CheckpointRepository
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
+	races          portrepo.RaceRepository
 	loc            *time.Location
 }
 
@@ -26,6 +32,7 @@ func NewCheckpointLogService(
 	checkpoints portrepo.CheckpointRepository,
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
+	races portrepo.RaceRepository,
 	loc *time.Location,
 ) *CheckpointLogService {
 	if loc == nil {
@@ -36,6 +43,7 @@ func NewCheckpointLogService(
 		checkpoints:    checkpoints,
 		checkpointLogs: checkpointLogs,
 		session:        session,
+		races:          races,
 		loc:            loc,
 	}
 }
@@ -225,4 +233,188 @@ func activeCheckpointForRace(sess entity.ActiveSession, raceID int) (int, bool) 
 		}
 	}
 	return 0, false
+}
+
+// StationCheckpoints returns a compact summary of this station's active
+// checkpoint for each race in the active event, for replying to a mesh
+// "checkpoint" command.
+func (s *CheckpointLogService) StationCheckpoints(ctx context.Context) (string, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return "", domain.ErrNoSession
+	}
+	if len(sess.Checkpoints) == 0 {
+		return "no active checkpoint set for any race", nil
+	}
+
+	parts := make([]string, 0, len(sess.Checkpoints))
+	for _, sc := range sess.Checkpoints {
+		race, err := s.races.Get(ctx, sc.RaceID)
+		if err != nil {
+			return "", fmt.Errorf("getting race %d: %w", sc.RaceID, err)
+		}
+		cp, err := s.checkpoints.Get(ctx, sc.CheckpointID)
+		if err != nil {
+			return "", fmt.Errorf("getting checkpoint %d: %w", sc.CheckpointID, err)
+		}
+		parts = append(parts, fmt.Sprintf("%s %s", race.Name, cp.Code))
+	}
+
+	return strings.Join(parts, " | "), nil
+}
+
+// StationCount returns the number of checkpoint logs recorded at this
+// station's active checkpoint(s), for replying to a mesh "count" command.
+func (s *CheckpointLogService) StationCount(ctx context.Context) (string, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return "", domain.ErrNoSession
+	}
+	if len(sess.Checkpoints) == 0 {
+		return "no active checkpoint set for any race", nil
+	}
+
+	total := 0
+	parts := make([]string, 0, len(sess.Checkpoints))
+	for _, sc := range sess.Checkpoints {
+		logs, err := s.checkpointLogs.ListByRaceAndCheckpoint(ctx, sc.RaceID, sc.CheckpointID)
+		if err != nil {
+			return "", fmt.Errorf("listing logs for race %d: %w", sc.RaceID, err)
+		}
+		total += len(logs)
+
+		cp, err := s.checkpoints.Get(ctx, sc.CheckpointID)
+		if err != nil {
+			return "", fmt.Errorf("getting checkpoint %d: %w", sc.CheckpointID, err)
+		}
+		if len(sess.Checkpoints) == 1 {
+			return fmt.Sprintf("logged %d at %s", len(logs), cp.Code), nil
+		}
+
+		race, err := s.races.Get(ctx, sc.RaceID)
+		if err != nil {
+			return "", fmt.Errorf("getting race %d: %w", sc.RaceID, err)
+		}
+		parts = append(parts, fmt.Sprintf("%s %s=%d", race.Name, cp.Code, len(logs)))
+	}
+
+	return fmt.Sprintf("logged %d total (%s)", total, strings.Join(parts, ", ")), nil
+}
+
+// SearchRunners returns bib/name/race for runners in the active event whose
+// last name contains the given text (case-insensitive), for replying to a
+// mesh "search <name>" command.
+func (s *CheckpointLogService) SearchRunners(ctx context.Context, lastName string) (string, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return "", domain.ErrNoSession
+	}
+
+	races, err := s.races.List(ctx, *sess.EventID)
+	if err != nil {
+		return "", fmt.Errorf("listing races: %w", err)
+	}
+	raceNames := make(map[int]string, len(races))
+	for _, r := range races {
+		raceNames[r.ID] = r.Name
+	}
+
+	needle := strings.ToLower(lastName)
+	type match struct {
+		runner   entity.Runner
+		raceName string
+	}
+	var matches []match
+	for _, r := range races {
+		runners, err := s.runners.List(ctx, r.ID)
+		if err != nil {
+			return "", fmt.Errorf("listing runners for race %d: %w", r.ID, err)
+		}
+		for _, runner := range runners {
+			if strings.Contains(strings.ToLower(runner.LastName), needle) {
+				matches = append(matches, match{runner: runner, raceName: raceNames[r.ID]})
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		return fmt.Sprintf("no runners matching %q", lastName), nil
+	}
+
+	shown := matches
+	truncated := 0
+	if len(shown) > maxSearchResults {
+		truncated = len(shown) - maxSearchResults
+		shown = shown[:maxSearchResults]
+	}
+
+	parts := make([]string, 0, len(shown))
+	for _, m := range shown {
+		parts = append(parts, fmt.Sprintf("%d %s %s (%s)",
+			m.runner.BibNumber, m.runner.FirstName, m.runner.LastName, m.raceName))
+	}
+
+	reply := fmt.Sprintf("%d match(es): %s", len(matches), strings.Join(parts, ", "))
+	if truncated > 0 {
+		reply += fmt.Sprintf(" +%d more", truncated)
+	}
+	return reply, nil
+}
+
+// CheckDuplicate reports whether a bib has already been logged at this
+// station's active checkpoint for that runner's race, for replying to a mesh
+// "dup <bib>" command.
+func (s *CheckpointLogService) CheckDuplicate(ctx context.Context, bibNumber int) (string, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return "", domain.ErrNoSession
+	}
+
+	runner, err := s.runners.GetByBibInEvent(ctx, *sess.EventID, bibNumber)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return fmt.Sprintf("%d not found", bibNumber), nil
+		}
+		return "", fmt.Errorf("bib %d: %w", bibNumber, err)
+	}
+	name := fmt.Sprintf("%s %s", runner.FirstName, runner.LastName)
+
+	checkpointID, ok := activeCheckpointForRace(sess, runner.RaceID)
+	if !ok {
+		race, err := s.races.Get(ctx, runner.RaceID)
+		if err != nil {
+			return "", fmt.Errorf("getting race %d: %w", runner.RaceID, err)
+		}
+		return fmt.Sprintf("%d %s: no active checkpoint for %s", runner.BibNumber, name, race.Name), nil
+	}
+
+	cp, err := s.checkpoints.Get(ctx, checkpointID)
+	if err != nil {
+		return "", fmt.Errorf("getting checkpoint %d: %w", checkpointID, err)
+	}
+
+	logs, err := s.checkpointLogs.ListByRaceAndCheckpoint(ctx, runner.RaceID, checkpointID)
+	if err != nil {
+		return "", fmt.Errorf("listing logs: %w", err)
+	}
+	for _, log := range logs {
+		if log.RunnerID == runner.ID {
+			return fmt.Sprintf("%d %s: already logged at %s %s",
+				runner.BibNumber, name, cp.Code, log.RecordedAt.Format("15:04")), nil
+		}
+	}
+
+	return fmt.Sprintf("%d %s: not yet logged at %s", runner.BibNumber, name, cp.Code), nil
 }

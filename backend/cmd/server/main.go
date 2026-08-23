@@ -70,7 +70,7 @@ func main() {
 	broker := sseadapter.NewBroker()
 
 	// Application services
-	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, loc)
+	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo, loc)
 
 	if cfg.MQTT.Enabled {
 		switch cfg.MeshTechnology {

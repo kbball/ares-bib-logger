@@ -131,6 +131,18 @@ func (m *mockCheckpointLogService) DeleteLog(_ context.Context, raceID, checkpoi
 	m.deleteArgs = []any{raceID, checkpointID, bibNumber}
 	return m.err
 }
+func (m *mockCheckpointLogService) StationCheckpoints(_ context.Context) (string, error) {
+	return m.queryText, m.err
+}
+func (m *mockCheckpointLogService) StationCount(_ context.Context) (string, error) {
+	return m.queryText, m.err
+}
+func (m *mockCheckpointLogService) SearchRunners(_ context.Context, lastName string) (string, error) {
+	return m.queryText, m.err
+}
+func (m *mockCheckpointLogService) CheckDuplicate(_ context.Context, bibNumber int) (string, error) {
+	return m.queryText, m.err
+}
 
 type mockSessionService struct {
 	session entity.ActiveSession

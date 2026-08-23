@@ -15,6 +15,7 @@ import (
 
 	meshtastic "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/meshutil"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
@@ -58,6 +59,22 @@ type mockLogService struct {
 	queryText  string
 	queryErr   error
 	queryCalls []int
+
+	checkpointText  string
+	checkpointErr   error
+	checkpointCalls int
+
+	countText  string
+	countErr   error
+	countCalls int
+
+	searchText  string
+	searchErr   error
+	searchCalls []string
+
+	dupText  string
+	dupErr   error
+	dupCalls []int
 }
 
 func (m *mockLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -84,6 +101,26 @@ func (m *mockLogService) CorrectLog(_ context.Context, _, _, _ int, _, _ string)
 
 func (m *mockLogService) DeleteLog(_ context.Context, _, _, _ int) error {
 	return nil
+}
+
+func (m *mockLogService) StationCheckpoints(_ context.Context) (string, error) {
+	m.checkpointCalls++
+	return m.checkpointText, m.checkpointErr
+}
+
+func (m *mockLogService) StationCount(_ context.Context) (string, error) {
+	m.countCalls++
+	return m.countText, m.countErr
+}
+
+func (m *mockLogService) SearchRunners(_ context.Context, lastName string) (string, error) {
+	m.searchCalls = append(m.searchCalls, lastName)
+	return m.searchText, m.searchErr
+}
+
+func (m *mockLogService) CheckDuplicate(_ context.Context, bibNumber int) (string, error) {
+	m.dupCalls = append(m.dupCalls, bibNumber)
+	return m.dupText, m.dupErr
 }
 
 type mockPublisher struct {
@@ -291,6 +328,96 @@ func TestProcessMessage_Query_ServiceErrorDoesNotPublish(t *testing.T) {
 
 	require.Equal(t, []int{101}, svc.queryCalls)
 	assert.Empty(t, pub.published)
+}
+
+func TestProcessMessage_Checkpoint_PublishesReplyAndDoesNotLogBib(t *testing.T) {
+	svc := &mockLogService{checkpointText: "GDR AS6"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("checkpoint"))
+
+	assert.Equal(t, 1, svc.checkpointCalls)
+	assert.Empty(t, svc.calls, "checkpoint must not fall through to bib logging")
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "GDR AS6", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Checkpoint_ServiceErrorDoesNotPublish(t *testing.T) {
+	svc := &mockLogService{checkpointErr: errors.New("db down")}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("checkpoint"))
+
+	assert.Equal(t, 1, svc.checkpointCalls)
+	assert.Empty(t, pub.published)
+}
+
+func TestProcessMessage_Count_PublishesReply(t *testing.T) {
+	svc := &mockLogService{countText: "logged 15 at AS6"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("count"))
+
+	assert.Equal(t, 1, svc.countCalls)
+	assert.Empty(t, svc.calls)
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "logged 15 at AS6", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Search_PublishesReply(t *testing.T) {
+	svc := &mockLogService{searchText: "1 match(es): 100 Alice Smith (GDR)"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("search smith"))
+
+	require.Equal(t, []string{"smith"}, svc.searchCalls)
+	assert.Empty(t, svc.calls)
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "1 match(es): 100 Alice Smith (GDR)", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Dup_PublishesReply(t *testing.T) {
+	svc := &mockLogService{dupText: "100 Alice Smith: already logged at AS6 14:32"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("dup 100"))
+
+	require.Equal(t, []int{100}, svc.dupCalls)
+	assert.Empty(t, svc.calls, "dup must not fall through to bib logging")
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "100 Alice Smith: already logged at AS6 14:32", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Help_PublishesHelpText(t *testing.T) {
+	svc := &mockLogService{}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("help"))
+
+	assert.Empty(t, svc.calls)
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, meshutil.HelpText, string(ack.GetPacket().GetDecoded().GetPayload()))
 }
 
 func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {

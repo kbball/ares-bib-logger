@@ -36,4 +36,20 @@ type CheckpointLogService interface {
 	CorrectLog(ctx context.Context, raceID, checkpointID, bibNumber int, dateStr, timeStr string) (entity.CheckpointLog, error)
 	// DeleteLog removes a runner's checkpoint log for the given race+checkpoint+bib.
 	DeleteLog(ctx context.Context, raceID, checkpointID, bibNumber int) error
+	// StationCheckpoints returns a compact summary of this station's active
+	// checkpoint for each race in the active event, for replying to a mesh
+	// "checkpoint" command.
+	StationCheckpoints(ctx context.Context) (string, error)
+	// StationCount returns the number of checkpoint logs recorded at this
+	// station's active checkpoint(s), for replying to a mesh "count" command —
+	// a sanity check against a paper tally.
+	StationCount(ctx context.Context) (string, error)
+	// SearchRunners returns bib/name/race for runners in the active event whose
+	// last name contains the given text (case-insensitive), for replying to a
+	// mesh "search <name>" command. Results are capped to keep the reply short.
+	SearchRunners(ctx context.Context, lastName string) (string, error)
+	// CheckDuplicate reports whether a bib has already been logged at this
+	// station's active checkpoint for that runner's race, for replying to a
+	// mesh "dup <bib>" command.
+	CheckDuplicate(ctx context.Context, bibNumber int) (string, error)
 }
