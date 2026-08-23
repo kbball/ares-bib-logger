@@ -2,28 +2,33 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
+	"github.com/kevinball/ares-bib-logger/backend/internal/domain/pace"
 	portrepo "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/repository"
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
 type CheckpointLogService struct {
 	runners        portrepo.RunnerRepository
+	checkpoints    portrepo.CheckpointRepository
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
 }
 
 func NewCheckpointLogService(
 	runners portrepo.RunnerRepository,
+	checkpoints portrepo.CheckpointRepository,
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
 ) *CheckpointLogService {
 	return &CheckpointLogService{
 		runners:        runners,
+		checkpoints:    checkpoints,
 		checkpointLogs: checkpointLogs,
 		session:        session,
 	}
@@ -102,6 +107,52 @@ func (s *CheckpointLogService) LogStatus(ctx context.Context, bibNumber int, sta
 	}
 
 	return s.runners.UpdateStatus(ctx, runner.ID, status)
+}
+
+// QueryRunner returns a compact, ready-to-send text summary of a runner's
+// status, last known checkpoint, and pace, for replying to a mesh "query"
+// command.
+func (s *CheckpointLogService) QueryRunner(ctx context.Context, bibNumber int) (string, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return "", domain.ErrNoSession
+	}
+
+	runner, err := s.runners.GetByBibInEvent(ctx, *sess.EventID, bibNumber)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return fmt.Sprintf("%d not found", bibNumber), nil
+		}
+		return "", fmt.Errorf("bib %d: %w", bibNumber, err)
+	}
+
+	checkpoints, err := s.checkpoints.List(ctx, runner.RaceID)
+	if err != nil {
+		return "", fmt.Errorf("listing checkpoints: %w", err)
+	}
+	logs, err := s.checkpointLogs.ListByRace(ctx, runner.RaceID)
+	if err != nil {
+		return "", fmt.Errorf("listing checkpoint logs: %w", err)
+	}
+
+	name := fmt.Sprintf("%s %s", runner.FirstName, runner.LastName)
+	reply := fmt.Sprintf("%d %s: %s", runner.BibNumber, name, runner.Status)
+
+	cp, log, ok := pace.LastLoggedCheckpoint(checkpoints, logs, runner.ID)
+	if !ok {
+		return reply + " not yet seen", nil
+	}
+	reply += fmt.Sprintf(" last %s %s", cp.DisplayName, log.RecordedAt.Format("15:04"))
+
+	p := pace.ComputeRunnerPace(runner, checkpoints, logs)
+	if p.PaceMinPerMile != nil {
+		reply += " pace " + pace.FormatPace(*p.PaceMinPerMile)
+	}
+
+	return reply, nil
 }
 
 func activeCheckpointForRace(sess entity.ActiveSession, raceID int) (int, bool) {

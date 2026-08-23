@@ -2,6 +2,7 @@ package meshutil
 
 import (
 	"log/slog"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -21,4 +22,20 @@ func ParseBibs(text string) []int {
 		bibs = append(bibs, n)
 	}
 	return bibs
+}
+
+var queryPattern = regexp.MustCompile(`(?i)^\s*query\s+(\d+)\s*$`)
+
+// ParseQuery reports whether text is a "query <bib>" command (case-insensitive,
+// surrounding whitespace tolerated) and, if so, returns the bib number.
+func ParseQuery(text string) (bib int, ok bool) {
+	m := queryPattern.FindStringSubmatch(text)
+	if m == nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }

@@ -158,6 +158,17 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	text := string(decoded.GetPayload())
 	slog.Debug("mqtt: text message received", "text", text)
 
+	if bib, ok := meshutil.ParseQuery(text); ok {
+		reply, err := a.svc.QueryRunner(ctx, bib)
+		if err != nil {
+			slog.Error("mqtt: error querying runner", "bib", bib, "error", err)
+			return
+		}
+		slog.Info("mqtt: query reply", "bib", bib, "reply", reply)
+		a.publishQueryReply(reply)
+		return
+	}
+
 	var loggedBibs, duplicateBibs []int
 	for _, bib := range meshutil.ParseBibs(text) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
@@ -223,8 +234,16 @@ func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
 	for _, b := range duplicateBibs {
 		lines = append(lines, fmt.Sprintf("DUPLICATE BIB: %d", b))
 	}
-	text := strings.Join(lines, "\n")
+	a.publishText(strings.Join(lines, "\n"))
+}
 
+// publishQueryReply sends a runner-status reply back to the mesh in response to a "query <bib>" command.
+func (a *Adapter) publishQueryReply(text string) {
+	a.publishText(text)
+}
+
+// publishText encodes and publishes a single text message downlink to the mesh.
+func (a *Adapter) publishText(text string) {
 	packetID := rand.Uint32()
 	if packetID == 0 {
 		packetID = 1
@@ -239,7 +258,7 @@ func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
 		text,
 	)
 
-	slog.Debug("mqtt: publishing ack",
+	slog.Debug("mqtt: publishing text",
 		"topic", a.cfg.PublishTopic(),
 		"text", text,
 		"packet_id", fmt.Sprintf("0x%08x", packetID),
@@ -247,7 +266,7 @@ func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
 	)
 
 	if err := a.publisher.Publish(a.cfg.PublishTopic(), b); err != nil {
-		slog.Error("mqtt: failed to publish ack", "error", err)
+		slog.Error("mqtt: failed to publish text", "error", err)
 	}
 }
 

@@ -34,3 +34,31 @@ func TestParseBibs_SingleBib(t *testing.T) {
 func TestParseBibs_AllNonNumeric(t *testing.T) {
 	assert.Empty(t, ParseBibs("abc def ghi"))
 }
+
+func TestParseQuery(t *testing.T) {
+	cases := []struct {
+		name    string
+		text    string
+		wantBib int
+		wantOK  bool
+	}{
+		{"lowercase", "query 101", 101, true},
+		{"uppercase", "QUERY 101", 101, true},
+		{"mixed case", "Query 101", 101, true},
+		{"leading/trailing whitespace", "  query 101  ", 101, true},
+		{"extra internal spaces", "query   101", 101, true},
+		{"not a query", "101", 0, false},
+		{"query without bib", "query", 0, false},
+		{"query with non-numeric arg", "query abc", 0, false},
+		{"query with trailing junk", "query 101 now", 0, false},
+		{"empty", "", 0, false},
+		{"query is a substring not the whole command", "please query 101", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bib, ok := ParseQuery(tc.text)
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.wantBib, bib)
+		})
+	}
+}
