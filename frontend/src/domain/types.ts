@@ -94,6 +94,9 @@ export interface WinlinkPreviewResult {
   Updated: number
   Skipped: number
   Rows: WinlinkRowOutcome[]
+  HeaderMismatch: boolean
+  PastedHeader: string
+  ExpectedHeader: string
 }
 
 // SSE event envelope
