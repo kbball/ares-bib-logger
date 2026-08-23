@@ -21,3 +21,28 @@ Object.defineProperty(navigator, 'clipboard', {
   get: () => clipboardStub,
   configurable: true,
 })
+
+// This test environment's jsdom doesn't implement window.localStorage — provide
+// a real in-memory Storage-compatible stub so components using it work in tests.
+// Reset between tests so state doesn't leak across test files.
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => void store.set(key, String(value)),
+    removeItem: (key) => void store.delete(key),
+    clear: () => store.clear(),
+    key: (index) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size
+    },
+  }
+}
+
+Object.defineProperty(window, 'localStorage', {
+  value: createMemoryStorage(),
+  configurable: true,
+  writable: true,
+})
+
+afterEach(() => window.localStorage.clear())

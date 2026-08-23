@@ -9,19 +9,45 @@ import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
 
+// Both Admin sections are collapsed by default — expand them so tests can
+// interact with content inside.
+async function openAdminAccordions(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }))
+  await user.click(await screen.findByRole('button', { name: /^edit runners$/i }))
+}
+
 describe('AdminTab — Active Event', () => {
   it('renders the Active Event section', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText(/active event/i)).toBeInTheDocument())
   })
 
-  it('shows event chip when session has an active event', async () => {
+  it('Setup and Edit Runners accordions are collapsed by default', async () => {
     render(<AdminTab />)
+    await waitFor(() => screen.getByRole('button', { name: /^setup$/i }))
+    expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.getByRole('button', { name: /^edit runners$/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  })
+
+  it('shows event chip when session has an active event', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText(/event #1 active/i)).toBeInTheDocument())
   })
 
   it('shows the Winlink blank-line toggle for the active event', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() =>
       expect(screen.getByLabelText(/blank line between header and first row/i)).toBeInTheDocument(),
     )
@@ -34,7 +60,9 @@ describe('AdminTab — Active Event', () => {
         HttpResponse.json([{ ...mockEvent, WinlinkBlankLineAfterHeader: true }]),
       ),
     )
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() =>
       expect(screen.getByLabelText(/blank line between header and first row/i)).toBeChecked(),
     )
@@ -50,6 +78,7 @@ describe('AdminTab — Active Event', () => {
       }),
     )
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByLabelText(/blank line between header and first row/i))
     await user.click(screen.getByLabelText(/blank line between header and first row/i))
@@ -60,6 +89,7 @@ describe('AdminTab — Active Event', () => {
   it('allows creating a new event', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByLabelText(/new event name/i))
     await user.type(screen.getByLabelText(/new event name/i), 'Test Event')
@@ -76,6 +106,7 @@ describe('AdminTab — Active Event', () => {
     )
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByLabelText(/new event name/i))
     await user.type(screen.getByLabelText(/new event name/i), 'Bad')
@@ -87,8 +118,10 @@ describe('AdminTab — Active Event', () => {
 
 describe('AdminTab — Races', () => {
   it('shows no-event info when session lacks an event', async () => {
+    const user = userEvent.setup()
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => {
       const alerts = screen.getAllByText(/select an active event first/i)
       expect(alerts.length).toBeGreaterThan(0)
@@ -96,12 +129,16 @@ describe('AdminTab — Races', () => {
   })
 
   it('renders race cards with race names', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
   })
 
   it('shows checkpoint rows inside each race card', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText('AS1')).toBeInTheDocument())
     expect(screen.getByText('Aid Station 1')).toBeInTheDocument()
   })
@@ -109,6 +146,7 @@ describe('AdminTab — Races', () => {
   it('allows creating a new race', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByLabelText(/new race name/i))
     await user.type(screen.getByLabelText(/new race name/i), 'New Race')
@@ -120,6 +158,7 @@ describe('AdminTab — Races', () => {
   it('shows delete confirmation dialog when delete race icon is clicked', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
     await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
@@ -131,6 +170,7 @@ describe('AdminTab — Races', () => {
   it('closes delete dialog on Cancel', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
     await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
@@ -143,12 +183,16 @@ describe('AdminTab — Races', () => {
 
 describe('AdminTab — Roster Import', () => {
   it('renders the Roster Import section', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText(/roster import/i)).toBeInTheDocument())
   })
 
   it('Import Roster button is disabled when no race or TSV', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => screen.getByRole('button', { name: /import roster/i }))
     expect(screen.getByRole('button', { name: /import roster/i })).toBeDisabled()
   })
@@ -156,13 +200,17 @@ describe('AdminTab — Roster Import', () => {
 
 describe('AdminTab — Change Runner Status', () => {
   it('renders the Change Runner Status section', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => expect(screen.getByText(/change runner status/i)).toBeInTheDocument())
   })
 
   it('shows no-event info when session lacks event', async () => {
     server.use(http.get('/api/session', () => HttpResponse.json(noSession)))
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => {
       const alerts = screen.getAllByText(/select an active event first/i)
       expect(alerts.length).toBeGreaterThan(0)
@@ -170,7 +218,9 @@ describe('AdminTab — Change Runner Status', () => {
   })
 
   it('Search button is disabled until race and bib are filled', async () => {
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
     await waitFor(() => screen.getByRole('button', { name: /search/i }))
     expect(screen.getByRole('button', { name: /search/i })).toBeDisabled()
   })
@@ -178,6 +228,7 @@ describe('AdminTab — Change Runner Status', () => {
   it('searches for a runner and shows their status', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     // Use the data-testid we added to the status form
     await waitFor(() => screen.getByTestId('runner-status-form'))
@@ -193,13 +244,14 @@ describe('AdminTab — Change Runner Status', () => {
     await user.click(within(form).getByRole('button', { name: /search/i }))
 
     await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /set/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^set$/i })).toBeInTheDocument()
   })
 
   it('shows error when bib not found', async () => {
     const user = userEvent.setup()
     server.use(http.get('/api/races/:raceID/runners', () => HttpResponse.json([])))
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('runner-status-form'))
     const form = screen.getByTestId('runner-status-form')
@@ -223,6 +275,7 @@ describe('AdminTab — Change Runner Status', () => {
     )
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('runner-status-form'))
     const form = screen.getByTestId('runner-status-form')
@@ -244,6 +297,7 @@ describe('AdminTab — Change Runner Status', () => {
     )
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('runner-status-form'))
     const form = screen.getByTestId('runner-status-form')
@@ -263,6 +317,7 @@ describe('AdminTab — Change Runner Status', () => {
   it('applies new runner status after searching', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('runner-status-form'))
     const form = screen.getByTestId('runner-status-form')
@@ -289,6 +344,7 @@ describe('AdminTab — Delete Confirmations', () => {
   it('confirms race delete when Delete button clicked in dialog', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
     await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
@@ -302,6 +358,7 @@ describe('AdminTab — Delete Confirmations', () => {
   it('opens checkpoint delete dialog and confirms', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getAllByRole('button', { name: /delete checkpoint/i })[0])
     await user.click(screen.getAllByRole('button', { name: /delete checkpoint/i })[0])
@@ -318,6 +375,7 @@ describe('AdminTab — Archive Event', () => {
   it('opens archive dialog and confirms', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
     await user.click(screen.getByRole('button', { name: /archive this event/i }))
@@ -332,6 +390,7 @@ describe('AdminTab — Archive Event', () => {
   it('closes archive dialog on Cancel', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
     await user.click(screen.getByRole('button', { name: /archive this event/i }))
@@ -346,6 +405,7 @@ describe('AdminTab — Lock Order', () => {
   it('opens lock order dialog and confirms', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
     await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
@@ -364,6 +424,7 @@ describe('AdminTab — Lock Order', () => {
   it('closes lock order dialog on Cancel', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
     await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
@@ -378,6 +439,7 @@ describe('AdminTab — Roster Import (with confirmation)', () => {
   it('shows confirm dialog and completes roster import', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('roster-section'))
     const roster = screen.getByTestId('roster-section')
@@ -402,6 +464,7 @@ describe('AdminTab — Roster Import (with confirmation)', () => {
   it('cancels roster import from confirm dialog', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('roster-section'))
     const roster = screen.getByTestId('roster-section')
@@ -423,6 +486,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('creates a new checkpoint with distance', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByLabelText(/^code$/i))
     await user.type(screen.getByLabelText(/^code$/i), 'FIN')
@@ -437,6 +501,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('edits a checkpoint inline, types new values, and saves', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(
       () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
@@ -461,6 +526,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('cancels checkpoint edit', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(
       () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
@@ -477,6 +543,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('moves a checkpoint down', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getAllByRole('button', { name: /move checkpoint down/i })[0])
     await user.click(screen.getAllByRole('button', { name: /move checkpoint down/i })[0])
@@ -487,6 +554,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('moves a checkpoint up', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getAllByRole('button', { name: /move checkpoint up/i })[1])
     await user.click(screen.getAllByRole('button', { name: /move checkpoint up/i })[1])
@@ -497,6 +565,7 @@ describe('AdminTab — Checkpoint Management', () => {
   it('changes active checkpoint for a race', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('combobox', { name: /active checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /active checkpoint/i }))
@@ -513,6 +582,7 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
   it('closes archive dialog via Escape key', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /archive this event/i }))
     await user.click(screen.getByRole('button', { name: /archive this event/i }))
@@ -525,6 +595,7 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
   it('closes lock order dialog via Escape key', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /lock checkpoint order/i }))
     await user.click(screen.getByRole('button', { name: /lock checkpoint order/i }))
@@ -537,6 +608,7 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
   it('closes delete dialog via Escape key', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('button', { name: /delete race and all its data/i }))
     await user.click(screen.getByRole('button', { name: /delete race and all its data/i }))
@@ -549,6 +621,7 @@ describe('AdminTab — Dialog onClose (Escape key)', () => {
   it('closes roster import dialog via Escape key', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByTestId('roster-section'))
     const roster = screen.getByTestId('roster-section')
@@ -571,7 +644,9 @@ describe('AdminTab — SSE Callbacks', () => {
     vi.mocked(useStream).mockImplementationOnce((cbs) => {
       capturedCbs = cbs
     })
+    const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByText(/active event/i))
 
@@ -592,6 +667,7 @@ describe('AdminTab — Event Selection', () => {
     )
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('combobox', { name: /^event$/i }))
     await user.click(screen.getByRole('combobox', { name: /^event$/i }))
@@ -604,6 +680,7 @@ describe('AdminTab — Event Selection', () => {
   it('clears active checkpoint when none is selected', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
+    await openAdminAccordions(user)
 
     await waitFor(() => screen.getByRole('combobox', { name: /active checkpoint/i }))
     await user.click(screen.getByRole('combobox', { name: /active checkpoint/i }))
