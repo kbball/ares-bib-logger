@@ -118,8 +118,8 @@ func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]
 func (m *mockCheckpointLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
 	return m.queryText, m.err
 }
-func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
-	m.correctArgs = []any{raceID, checkpointID, bibNumber, timeStr}
+func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, dateStr, timeStr string) (entity.CheckpointLog, error) {
+	m.correctArgs = []any{raceID, checkpointID, bibNumber, dateStr, timeStr}
 	return m.correctLog, m.err
 }
 func (m *mockCheckpointLogService) DeleteLog(_ context.Context, raceID, checkpointID, bibNumber int) error {

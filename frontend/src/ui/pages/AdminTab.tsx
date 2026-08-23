@@ -99,6 +99,7 @@ export default function AdminTab() {
   const [correctionRaceID, setCorrectionRaceID] = useState<number | ''>('')
   const [correctionCheckpointID, setCorrectionCheckpointID] = useState<number | ''>('')
   const [correctionBib, setCorrectionBib] = useState('')
+  const [correctionDate, setCorrectionDate] = useState('')
   const [correctionTime, setCorrectionTime] = useState('')
   const [correctionMsg, setCorrectionMsg] = useState('')
   const [correctionErr, setCorrectionErr] = useState('')
@@ -283,9 +284,13 @@ export default function AdminTab() {
         Number(correctionCheckpointID),
         Number(correctionBib),
         correctionTime.trim(),
+        correctionDate.trim() || undefined,
       )
-      setCorrectionMsg(`Logged bib ${correctionBib} at ${correctionTime}.`)
+      setCorrectionMsg(
+        `Logged bib ${correctionBib} at ${correctionTime}${correctionDate ? ` on ${correctionDate}` : ''}.`,
+      )
       setCorrectionBib('')
+      setCorrectionDate('')
       setCorrectionTime('')
     } catch (e: unknown) {
       setCorrectionErr((e as Error).message)
@@ -1216,6 +1221,16 @@ export default function AdminTab() {
                   value={correctionBib}
                   onChange={(e) => setCorrectionBib(e.target.value)}
                   sx={{ width: 120 }}
+                />
+                <TextField
+                  size="small"
+                  label="Date"
+                  type="date"
+                  value={correctionDate}
+                  onChange={(e) => setCorrectionDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  helperText="Defaults to today"
+                  sx={{ width: 160 }}
                 />
                 <TextField
                   size="small"
