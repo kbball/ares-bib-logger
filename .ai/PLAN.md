@@ -333,6 +333,25 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 
 Ordered by priority (2026-08-23):
 
+### ~~0. Bulk checkpoint import missing Column Name field~~ ✅ DONE
+- Bulk Import of checkpoints now supports an optional 4th TSV column, `ColumnName` (`Code, DisplayName, DistFromStart, ColumnName`), passed through to the existing `createCheckpoint` API (backend already supported it end-to-end)
+
+### 0. Admin page doesn't unload event data on archive
+- When archiving an event, the admin page should refresh/unload the data associated with that event — currently races stay loaded until a new event is created and selected
+- Not yet implemented — captured here for future work
+
+### 0. Manually Log a Bib — date association for timestamp
+- When logging using the timestamp on "Manually Log a Bib" (admin page), determine whether a date is/should be associated with the entered time, and add it to the form if needed
+- Not yet implemented — captured here for future work
+
+### 0. Optional cutoff time on checkpoint configuration
+- Add a cutoff time column to aid station / checkpoint configuration — optional, since not all aid stations have a cutoff
+- Not yet implemented — captured here for future work
+
+### 0. Persist last-opened admin accordion across navigation
+- On the Admin page, persist which accordion was last opened so it stays open if the user clicks off the page and returns
+- Not yet implemented — captured here for future work
+
 ### 1. Add single runner to roster (late race addition)
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
 - Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
