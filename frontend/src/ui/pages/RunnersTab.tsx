@@ -30,7 +30,7 @@ import type {
 } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
-import { computeRunnerPace, projectArrival, formatPace } from '../../domain/pace'
+import { computeRunnerPace, computeSplitPaces, projectArrival, formatPace } from '../../domain/pace'
 
 const STATUS_COLOR: Record<string, 'default' | 'success' | 'error' | 'warning' | 'info'> = {
   ACTIVE: 'success',
@@ -451,6 +451,7 @@ export default function RunnersTab() {
               ? (cps.find((cp) => cp.ID === activeCheckpointID) ?? null)
               : null
           const pace = computeRunnerPace(selectedRunner, cps, runnerLogs)
+          const splitPaces = computeSplitPaces(selectedRunner, cps, runnerLogs)
           const projectedArrival =
             activeCP?.DistanceFromStart != null && !logByCp.has(activeCP.ID)
               ? projectArrival(pace, activeCP.DistanceFromStart)
@@ -515,11 +516,15 @@ export default function RunnersTab() {
                           <TableCell>
                             <strong>Time</strong>
                           </TableCell>
+                          <TableCell>
+                            <strong>Split pace</strong>
+                          </TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {cps.map((cp) => {
                           const log = logByCp.get(cp.ID)
+                          const splitPace = splitPaces.get(cp.ID)
                           return (
                             <TableRow key={cp.ID}>
                               <TableCell>
@@ -527,6 +532,9 @@ export default function RunnersTab() {
                               </TableCell>
                               <TableCell sx={{ fontFamily: 'monospace' }}>
                                 {formatLogCell(log)}
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace' }}>
+                                {splitPace != null ? formatPace(splitPace) : '—'}
                               </TableCell>
                             </TableRow>
                           )

@@ -336,6 +336,8 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Manually Log a Bib now accepts an optional Date alongside Time: previously `parseWallClockTime` always stamped corrections onto "today" in the configured timezone regardless of when the crossing actually happened, silently mis-dating late-night/midnight-crossing and next-day corrections. `parseWallClockTime(loc, dateStr, timeStr)` now takes an optional `YYYY-MM-DD` date (empty defaults to today, unchanged behavior); `CheckpointLogService.CorrectLog` and the `CheckpointLogService` port gained a `dateStr` param; `POST /api/log/correction` gained an optional `date` field; Admin panel "Manually Log a Bib" form gained a Date input (MUI `type="date"`, defaults to today when left blank)
 - Admin page now unloads race/checkpoint data when the active event is archived: `EventService.Archive` clears the `ActiveSession` (event + its per-race checkpoints) via new `ActiveSessionRepository.ClearEvent` whenever the archived event was the currently active one, so the existing `session?.EventID` effect in `AdminTab` naturally reloads races to empty instead of leaving stale data on screen until a new event is selected. Also closed a latent gap where `checkpointsByRace` was never cleared when `races` emptied out.
 - Add single runner to roster (late race addition): `RunnerService.AddRunner` appends one runner to a race's roster (`sort_order = max + 1`, `Status: StatusUnknown`), reusing the `MaxSortOrder`/`BulkCreate` pattern from `TransferRace`; not gated by `RosterLocked`; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section
+- Overall stats card on Data Entry tab: new "Overall" card (shown only when `races.length > 1`) sums Starters/On course/DNS/DNF/Finishers across all races in the active event from `Runner.Status`, since the per-race cards' active-checkpoint-based partition doesn't generalize across races
+- Split pace column on runner detail modal: Checkpoint Log table gained a "Split pace" column showing pace between each pair of consecutive logged-with-distance checkpoints; `frontend/src/domain/pace.ts` refactored to share filter/sort/pairwise-pace logic between `computeRunnerPace` and new `computeSplitPaces`
 
 ## Backlog
 
@@ -362,16 +364,12 @@ Ordered by priority (2026-08-23):
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1) — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
 - `RunnerService.AddRunner` (new port method) reuses the `MaxSortOrder` + `BulkCreate` pattern from `TransferRace`, with `Status: StatusUnknown` (fresh roster row, not yet seen at a checkpoint); intentionally **not** gated by `RosterLocked` and never calls `LockRoster` — late registrations must work even after the initial roster import; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section (race select shows all races, unlike Roster Import's locked-race filter)
 
-### 2. Overall stats card on Data Entry tab
-- Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
-- Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
-- Not yet implemented — captured here for future work
+### ~~2. Overall stats card on Data Entry tab~~ ✅ DONE
+- Adds an "Overall" card (shown only when `races.length > 1`) summing Starters/On course/DNS/DNF/Finishers across all races in the active event, from `Runner.Status` directly (`MOVED` runners excluded — already counted under their new race's entry)
 
-### 3. Split pace between aid stations on runner detail modal
-- The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only
-- Add a "Split pace" column: pace between each pair of consecutive logged checkpoints that both have a known `DistanceFromStart`, mirroring the distance/time-delta math already in `computeRunnerPace`/`formatPace` (`frontend/src/domain/pace.ts`) but computed for every consecutive pair in the table (a full splits view), not just the last two checkpoints used for the live "Pace" stat elsewhere
-- Blank/— for the first logged checkpoint (no prior split) and for any pair where either checkpoint lacks a distance
-- Not yet implemented — captured here for future work
+### ~~3. Split pace between aid stations on runner detail modal~~ ✅ DONE
+- Runner detail modal's Checkpoint Log table (`RunnersTab.tsx`) gained a "Split pace" column: pace between each pair of consecutive logged-with-distance checkpoints, blank for the first logged checkpoint and for checkpoints lacking a distance
+- `frontend/src/domain/pace.ts` refactored to share its filter/sort/pairwise-pace logic (`loggedWithDistance`, `pairPace`) between `computeRunnerPace` (last split only) and new `computeSplitPaces` (every split, keyed by checkpoint ID) — same DNS/DNF/MOVED/FINISHED guard as `computeRunnerPace`
 
 ### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
 - [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
