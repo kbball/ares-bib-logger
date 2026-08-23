@@ -133,7 +133,11 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(cp.DisplayName)
+	if cp.ColumnName != nil && *cp.ColumnName != "" {
+		sb.WriteString(*cp.ColumnName)
+	} else {
+		sb.WriteString(cp.DisplayName)
+	}
 	sb.WriteByte('\n')
 	if blankLine {
 		sb.WriteByte('\n')

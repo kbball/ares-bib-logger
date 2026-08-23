@@ -80,6 +80,60 @@ func TestWinlinkService_Export_Format(t *testing.T) {
 	assert.Equal(t, "", lines[4])      // not seen, no status
 }
 
+func TestWinlinkService_Export_ColumnNameOverridesDisplayName(t *testing.T) {
+	eventIDVal := 1
+	colName := "AS #6"
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{
+			5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6", ColumnName: &colName},
+		},
+	}
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+
+	svc := newWinlinkSvc(runners, checkpoints, logs, sess)
+	out, err := svc.Export(context.Background(), 1)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	assert.Equal(t, "AS #6", lines[0])
+}
+
+func TestWinlinkService_Export_BlankColumnNameFallsBackToDisplayName(t *testing.T) {
+	eventIDVal := 1
+	empty := ""
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{
+			5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6", ColumnName: &empty},
+		},
+	}
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+
+	svc := newWinlinkSvc(runners, checkpoints, logs, sess)
+	out, err := svc.Export(context.Background(), 1)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	assert.Equal(t, "Aid Station 6", lines[0])
+}
+
 func TestWinlinkService_Export_MovedRunner(t *testing.T) {
 	eventIDVal := 1
 	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
