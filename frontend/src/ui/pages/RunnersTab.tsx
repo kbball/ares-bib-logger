@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -20,7 +20,14 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import type { ActiveSession, Checkpoint, CheckpointLog, Race, Runner } from '../../domain/types'
+import type {
+  ActiveSession,
+  Checkpoint,
+  CheckpointLog,
+  Race,
+  Runner,
+  RunnerStatus,
+} from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 import { computeRunnerPace, projectArrival, formatPace } from '../../domain/pace'
@@ -34,6 +41,8 @@ const STATUS_COLOR: Record<string, 'default' | 'success' | 'error' | 'warning' |
   UNKNOWN: 'default',
 }
 
+const ALL_STATUSES: RunnerStatus[] = ['ACTIVE', 'DNS', 'DNF', 'FINISHED', 'MOVED', 'UNKNOWN']
+
 type SortKey = 'BibNumber' | 'Name' | 'Status' | 'SortOrder'
 type SortDir = 'asc' | 'desc'
 
@@ -45,6 +54,7 @@ export default function RunnersTab() {
   const [logsByRace, setLogsByRace] = useState<Record<number, CheckpointLog[]>>({})
   const [filterRaceID, setFilterRaceID] = useState<number | ''>('')
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<Set<RunnerStatus>>(new Set())
   const [sortKey, setSortKey] = useState<SortKey>('BibNumber')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [selectedRunner, setSelectedRunner] = useState<Runner | null>(null)
@@ -106,21 +116,37 @@ export default function RunnersTab() {
     }
   }
 
-  // Which race IDs have at least one runner matching the current search query
+  const matchesSearchAndStatus = useCallback(
+    (r: Runner, q: string) => {
+      const matchesSearch =
+        !q ||
+        String(r.BibNumber).includes(q) ||
+        r.FirstName.toLowerCase().includes(q) ||
+        r.LastName.toLowerCase().includes(q)
+      const matchesStatus = statusFilter.size === 0 || statusFilter.has(r.Status)
+      return matchesSearch && matchesStatus
+    },
+    [statusFilter],
+  )
+
+  const toggleStatus = (status: RunnerStatus) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) {
+        next.delete(status)
+      } else {
+        next.add(status)
+      }
+      return next
+    })
+  }
+
+  // Which race IDs have at least one runner matching the current search query and status filter
   const racesWithMatches = useMemo(() => {
     const q = search.toLowerCase().trim()
-    if (!q) return new Set(races.map((r) => r.ID))
-    return new Set(
-      allRunners
-        .filter(
-          (r) =>
-            String(r.BibNumber).includes(q) ||
-            r.FirstName.toLowerCase().includes(q) ||
-            r.LastName.toLowerCase().includes(q),
-        )
-        .map((r) => r.RaceID),
-    )
-  }, [races, allRunners, search])
+    if (!q && statusFilter.size === 0) return new Set(races.map((r) => r.ID))
+    return new Set(allRunners.filter((r) => matchesSearchAndStatus(r, q)).map((r) => r.RaceID))
+  }, [races, allRunners, search, statusFilter, matchesSearchAndStatus])
 
   // If the selected tab's race has no matches, fall back to All
   useEffect(() => {
@@ -148,14 +174,7 @@ export default function RunnersTab() {
     let runners = filterRaceID ? allRunners.filter((r) => r.RaceID === filterRaceID) : allRunners
 
     const q = search.toLowerCase().trim()
-    if (q) {
-      runners = runners.filter(
-        (r) =>
-          String(r.BibNumber).includes(q) ||
-          r.FirstName.toLowerCase().includes(q) ||
-          r.LastName.toLowerCase().includes(q),
-      )
-    }
+    runners = runners.filter((r) => matchesSearchAndStatus(r, q))
 
     return [...runners].sort((a, b) => {
       let cmp = 0
@@ -168,7 +187,7 @@ export default function RunnersTab() {
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [allRunners, filterRaceID, search, sortKey, sortDir])
+  }, [allRunners, filterRaceID, search, sortKey, sortDir, matchesSearchAndStatus])
 
   // Show pace columns only when a single race is selected and ≥2 checkpoints have distances
   const showPace = useMemo(() => {
@@ -234,17 +253,12 @@ export default function RunnersTab() {
   // Visible race tabs — only show races with search matches (all visible when not searching)
   const visibleRaces = races.filter((r) => racesWithMatches.has(r.ID))
 
-  // Count matching runners per race (only used when a search is active)
+  // Count matching runners per race (only used when a search or status filter is active)
   const matchCountFor = (raceID: number | '') => {
     const q = search.toLowerCase().trim()
-    if (!q) return null
+    if (!q && statusFilter.size === 0) return null
     const pool = raceID === '' ? allRunners : allRunners.filter((r) => r.RaceID === raceID)
-    return pool.filter(
-      (r) =>
-        String(r.BibNumber).includes(q) ||
-        r.FirstName.toLowerCase().includes(q) ||
-        r.LastName.toLowerCase().includes(q),
-    ).length
+    return pool.filter((r) => matchesSearchAndStatus(r, q)).length
   }
 
   return (
@@ -259,7 +273,7 @@ export default function RunnersTab() {
         </Alert>
       )}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 1 }}>
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap' }}>
         <TextField
           size="small"
           label="Search bib / name"
@@ -267,6 +281,22 @@ export default function RunnersTab() {
           onChange={(e) => setSearch(e.target.value)}
           sx={{ width: 220 }}
         />
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
+          {ALL_STATUSES.map((status) => {
+            const active = statusFilter.has(status)
+            return (
+              <Chip
+                key={status}
+                label={status}
+                size="small"
+                clickable
+                variant={active ? 'filled' : 'outlined'}
+                color={active ? (STATUS_COLOR[status] ?? 'default') : 'default'}
+                onClick={() => toggleStatus(status)}
+              />
+            )
+          })}
+        </Stack>
       </Stack>
 
       <Tabs
