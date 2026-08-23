@@ -69,12 +69,14 @@ export default function AdminTab() {
   const [cpName, setCpName] = useState('')
   const [cpDist, setCpDist] = useState('')
   const [cpColumnName, setCpColumnName] = useState('')
+  const [cpCutoffTime, setCpCutoffTime] = useState('')
   // Checkpoint inline edit
   const [editingCpID, setEditingCpID] = useState<number | null>(null)
   const [editCode, setEditCode] = useState('')
   const [editName, setEditName] = useState('')
   const [editDist, setEditDist] = useState('')
   const [editColumnName, setEditColumnName] = useState('')
+  const [editCutoffTime, setEditCutoffTime] = useState('')
   // Roster import
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
@@ -369,15 +371,24 @@ export default function AdminTab() {
     setEditName(cp.DisplayName)
     setEditDist(cp.DistanceFromStart != null ? String(cp.DistanceFromStart) : '')
     setEditColumnName(cp.ColumnName ?? '')
+    setEditCutoffTime(cp.CutoffTime ?? '')
   }
 
   const saveEditCp = () => {
     if (!editingCpID || !editCode.trim() || !editName.trim()) return
     const dist = editDist.trim() ? parseFloat(editDist) : null
     const columnName = editColumnName.trim() ? editColumnName.trim() : null
+    const cutoffTime = editCutoffTime.trim() ? editCutoffTime.trim() : null
     wrap(() =>
       api
-        .updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist, columnName)
+        .updateCheckpoint(
+          editingCpID,
+          editCode.trim(),
+          editName.trim(),
+          dist,
+          columnName,
+          cutoffTime,
+        )
         .then(() => {
           setEditingCpID(null)
           return loadCheckpoints(races.map((r) => r.ID))
@@ -697,6 +708,7 @@ export default function AdminTab() {
                         <TableCell>Name</TableCell>
                         <TableCell>Column Name</TableCell>
                         <TableCell>Dist (mi)</TableCell>
+                        <TableCell>Cutoff</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -744,6 +756,15 @@ export default function AdminTab() {
                                     slotProps={{ htmlInput: { step: '0.1', min: '0' } }}
                                   />
                                 </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    size="small"
+                                    type="time"
+                                    value={editCutoffTime}
+                                    onChange={(e) => setEditCutoffTime(e.target.value)}
+                                    sx={{ width: 120 }}
+                                  />
+                                </TableCell>
                               </>
                             ) : (
                               <>
@@ -753,6 +774,7 @@ export default function AdminTab() {
                                 <TableCell>
                                   {cp.DistanceFromStart != null ? cp.DistanceFromStart : '—'}
                                 </TableCell>
+                                <TableCell>{cp.CutoffTime || '—'}</TableCell>
                               </>
                             )}
                             <TableCell align="right">
@@ -892,6 +914,18 @@ export default function AdminTab() {
                         sx={{ width: 90 }}
                         slotProps={{ htmlInput: { step: '0.1', min: '0' } }}
                       />
+                      <TextField
+                        size="small"
+                        label="Cutoff"
+                        type="time"
+                        value={cpRaceID === race.ID ? cpCutoffTime : ''}
+                        onChange={(e) => {
+                          setCpRaceID(race.ID)
+                          setCpCutoffTime(e.target.value)
+                        }}
+                        sx={{ width: 120 }}
+                        slotProps={{ inputLabel: { shrink: true } }}
+                      />
                       <Tooltip title="Add checkpoint to this race">
                         <span>
                           <Button
@@ -901,6 +935,7 @@ export default function AdminTab() {
                             onClick={() => {
                               const dist = cpDist.trim() ? parseFloat(cpDist) : null
                               const columnName = cpColumnName.trim() ? cpColumnName.trim() : null
+                              const cutoffTime = cpCutoffTime.trim() ? cpCutoffTime.trim() : null
                               wrap(() =>
                                 api
                                   .createCheckpoint(
@@ -909,12 +944,14 @@ export default function AdminTab() {
                                     cpName.trim(),
                                     dist,
                                     columnName,
+                                    cutoffTime,
                                   )
                                   .then(() => {
                                     setCpCode('')
                                     setCpName('')
                                     setCpDist('')
                                     setCpColumnName('')
+                                    setCpCutoffTime('')
                                     setCpRaceID('')
                                     return loadCheckpoints(races.map((r) => r.ID))
                                   }),
@@ -1064,8 +1101,8 @@ export default function AdminTab() {
             Bulk Checkpoint Import
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Paste TSV with columns: Code, DisplayName, DistFromStart, ColumnName (distance and
-            column name optional, no header row).
+            Paste TSV with columns: Code, DisplayName, DistFromStart, ColumnName, CutoffTime
+            (distance, column name, and cutoff time optional, no header row).
           </Typography>
           <Stack spacing={1} data-testid="bulk-cp-section">
             <FormControl size="small" sx={{ maxWidth: 220 }}>
@@ -1092,7 +1129,9 @@ export default function AdminTab() {
               multiline
               rows={6}
               size="small"
-              placeholder={'AS1\tAid Station 1\t10.5\tAS #1\nAS2\tAid Station 2\t21.0\tAS #2'}
+              placeholder={
+                'AS1\tAid Station 1\t10.5\tAS #1\t18:00\nAS2\tAid Station 2\t21.0\tAS #2\t20:00'
+              }
               value={bulkCpTsv}
               onChange={(e) => setBulkCpTsv(e.target.value)}
               sx={{ fontFamily: 'monospace', maxWidth: 500 }}
@@ -1110,13 +1149,14 @@ export default function AdminTab() {
                         .map((l) => l.split('\t'))
                       let created = 0
                       const errs: string[] = []
-                      for (const [code, name, dist, columnName] of rows) {
+                      for (const [code, name, dist, columnName, cutoffTime] of rows) {
                         if (!code?.trim() || !name?.trim()) {
                           errs.push(`Skipped: "${code ?? ''}" — code and name required`)
                           continue
                         }
                         const distVal = dist?.trim() ? parseFloat(dist.trim()) : null
                         const columnNameVal = columnName?.trim() ? columnName.trim() : null
+                        const cutoffTimeVal = cutoffTime?.trim() ? cutoffTime.trim() : null
                         try {
                           await api.createCheckpoint(
                             Number(bulkCpRaceID),
@@ -1124,6 +1164,7 @@ export default function AdminTab() {
                             name.trim(),
                             distVal,
                             columnNameVal,
+                            cutoffTimeVal,
                           )
                           created++
                         } catch (e: unknown) {

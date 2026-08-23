@@ -37,6 +37,7 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 		ColumnName        *string  `json:"column_name"`
 		DisplayOrder      int      `json:"display_order"`
 		DistanceFromStart *float64 `json:"distance_from_start"`
+		CutoffTime        *string  `json:"cutoff_time"`
 	}
 	if err := decode(r, &body); err != nil || body.Code == "" || body.DisplayName == "" {
 		writeError(w, http.StatusBadRequest, "code and display_name are required")
@@ -50,6 +51,7 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 		ColumnName:        body.ColumnName,
 		DisplayOrder:      body.DisplayOrder,
 		DistanceFromStart: body.DistanceFromStart,
+		CutoffTime:        body.CutoffTime,
 	})
 	if err != nil {
 		writeError(w, errStatus(err), err.Error())
@@ -70,13 +72,14 @@ func (h *Handler) updateCheckpoint(w http.ResponseWriter, r *http.Request) {
 		DisplayName       string   `json:"display_name"`
 		ColumnName        *string  `json:"column_name"`
 		DistanceFromStart *float64 `json:"distance_from_start"`
+		CutoffTime        *string  `json:"cutoff_time"`
 	}
 	if err := decode(r, &body); err != nil || body.Code == "" || body.DisplayName == "" {
 		writeError(w, http.StatusBadRequest, "code and display_name are required")
 		return
 	}
 
-	cp, err := h.checkpoints.Update(r.Context(), id, body.Code, body.DisplayName, body.ColumnName, body.DistanceFromStart)
+	cp, err := h.checkpoints.Update(r.Context(), id, body.Code, body.DisplayName, body.ColumnName, body.DistanceFromStart, body.CutoffTime)
 	if err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return

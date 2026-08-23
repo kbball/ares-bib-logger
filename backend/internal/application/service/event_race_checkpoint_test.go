@@ -255,18 +255,21 @@ func TestCheckpointService_Update_Success(t *testing.T) {
 
 	dist := 5.0
 	colName := "AS #1"
-	updated, err := svc.Update(context.Background(), 1, "AS1-NEW", "Aid 1 Updated", &colName, &dist)
+	cutoff := "18:00"
+	updated, err := svc.Update(context.Background(), 1, "AS1-NEW", "Aid 1 Updated", &colName, &dist, &cutoff)
 	require.NoError(t, err)
 	assert.Equal(t, "AS1-NEW", updated.Code)
 	require.NotNil(t, updated.ColumnName)
 	assert.Equal(t, "AS #1", *updated.ColumnName)
+	require.NotNil(t, updated.CutoffTime)
+	assert.Equal(t, "18:00", *updated.CutoffTime)
 }
 
 func TestCheckpointService_Update_CPNotFound(t *testing.T) {
 	cps := &mockCheckpointRepository{getErr: domain.ErrNotFound}
 	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
 
-	_, err := svc.Update(context.Background(), 99, "X", "Y", nil, nil)
+	_, err := svc.Update(context.Background(), 99, "X", "Y", nil, nil, nil)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -276,7 +279,7 @@ func TestCheckpointService_Update_RaceNotFound(t *testing.T) {
 	}}
 	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
 
-	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil)
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil, nil)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -287,7 +290,7 @@ func TestCheckpointService_Update_Locked(t *testing.T) {
 	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: true}}}
 	svc := service.NewCheckpointService(cps, races)
 
-	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil)
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil, nil)
 	assert.ErrorIs(t, err, domain.ErrLocked)
 }
 

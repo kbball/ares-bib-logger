@@ -121,6 +121,26 @@ func TestHandler_CreateCheckpoint_ColumnName(t *testing.T) {
 	assert.Equal(t, "AS #6", *got.ColumnName)
 }
 
+func TestHandler_CreateCheckpoint_CutoffTime(t *testing.T) {
+	cps := &mockCheckpointService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"code": "AS6", "display_name": "AS6", "display_order": 1, "cutoff_time": "18:00"})
+	req := httptest.NewRequest(http.MethodPost, "/api/races/1/checkpoints", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	var got entity.Checkpoint
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.NotNil(t, got.CutoffTime)
+	assert.Equal(t, "18:00", *got.CutoffTime)
+}
+
 // --- reorderCheckpoints ---
 
 func TestHandler_ReorderCheckpoints_BadRaceID(t *testing.T) {
