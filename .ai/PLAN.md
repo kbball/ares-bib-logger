@@ -336,6 +336,7 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Manually Log a Bib now accepts an optional Date alongside Time: previously `parseWallClockTime` always stamped corrections onto "today" in the configured timezone regardless of when the crossing actually happened, silently mis-dating late-night/midnight-crossing and next-day corrections. `parseWallClockTime(loc, dateStr, timeStr)` now takes an optional `YYYY-MM-DD` date (empty defaults to today, unchanged behavior); `CheckpointLogService.CorrectLog` and the `CheckpointLogService` port gained a `dateStr` param; `POST /api/log/correction` gained an optional `date` field; Admin panel "Manually Log a Bib" form gained a Date input (MUI `type="date"`, defaults to today when left blank)
 - Admin page now unloads race/checkpoint data when the active event is archived: `EventService.Archive` clears the `ActiveSession` (event + its per-race checkpoints) via new `ActiveSessionRepository.ClearEvent` whenever the archived event was the currently active one, so the existing `session?.EventID` effect in `AdminTab` naturally reloads races to empty instead of leaving stale data on screen until a new event is selected. Also closed a latent gap where `checkpointsByRace` was never cleared when `races` emptied out.
 - Add single runner to roster (late race addition): `RunnerService.AddRunner` appends one runner to a race's roster (`sort_order = max + 1`, `Status: StatusUnknown`), reusing the `MaxSortOrder`/`BulkCreate` pattern from `TransferRace`; not gated by `RosterLocked`; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section
+- Overall stats card on Data Entry tab: new "Overall" card (shown only when `races.length > 1`) sums Starters/On course/DNS/DNF/Finishers across all races in the active event from `Runner.Status`, since the per-race cards' active-checkpoint-based partition doesn't generalize across races
 
 ## Backlog
 
@@ -344,13 +345,11 @@ Ordered by priority (2026-08-23):
 ### ~~0. Bulk checkpoint import missing Column Name field~~ ✅ DONE
 - Bulk Import of checkpoints now supports an optional 4th TSV column, `ColumnName` (`Code, DisplayName, DistFromStart, ColumnName`), passed through to the existing `createCheckpoint` API (backend already supported it end-to-end)
 
-### 0. Admin page doesn't unload event data on archive
-- When archiving an event, the admin page should refresh/unload the data associated with that event — currently races stay loaded until a new event is created and selected
-- Not yet implemented — captured here for future work
+### ~~0. Admin page doesn't unload event data on archive~~ ✅ DONE
+- `EventService.Archive` clears the `ActiveSession` (event + its per-race checkpoints) via new `ActiveSessionRepository.ClearEvent` whenever the archived event was the currently active one, so the existing `session?.EventID` effect in `AdminTab` naturally reloads races to empty instead of leaving stale data on screen until a new event is selected. Also closed a latent gap where `checkpointsByRace` was never cleared when `races` emptied out.
 
-### 0. Manually Log a Bib — date association for timestamp
-- When logging using the timestamp on "Manually Log a Bib" (admin page), determine whether a date is/should be associated with the entered time, and add it to the form if needed
-- Not yet implemented — captured here for future work
+### ~~0. Manually Log a Bib — date association for timestamp~~ ✅ DONE
+- `parseWallClockTime` always stamped corrections onto "today" in the configured timezone regardless of when the crossing actually happened; `parseWallClockTime(loc, dateStr, timeStr)` now takes an optional `YYYY-MM-DD` date (empty defaults to today). Threaded through `CheckpointLogService.CorrectLog`, `POST /api/log/correction`, and the Admin panel's "Manually Log a Bib" form, which gained a Date input.
 
 ### ~~0. Optional cutoff time on checkpoint configuration~~ ✅ DONE
 - Added `Checkpoint.CutoffTime *string` (migration 000008, nullable `cutoff_time TEXT`), threaded through repo/service/handler `Create`/`Update`, the event export/import DTO, and the Admin panel's checkpoint create/edit forms (MUI `type="time"` input) and table (new "Cutoff" column). Bulk checkpoint import also gained it as an optional 5th TSV column (`Code, DisplayName, DistFromStart, ColumnName, CutoffTime`)
@@ -362,10 +361,9 @@ Ordered by priority (2026-08-23):
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1) — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
 - `RunnerService.AddRunner` (new port method) reuses the `MaxSortOrder` + `BulkCreate` pattern from `TransferRace`, with `Status: StatusUnknown` (fresh roster row, not yet seen at a checkpoint); intentionally **not** gated by `RosterLocked` and never calls `LockRoster` — late registrations must work even after the initial roster import; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section (race select shows all races, unlike Roster Import's locked-race filter)
 
-### 2. Overall stats card on Data Entry tab
-- Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
-- Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
-- Not yet implemented — captured here for future work
+### ~~2. Overall stats card on Data Entry tab~~ ✅ DONE
+- Adds an "Overall" `Paper` card (only rendered when `races.length > 1`, so GDR's single-race view is unaffected) summing `Starters`/`On course`/`DNS`/`DNF`/`Finishers` across the already-loaded `runners` state for all races in the active event, from `Runner.Status` directly (`MOVED` runners excluded — they're already counted under their new race's entry)
+- Uses `Runner.Status` rather than the per-race cards' active-checkpoint-based Through/Still-to-come partition, since there's no single "active checkpoint" concept across multiple races to compute that consistently; "Projected next arrival" is intentionally omitted from the overall card since it's only meaningful per-checkpoint/per-race
 
 ### 3. Split pace between aid stations on runner detail modal
 - The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only

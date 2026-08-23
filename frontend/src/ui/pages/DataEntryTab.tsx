@@ -233,6 +233,34 @@ export default function DataEntryTab() {
         </Alert>
       )}
 
+      {/* ── Overall stats (summed across all races — mainly useful for multi-race events) ── */}
+      {races.length > 1 && (
+        <Paper sx={{ p: 1.5, mb: 2, maxWidth: 260 }} data-testid="overall-stats-card">
+          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+            Overall
+          </Typography>
+          {(() => {
+            const active = runners.filter((r) => r.Status !== 'MOVED')
+            const starters = active.length
+            const dns = active.filter((r) => r.Status === 'DNS').length
+            const dnf = active.filter((r) => r.Status === 'DNF').length
+            const finished = active.filter((r) => r.Status === 'FINISHED').length
+            const onCourse = starters - dns - dnf - finished
+            return (
+              <>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Starters: {starters}
+                </Typography>
+                <Typography variant="body2">On course: {onCourse}</Typography>
+                <Typography variant="body2">DNS: {dns}</Typography>
+                <Typography variant="body2">DNF: {dnf}</Typography>
+                <Typography variant="body2">Finishers: {finished}</Typography>
+              </>
+            )
+          })()}
+        </Paper>
+      )}
+
       {/* ── Race stats ── */}
       {races.length > 0 && (
         <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
