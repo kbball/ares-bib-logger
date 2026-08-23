@@ -71,6 +71,12 @@ export const listCheckpointLogs = (raceID: number) =>
 export const listRunners = (raceID: number) => get<Runner[]>(`/api/races/${raceID}/runners`)
 export const importRoster = (raceID: number, tsv: string) =>
   post<{ imported: number }>(`/api/races/${raceID}/roster`, { tsv })
+export const addRunner = (raceID: number, bibNumber: number, firstName: string, lastName: string) =>
+  post<void>(`/api/races/${raceID}/runners`, {
+    bib_number: bibNumber,
+    first_name: firstName,
+    last_name: lastName,
+  })
 export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: number) =>
   post<void>('/api/runners/transfer', {
     bib_number: bibNumber,
@@ -83,11 +89,18 @@ export const logBib = (bibNumber: number) =>
   post<LogBibResult>('/api/log/bib', { bib_number: bibNumber })
 export const logStatus = (bibNumber: number, status: RunnerStatus) =>
   post<void>('/api/log/status', { bib_number: bibNumber, status })
-export const correctLog = (raceID: number, checkpointID: number, bibNumber: number, time: string) =>
+export const correctLog = (
+  raceID: number,
+  checkpointID: number,
+  bibNumber: number,
+  time: string,
+  date?: string,
+) =>
   post<CheckpointLog>('/api/log/correction', {
     race_id: raceID,
     checkpoint_id: checkpointID,
     bib_number: bibNumber,
+    date: date ?? null,
     time,
   })
 export const deleteLog = (raceID: number, checkpointID: number, bibNumber: number) =>

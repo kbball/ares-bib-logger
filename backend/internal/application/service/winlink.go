@@ -483,21 +483,28 @@ func looksLikeTimeOrStatus(s string) bool {
 // parseTimeOfDay parses HH:MM:SS or HH:MM as a wall-clock time on today's date
 // in the service's configured timezone.
 func (s *WinlinkService) parseTimeOfDay(str string) (time.Time, error) {
-	return parseWallClockTime(s.loc, str)
+	return parseWallClockTime(s.loc, "", str)
 }
 
-// parseWallClockTime parses HH:MM:SS or HH:MM as a wall-clock time on today's
-// date in the given timezone. Shared by WinlinkService (import) and
-// CheckpointLogService (manual corrections) so both interpret pasted/typed
-// times the same way.
-func parseWallClockTime(loc *time.Location, str string) (time.Time, error) {
-	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+// parseWallClockTime parses HH:MM:SS or HH:MM as a wall-clock time in the
+// given timezone, on the given date (YYYY-MM-DD) or today's date if dateStr
+// is empty. Shared by WinlinkService (import) and CheckpointLogService
+// (manual corrections) so both interpret pasted/typed times the same way.
+func parseWallClockTime(loc *time.Location, dateStr, str string) (time.Time, error) {
+	base := time.Now().In(loc)
+	if dateStr != "" {
+		d, err := time.ParseInLocation("2006-01-02", dateStr, loc)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("cannot parse date: %q", dateStr)
+		}
+		base = d
+	}
+	baseDate := time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, loc)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		t, err := time.Parse(layout, str)
 		if err == nil {
-			return base.Add(time.Duration(t.Hour())*time.Hour +
+			return baseDate.Add(time.Duration(t.Hour())*time.Hour +
 				time.Duration(t.Minute())*time.Minute +
 				time.Duration(t.Second())*time.Second), nil
 		}

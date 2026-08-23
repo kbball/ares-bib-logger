@@ -57,7 +57,7 @@ func (m *mockEventRepository) SetWinlinkBlankLineAfterHeader(_ context.Context, 
 
 func TestEventService_CreateAndList(t *testing.T) {
 	repo := &mockEventRepository{}
-	svc := service.NewEventService(repo)
+	svc := service.NewEventService(repo, &mockActiveSessionRepository{})
 	ctx := context.Background()
 
 	e, err := svc.Create(ctx, "GA Death Race")
@@ -74,7 +74,7 @@ func TestEventService_CreateAndList(t *testing.T) {
 }
 
 func TestEventService_Get_NotFound(t *testing.T) {
-	svc := service.NewEventService(&mockEventRepository{})
+	svc := service.NewEventService(&mockEventRepository{}, &mockActiveSessionRepository{})
 	_, err := svc.Get(context.Background(), 99)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
@@ -164,9 +164,44 @@ func TestCheckpointService_Reorder_RaceNotFound(t *testing.T) {
 // --- EventService.Archive ---
 
 func TestEventService_Archive(t *testing.T) {
-	svc := service.NewEventService(&mockEventRepository{})
+	svc := service.NewEventService(&mockEventRepository{}, &mockActiveSessionRepository{})
 	err := svc.Archive(context.Background(), 1)
 	assert.NoError(t, err)
+}
+
+func TestEventService_Archive_ClearsActiveSession(t *testing.T) {
+	eventID := 1
+	sessionRepo := &mockActiveSessionRepository{
+		session: entity.ActiveSession{
+			EventID:     &eventID,
+			Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 1}},
+		},
+	}
+	svc := service.NewEventService(&mockEventRepository{}, sessionRepo)
+
+	err := svc.Archive(context.Background(), 1)
+	require.NoError(t, err)
+
+	sess, err := sessionRepo.Get(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, sess.EventID)
+	assert.Empty(t, sess.Checkpoints)
+}
+
+func TestEventService_Archive_LeavesOtherActiveSessionAlone(t *testing.T) {
+	eventID := 2
+	sessionRepo := &mockActiveSessionRepository{
+		session: entity.ActiveSession{EventID: &eventID},
+	}
+	svc := service.NewEventService(&mockEventRepository{}, sessionRepo)
+
+	err := svc.Archive(context.Background(), 1)
+	require.NoError(t, err)
+
+	sess, err := sessionRepo.Get(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, sess.EventID)
+	assert.Equal(t, 2, *sess.EventID)
 }
 
 // --- RaceService.LockOrder ---

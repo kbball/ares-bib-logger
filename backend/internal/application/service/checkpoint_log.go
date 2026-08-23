@@ -163,9 +163,11 @@ func (s *CheckpointLogService) QueryRunner(ctx context.Context, bibNumber int) (
 
 // CorrectLog creates or overwrites a runner's checkpoint log at an explicit
 // time, for correcting a mis-logged bib after the fact — possibly at a
-// checkpoint other than the one currently active at this station.
-func (s *CheckpointLogService) CorrectLog(ctx context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
-	recordedAt, err := parseWallClockTime(s.loc, timeStr)
+// checkpoint other than the one currently active at this station. dateStr is
+// an optional YYYY-MM-DD date; when empty, today's date (in the service's
+// configured timezone) is used, matching prior behavior.
+func (s *CheckpointLogService) CorrectLog(ctx context.Context, raceID, checkpointID, bibNumber int, dateStr, timeStr string) (entity.CheckpointLog, error) {
+	recordedAt, err := parseWallClockTime(s.loc, dateStr, timeStr)
 	if err != nil {
 		return entity.CheckpointLog{}, err
 	}

@@ -4,7 +4,7 @@ import { useStream } from '../../adapters/sse/useStream'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockEvent, mockCheckpoint } from '../../test/handlers'
+import { noSession, mockEvent, mockLog, mockSession, mockCheckpoint } from '../../test/handlers'
 import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
@@ -195,6 +195,86 @@ describe('AdminTab — Roster Import', () => {
     await openAdminAccordions(user)
     await waitFor(() => screen.getByRole('button', { name: /import roster/i }))
     expect(screen.getByRole('button', { name: /import roster/i })).toBeDisabled()
+  })
+})
+
+describe('AdminTab — Add Runner to Roster', () => {
+  it('renders the Add Runner to Roster section', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => expect(screen.getByText(/add runner to roster/i)).toBeInTheDocument())
+  })
+
+  it('Add Runner button is disabled until race, bib, and first name are filled', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+    expect(within(section).getByRole('button', { name: /^add runner$/i })).toBeDisabled()
+  })
+
+  it('adds a runner to the roster', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/runners', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+    await user.type(within(section).getByLabelText(/last name/i), 'Ortiz')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      bib_number: 200,
+      first_name: 'Dana',
+      last_name: 'Ortiz',
+    })
+    await waitFor(() =>
+      expect(screen.getByText(/added bib 200 to the roster/i)).toBeInTheDocument(),
+    )
+  })
+
+  it('shows error when addRunner API fails', async () => {
+    server.use(
+      http.post('/api/races/:raceID/runners', () =>
+        HttpResponse.json({ error: 'bib already exists' }, { status: 409 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(screen.getByText(/bib already exists/i)).toBeInTheDocument())
   })
 })
 
@@ -408,6 +488,42 @@ describe('AdminTab — Manually Log a Bib', () => {
 
     await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
   })
+
+  it('logs a bib with an explicit date and time', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/log/correction', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockLog)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.type(within(form).getByLabelText(/^date$/i), '2026-08-22')
+    await user.type(within(form).getByLabelText(/^time$/i), '23:58')
+    await user.click(within(form).getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({ date: '2026-08-22', time: '23:58' })
+    await waitFor(() =>
+      expect(screen.getByText(/logged bib 100 at 23:58 on 2026-08-22/i)).toBeInTheDocument(),
+    )
+  })
 })
 
 describe('AdminTab — Remove a Checkpoint Log', () => {
@@ -570,6 +686,28 @@ describe('AdminTab — Archive Event', () => {
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('unloads race/checkpoint data once the session no longer references the archived event', async () => {
+    let sessionCalls = 0
+    server.use(
+      http.get('/api/session', () => {
+        sessionCalls++
+        return HttpResponse.json(sessionCalls === 1 ? mockSession : noSession)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
+    await waitFor(() => screen.getByRole('dialog'))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^archive$/i }))
+
+    await waitFor(() => expect(screen.queryByText('GDR')).not.toBeInTheDocument())
   })
 })
 

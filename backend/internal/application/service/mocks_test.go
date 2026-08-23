@@ -222,6 +222,12 @@ func (m *mockActiveSessionRepository) SetEvent(_ context.Context, eventID int) e
 	return nil
 }
 
+func (m *mockActiveSessionRepository) ClearEvent(_ context.Context) error {
+	m.session.EventID = nil
+	m.session.Checkpoints = nil
+	return nil
+}
+
 func (m *mockActiveSessionRepository) SetCheckpoint(_ context.Context, raceID, checkpointID int) error {
 	for i, sc := range m.session.Checkpoints {
 		if sc.RaceID == raceID {

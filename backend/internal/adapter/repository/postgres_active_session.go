@@ -60,6 +60,16 @@ func (r *ActiveSessionRepo) SetEvent(ctx context.Context, eventID int) error {
 	return err
 }
 
+func (r *ActiveSessionRepo) ClearEvent(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE active_session SET event_id = NULL, updated_at = NOW() WHERE id = 1`)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM active_session_checkpoints WHERE session_id = 1`)
+	return err
+}
+
 func (r *ActiveSessionRepo) SetCheckpoint(ctx context.Context, raceID, checkpointID int) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO active_session_checkpoints (session_id, race_id, checkpoint_id)

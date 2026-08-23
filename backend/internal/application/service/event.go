@@ -9,11 +9,12 @@ import (
 )
 
 type EventService struct {
-	repo portrepo.EventRepository
+	repo        portrepo.EventRepository
+	sessionRepo portrepo.ActiveSessionRepository
 }
 
-func NewEventService(repo portrepo.EventRepository) *EventService {
-	return &EventService{repo: repo}
+func NewEventService(repo portrepo.EventRepository, sessionRepo portrepo.ActiveSessionRepository) *EventService {
+	return &EventService{repo: repo, sessionRepo: sessionRepo}
 }
 
 var _ portsvc.EventService = (*EventService)(nil)
@@ -31,7 +32,18 @@ func (s *EventService) Create(ctx context.Context, name string) (entity.Event, e
 }
 
 func (s *EventService) Archive(ctx context.Context, id int) error {
-	return s.repo.Archive(ctx, id)
+	if err := s.repo.Archive(ctx, id); err != nil {
+		return err
+	}
+
+	sess, err := s.sessionRepo.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if sess.EventID != nil && *sess.EventID == id {
+		return s.sessionRepo.ClearEvent(ctx)
+	}
+	return nil
 }
 
 func (s *EventService) SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error {
