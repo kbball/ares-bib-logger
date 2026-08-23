@@ -2,6 +2,7 @@ export interface Event {
   ID: number
   Name: string
   Archived: boolean
+  WinlinkBlankLineAfterHeader: boolean
   CreatedAt: string
 }
 

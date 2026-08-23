@@ -11,4 +11,5 @@ type EventRepository interface {
 	Get(ctx context.Context, id int) (entity.Event, error)
 	Create(ctx context.Context, name string) (entity.Event, error)
 	Archive(ctx context.Context, id int) error
+	SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error
 }

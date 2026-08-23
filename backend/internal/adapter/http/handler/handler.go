@@ -51,6 +51,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events", h.createEvent)
 	mux.HandleFunc("GET /api/events/{id}", h.getEvent)
 	mux.HandleFunc("PUT /api/events/{id}/archive", h.archiveEvent)
+	mux.HandleFunc("PUT /api/events/{id}/winlink-format", h.updateEventWinlinkFormat)
 	mux.HandleFunc("GET /api/events/{id}/export", h.exportEventConfig)
 
 	// Races

@@ -16,6 +16,8 @@ import type {
 export const listEvents = () => get<Event[]>('/api/events')
 export const createEvent = (name: string) => post<Event>('/api/events', { name })
 export const archiveEvent = (id: number) => put<void>(`/api/events/${id}/archive`)
+export const setEventWinlinkFormat = (id: number, blankLineAfterHeader: boolean) =>
+  put<void>(`/api/events/${id}/winlink-format`, { blank_line_after_header: blankLineAfterHeader })
 
 // Races
 export const listRaces = (eventID: number) => get<Race[]>(`/api/events/${eventID}/races`)

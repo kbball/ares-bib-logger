@@ -7,6 +7,7 @@ export const mockEvent: Event = {
   ID: 1,
   Name: 'GDR 2026',
   Archived: false,
+  WinlinkBlankLineAfterHeader: false,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
@@ -90,6 +91,7 @@ export const handlers = [
   http.get('/api/events', () => HttpResponse.json([mockEvent])),
   http.post('/api/events', () => HttpResponse.json(mockEvent, { status: 201 })),
   http.put('/api/events/:id/archive', () => new HttpResponse(null, { status: 204 })),
+  http.put('/api/events/:id/winlink-format', () => new HttpResponse(null, { status: 204 })),
   http.get('/api/events/:id', () => HttpResponse.json(mockEvent)),
 
   // Races

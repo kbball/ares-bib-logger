@@ -23,11 +23,15 @@ func newWinlinkSvc(
 	sess *mockActiveSessionRepository,
 	races ...*mockRaceRepository,
 ) *service.WinlinkService {
-	r := &mockRaceRepository{}
+	// Default race 1 -> event 1 (with the blank-line-after-header flag off, matching
+	// today's behavior) so existing tests that only pass raceID=1 don't need to set
+	// up race/event repos themselves.
+	r := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
 	if len(races) > 0 {
 		r = races[0]
 	}
-	return service.NewWinlinkService(runners, checkpoints, logs, sess, r, time.UTC)
+	events := &mockEventRepository{events: []entity.Event{{ID: 1}}}
+	return service.NewWinlinkService(runners, checkpoints, logs, sess, r, events, time.UTC)
 }
 
 func parseHHMMSS(s string) time.Time {
@@ -281,6 +285,175 @@ func TestWinlinkService_Import_BlankAtPositionOnePreservesOrder(t *testing.T) {
 	assert.Equal(t, 2, logs.created[0].RunnerID)
 }
 
+// --- Blank line after header (event-configurable) ---
+
+func TestWinlinkService_Export_BlankLineAfterHeader_WhenEnabled(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6"}},
+	}
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive}},
+	}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
+
+	svc := service.NewWinlinkService(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races, events, time.UTC)
+	out, err := svc.Export(context.Background(), 1)
+	require.NoError(t, err)
+
+	lines := strings.Split(out, "\n")
+	require.GreaterOrEqual(t, len(lines), 2)
+	assert.Equal(t, "Aid Station 6", lines[0])
+	assert.Equal(t, "", lines[1], "blank line after header expected when event flag is enabled")
+}
+
+func TestWinlinkService_Export_NoBlankLineAfterHeader_WhenDisabled(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6"}},
+	}
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusDNS}},
+	}
+	svc := newWinlinkSvc(runners, checkpoints, &mockCheckpointLogRepository{}, sess)
+
+	out, err := svc.Export(context.Background(), 1)
+	require.NoError(t, err)
+
+	lines := strings.Split(out, "\n")
+	assert.Equal(t, "Aid Station 6", lines[0])
+	assert.Equal(t, "DNS", lines[1], "no blank line expected when flag is disabled (default)")
+}
+
+func TestWinlinkService_Export_RaceGetError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{5: {ID: 5}}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, SortOrder: 1}}}
+	races := &mockRaceRepository{} // race 1 not present -> ErrNotFound
+
+	svc := service.NewWinlinkService(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races, &mockEventRepository{}, time.UTC)
+	_, err := svc.Export(context.Background(), 1)
+	assert.ErrorContains(t, err, "getting race")
+}
+
+func TestWinlinkService_Export_EventGetError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{5: {ID: 5}}}
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, SortOrder: 1}}}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 99}}} // event 99 not present
+
+	svc := service.NewWinlinkService(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races, &mockEventRepository{}, time.UTC)
+	_, err := svc.Export(context.Background(), 1)
+	assert.ErrorContains(t, err, "getting event")
+}
+
+func TestWinlinkService_Import_ConsumesBlankLineAfterHeader_WhenEnabled(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
+		logs, &mockActiveSessionRepository{}, races, events, time.UTC)
+
+	// header, blank line, then two data rows -- with the flag on, positions
+	// should map 17:45:00 -> sort_order 1 and 08:00:00 -> sort_order 2, not shift by one.
+	column := "AS6\n\n17:45:00\n08:00:00\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Created)
+	assert.Equal(t, 0, result.Skipped)
+	require.Len(t, logs.created, 2)
+	assert.Equal(t, 1, logs.created[0].RunnerID)
+	assert.Equal(t, 2, logs.created[1].RunnerID)
+}
+
+func TestWinlinkService_Import_BlankLineFlagOn_NoActualBlankLine_DoesNotEatRealRow(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
+		logs, &mockActiveSessionRepository{}, races, events, time.UTC)
+
+	// flag is on, but this paste has no blank line after the header -- must not
+	// skip the first real data row.
+	column := "AS6\n17:45:00\n08:00:00\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Created)
+	assert.Equal(t, 0, result.Skipped)
+}
+
+func TestWinlinkService_Preview_ConsumesBlankLineAfterHeader_WhenEnabled(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1}},
+	}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
+		&mockCheckpointLogRepository{}, &mockActiveSessionRepository{}, races, events, time.UTC)
+
+	column := "AS6\n\n17:45:00\n"
+	result, err := svc.Preview(context.Background(), 1, 10, column)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Created)
+	assert.Equal(t, 0, result.Skipped)
+	require.Len(t, result.Rows, 1)
+	assert.Equal(t, 100, result.Rows[0].BibNumber)
+}
+
+func TestWinlinkService_Import_EventLookupError(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, SortOrder: 1}}}
+	races := &mockRaceRepository{} // race 1 not present -> ErrNotFound
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
+		&mockCheckpointLogRepository{}, &mockActiveSessionRepository{}, races, &mockEventRepository{}, time.UTC)
+
+	_, err := svc.Import(context.Background(), 1, 10, "17:45:00\n")
+	assert.ErrorContains(t, err, "getting race")
+}
+
+func TestWinlinkService_Preview_EventLookupError(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, SortOrder: 1}}}
+	races := &mockRaceRepository{} // race 1 not present -> ErrNotFound
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}},
+		&mockCheckpointLogRepository{}, &mockActiveSessionRepository{}, races, &mockEventRepository{}, time.UTC)
+
+	_, err := svc.Preview(context.Background(), 1, 10, "17:45:00\n")
+	assert.ErrorContains(t, err, "getting race")
+}
+
 // --- Export error paths ---
 
 func TestWinlinkService_Export_SessionError(t *testing.T) {
@@ -416,6 +589,7 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 		&mockCheckpointLogRepository{},
 		&mockActiveSessionRepository{},
 		&mockRaceRepository{},
+		&mockEventRepository{},
 		time.UTC,
 	)
 	_ = svc // tested indirectly via Import below
