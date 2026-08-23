@@ -78,7 +78,7 @@ func (m *mockLogService) QueryRunner(_ context.Context, bibNumber int) (string, 
 	return m.queryText, m.queryErr
 }
 
-func (m *mockLogService) CorrectLog(_ context.Context, _, _, _ int, _ string) (entity.CheckpointLog, error) {
+func (m *mockLogService) CorrectLog(_ context.Context, _, _, _ int, _, _ string) (entity.CheckpointLog, error) {
 	return entity.CheckpointLog{}, nil
 }
 

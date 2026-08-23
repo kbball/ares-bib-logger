@@ -4,7 +4,7 @@ import { useStream } from '../../adapters/sse/useStream'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockEvent, mockSession, mockCheckpoint } from '../../test/handlers'
+import { noSession, mockEvent, mockLog, mockSession, mockCheckpoint } from '../../test/handlers'
 import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
@@ -487,6 +487,42 @@ describe('AdminTab — Manually Log a Bib', () => {
     await user.click(within(form).getByRole('button', { name: /^log$/i }))
 
     await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
+  })
+
+  it('logs a bib with an explicit date and time', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/log/correction', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockLog)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.type(within(form).getByLabelText(/^date$/i), '2026-08-22')
+    await user.type(within(form).getByLabelText(/^time$/i), '23:58')
+    await user.click(within(form).getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({ date: '2026-08-22', time: '23:58' })
+    await waitFor(() =>
+      expect(screen.getByText(/logged bib 100 at 23:58 on 2026-08-22/i)).toBeInTheDocument(),
+    )
   })
 })
 

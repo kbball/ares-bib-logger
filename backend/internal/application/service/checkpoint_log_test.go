@@ -233,7 +233,7 @@ func TestCheckpointLogService_CorrectLog_CreatesLog(t *testing.T) {
 	logs := &mockCheckpointLogRepository{}
 	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
 
-	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "14:32")
 	require.NoError(t, err)
 	assert.Equal(t, 1, log.RunnerID)
 	assert.Equal(t, 5, log.CheckpointID)
@@ -250,18 +250,42 @@ func TestCheckpointLogService_CorrectLog_OverwritesExistingLog(t *testing.T) {
 	}
 	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
 
-	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "14:32")
 	require.NoError(t, err)
 	assert.Equal(t, 9, log.ID)
 	assert.Equal(t, entity.SourceCorrection, log.Source)
 	require.Len(t, logs.logs, 1)
 }
 
+func TestCheckpointLogService_CorrectLog_ExplicitDate(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, Status: entity.StatusUnknown}},
+	}
+	logs := &mockCheckpointLogRepository{}
+	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
+
+	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "2026-08-22", "23:58")
+	require.NoError(t, err)
+	assert.Equal(t, 2026, log.RecordedAt.Year())
+	assert.Equal(t, time.Month(8), log.RecordedAt.Month())
+	assert.Equal(t, 22, log.RecordedAt.Day())
+	assert.Equal(t, 23, log.RecordedAt.Hour())
+	assert.Equal(t, 58, log.RecordedAt.Minute())
+}
+
+func TestCheckpointLogService_CorrectLog_InvalidDate(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "not-a-date", "14:32")
+	assert.ErrorContains(t, err, "cannot parse date")
+}
+
 func TestCheckpointLogService_CorrectLog_InvalidTime(t *testing.T) {
 	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
 	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
 
-	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "not-a-time")
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "not-a-time")
 	assert.ErrorContains(t, err, "cannot parse time")
 }
 
@@ -269,7 +293,7 @@ func TestCheckpointLogService_CorrectLog_BibNotFound(t *testing.T) {
 	runners := &mockRunnerRepository{}
 	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
 
-	_, err := svc.CorrectLog(context.Background(), 1, 5, 999, "14:32")
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 999, "", "14:32")
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -277,7 +301,7 @@ func TestCheckpointLogService_CorrectLog_ListRunnersError(t *testing.T) {
 	runners := &mockRunnerRepository{listErr: errors.New("db down")}
 	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
 
-	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "14:32")
 	assert.ErrorContains(t, err, "db down")
 }
 
@@ -286,7 +310,7 @@ func TestCheckpointLogService_CorrectLog_UpsertError(t *testing.T) {
 	logs := &mockCheckpointLogRepository{upsertErr: errors.New("upsert failed")}
 	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
 
-	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "14:32")
 	assert.ErrorContains(t, err, "upsert failed")
 }
 
@@ -297,7 +321,7 @@ func TestCheckpointLogService_CorrectLog_UpdateStatusError(t *testing.T) {
 	}
 	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
 
-	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "", "14:32")
 	assert.ErrorContains(t, err, "status update failed")
 }
 

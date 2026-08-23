@@ -63,6 +63,7 @@ func (h *Handler) correctLog(w http.ResponseWriter, r *http.Request) {
 		RaceID       int    `json:"race_id"`
 		CheckpointID int    `json:"checkpoint_id"`
 		BibNumber    int    `json:"bib_number"`
+		Date         string `json:"date"`
 		Time         string `json:"time"`
 	}
 	if err := decode(r, &body); err != nil || body.RaceID == 0 || body.CheckpointID == 0 ||
@@ -71,7 +72,7 @@ func (h *Handler) correctLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log, err := h.checkpointLogs.CorrectLog(r.Context(), body.RaceID, body.CheckpointID, body.BibNumber, body.Time)
+	log, err := h.checkpointLogs.CorrectLog(r.Context(), body.RaceID, body.CheckpointID, body.BibNumber, body.Date, body.Time)
 	if err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return
