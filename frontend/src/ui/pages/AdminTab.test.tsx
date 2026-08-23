@@ -4,7 +4,7 @@ import { useStream } from '../../adapters/sse/useStream'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockEvent } from '../../test/handlers'
+import { noSession, mockEvent, mockSession } from '../../test/handlers'
 import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
@@ -570,6 +570,28 @@ describe('AdminTab — Archive Event', () => {
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('unloads race/checkpoint data once the session no longer references the archived event', async () => {
+    let sessionCalls = 0
+    server.use(
+      http.get('/api/session', () => {
+        sessionCalls++
+        return HttpResponse.json(sessionCalls === 1 ? mockSession : noSession)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
+    await waitFor(() => screen.getByRole('dialog'))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^archive$/i }))
+
+    await waitFor(() => expect(screen.queryByText('GDR')).not.toBeInTheDocument())
   })
 })
 

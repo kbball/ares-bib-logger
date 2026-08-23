@@ -97,6 +97,43 @@ func TestActiveSessionRepo_SetEvent_Error(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestActiveSessionRepo_ClearEvent_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE active_session SET event_id = NULL, updated_at = NOW() WHERE id = 1`)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(qe(`DELETE FROM active_session_checkpoints WHERE session_id = 1`)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewActiveSessionRepo(db).ClearEvent(context.Background())
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_ClearEvent_UpdateError(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE active_session SET event_id = NULL, updated_at = NOW() WHERE id = 1`)).
+		WillReturnError(errors.New("db error"))
+
+	err := repository.NewActiveSessionRepo(db).ClearEvent(context.Background())
+	assert.ErrorContains(t, err, "db error")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestActiveSessionRepo_ClearEvent_DeleteError(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE active_session SET event_id = NULL, updated_at = NOW() WHERE id = 1`)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(qe(`DELETE FROM active_session_checkpoints WHERE session_id = 1`)).
+		WillReturnError(errors.New("db error"))
+
+	err := repository.NewActiveSessionRepo(db).ClearEvent(context.Background())
+	assert.ErrorContains(t, err, "db error")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestActiveSessionRepo_SetCheckpoint_Success(t *testing.T) {
 	db, mock := newMock(t)
 

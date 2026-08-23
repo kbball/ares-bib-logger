@@ -9,6 +9,7 @@ import (
 type ActiveSessionRepository interface {
 	Get(ctx context.Context) (entity.ActiveSession, error)
 	SetEvent(ctx context.Context, eventID int) error
+	ClearEvent(ctx context.Context) error
 	SetCheckpoint(ctx context.Context, raceID, checkpointID int) error
 	ClearCheckpoint(ctx context.Context, raceID int) error
 }

@@ -162,6 +162,7 @@ export default function AdminTab() {
 
   useEffect(() => {
     if (races.length) loadCheckpoints(races.map((r) => r.ID))
+    else setCheckpointsByRace({})
   }, [races])
 
   useStream({
