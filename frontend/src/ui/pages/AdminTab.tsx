@@ -963,10 +963,10 @@ export default function AdminTab() {
             Bulk Checkpoint Import
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Paste TSV with columns: Code, DisplayName, DistFromStart (distance optional, no header
-            row).
+            Paste TSV with columns: Code, DisplayName, DistFromStart, ColumnName (distance and
+            column name optional, no header row).
           </Typography>
-          <Stack spacing={1}>
+          <Stack spacing={1} data-testid="bulk-cp-section">
             <FormControl size="small" sx={{ maxWidth: 220 }}>
               <InputLabel id="bulk-cp-race-label">Race</InputLabel>
               <Select
@@ -991,7 +991,7 @@ export default function AdminTab() {
               multiline
               rows={6}
               size="small"
-              placeholder={'AS1\tAid Station 1\t10.5\nAS2\tAid Station 2\t21.0'}
+              placeholder={'AS1\tAid Station 1\t10.5\tAS #1\nAS2\tAid Station 2\t21.0\tAS #2'}
               value={bulkCpTsv}
               onChange={(e) => setBulkCpTsv(e.target.value)}
               sx={{ fontFamily: 'monospace', maxWidth: 500 }}
@@ -1009,18 +1009,20 @@ export default function AdminTab() {
                         .map((l) => l.split('\t'))
                       let created = 0
                       const errs: string[] = []
-                      for (const [code, name, dist] of rows) {
+                      for (const [code, name, dist, columnName] of rows) {
                         if (!code?.trim() || !name?.trim()) {
                           errs.push(`Skipped: "${code ?? ''}" — code and name required`)
                           continue
                         }
                         const distVal = dist?.trim() ? parseFloat(dist.trim()) : null
+                        const columnNameVal = columnName?.trim() ? columnName.trim() : null
                         try {
                           await api.createCheckpoint(
                             Number(bulkCpRaceID),
                             code.trim(),
                             name.trim(),
                             distVal,
+                            columnNameVal,
                           )
                           created++
                         } catch (e: unknown) {

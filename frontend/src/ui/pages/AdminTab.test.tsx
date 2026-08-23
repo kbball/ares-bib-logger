@@ -4,7 +4,7 @@ import { useStream } from '../../adapters/sse/useStream'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockEvent } from '../../test/handlers'
+import { noSession, mockEvent, mockCheckpoint } from '../../test/handlers'
 import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
@@ -785,6 +785,74 @@ describe('AdminTab — Checkpoint Management', () => {
     await waitFor(() =>
       expect(screen.queryByRole('alert', { name: /error/i })).not.toBeInTheDocument(),
     )
+  })
+})
+
+describe('AdminTab — Bulk Checkpoint Import', () => {
+  it('imports checkpoints from pasted TSV including column name', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/checkpoints', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockCheckpoint)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('bulk-cp-section'))
+    const bulkCp = screen.getByTestId('bulk-cp-section')
+    await user.click(within(bulkCp).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getAllByRole('option').length > 0)
+    await user.click(screen.getAllByRole('option')[0])
+
+    const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5\tAS #1')
+
+    await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      code: 'AS1',
+      display_name: 'Aid Station 1',
+      distance_from_start: 10.5,
+      column_name: 'AS #1',
+    })
+  })
+
+  it('imports checkpoints from pasted TSV without a column name', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/checkpoints', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockCheckpoint)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('bulk-cp-section'))
+    const bulkCp = screen.getByTestId('bulk-cp-section')
+    await user.click(within(bulkCp).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getAllByRole('option').length > 0)
+    await user.click(screen.getAllByRole('option')[0])
+
+    const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5')
+
+    await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      code: 'AS1',
+      display_name: 'Aid Station 1',
+      distance_from_start: 10.5,
+      column_name: null,
+    })
   })
 })
 
