@@ -34,6 +34,7 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Code              string   `json:"code"`
 		DisplayName       string   `json:"display_name"`
+		ColumnName        *string  `json:"column_name"`
 		DisplayOrder      int      `json:"display_order"`
 		DistanceFromStart *float64 `json:"distance_from_start"`
 	}
@@ -46,6 +47,7 @@ func (h *Handler) createCheckpoint(w http.ResponseWriter, r *http.Request) {
 		RaceID:            raceID,
 		Code:              body.Code,
 		DisplayName:       body.DisplayName,
+		ColumnName:        body.ColumnName,
 		DisplayOrder:      body.DisplayOrder,
 		DistanceFromStart: body.DistanceFromStart,
 	})
@@ -66,6 +68,7 @@ func (h *Handler) updateCheckpoint(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Code              string   `json:"code"`
 		DisplayName       string   `json:"display_name"`
+		ColumnName        *string  `json:"column_name"`
 		DistanceFromStart *float64 `json:"distance_from_start"`
 	}
 	if err := decode(r, &body); err != nil || body.Code == "" || body.DisplayName == "" {
@@ -73,7 +76,7 @@ func (h *Handler) updateCheckpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cp, err := h.checkpoints.Update(r.Context(), id, body.Code, body.DisplayName, body.DistanceFromStart)
+	cp, err := h.checkpoints.Update(r.Context(), id, body.Code, body.DisplayName, body.ColumnName, body.DistanceFromStart)
 	if err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return

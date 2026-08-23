@@ -498,6 +498,21 @@ describe('AdminTab — Checkpoint Management', () => {
     await waitFor(() => expect(screen.getByLabelText(/^code$/i)).toHaveValue(''))
   })
 
+  it('creates a new checkpoint with a column name', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByLabelText(/^code$/i))
+    await user.type(screen.getByLabelText(/^code$/i), 'FIN')
+    await user.type(screen.getByLabelText(/display name/i), 'Finish Line')
+    await user.type(screen.getByLabelText(/^column name$/i), 'AS #FIN')
+
+    await user.click(screen.getByRole('button', { name: /add checkpoint/i }))
+
+    await waitFor(() => expect(screen.getByLabelText(/^column name$/i)).toHaveValue(''))
+  })
+
   it('edits a checkpoint inline, types new values, and saves', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
@@ -521,6 +536,29 @@ describe('AdminTab — Checkpoint Management', () => {
     await user.click(screen.getByRole('button', { name: /^save$/i }))
 
     await waitFor(() => expect(screen.queryByDisplayValue('AS1X')).not.toBeInTheDocument())
+  })
+
+  it('edits a checkpoint column name inline and saves', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(
+      () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
+    )
+    await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+
+    await waitFor(() => screen.getByDisplayValue('AS1'))
+    const columnNameInput = screen
+      .getByDisplayValue('AS1')
+      .closest('tr')
+      ?.querySelectorAll('input')[2]
+    expect(columnNameInput).toBeDefined()
+    await user.type(columnNameInput as HTMLInputElement, 'AS #1')
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.queryByDisplayValue('AS1')).not.toBeInTheDocument())
   })
 
   it('cancels checkpoint edit', async () => {

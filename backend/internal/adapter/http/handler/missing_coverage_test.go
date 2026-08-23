@@ -48,6 +48,21 @@ func TestHandler_UpdateCheckpoint_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestHandler_UpdateCheckpoint_ColumnName(t *testing.T) {
+	cps := &mockCheckpointService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/checkpoints/1", map[string]string{
+		"code": "AS1", "display_name": "Aid 1", "column_name": "AS #1",
+	})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var got entity.Checkpoint
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.NotNil(t, got.ColumnName)
+	assert.Equal(t, "AS #1", *got.ColumnName)
+}
+
 func TestHandler_UpdateCheckpoint_ServiceError(t *testing.T) {
 	cps := &mockCheckpointService{err: domain.ErrNotFound}
 	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
