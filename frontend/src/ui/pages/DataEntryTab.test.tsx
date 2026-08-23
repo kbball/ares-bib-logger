@@ -3,7 +3,7 @@ import { render, screen, waitFor, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockRunner, mockRunner2 } from '../../test/handlers'
+import { noSession, mockRunner, mockRunner2, mockRace } from '../../test/handlers'
 import DataEntryTab from './DataEntryTab'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -24,6 +24,41 @@ describe('DataEntryTab', () => {
     render(<DataEntryTab />)
     await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
     expect(screen.getByText(/runners:/i)).toBeInTheDocument()
+  })
+
+  it('does not show an Overall card for a single-race event', async () => {
+    render(<DataEntryTab />)
+    await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
+    expect(screen.queryByTestId('overall-stats-card')).not.toBeInTheDocument()
+  })
+
+  it('shows an Overall card summing stats across all races in a multi-race event', async () => {
+    const race2 = { ...mockRace, ID: 2, Name: 'GDR2' }
+    server.use(
+      http.get('/api/events/:eventID/races', () => HttpResponse.json([mockRace, race2])),
+      http.get('/api/races/:raceID/runners', ({ params }) => {
+        if (params.raceID === '2') {
+          return HttpResponse.json([
+            { ...mockRunner, ID: 10, RaceID: 2, BibNumber: 300, Status: 'DNS' },
+            { ...mockRunner2, ID: 11, RaceID: 2, BibNumber: 301, Status: 'FINISHED' },
+          ])
+        }
+        return HttpResponse.json([mockRunner, mockRunner2])
+      }),
+    )
+
+    render(<DataEntryTab />)
+    await waitFor(() =>
+      expect(within(screen.getByTestId('overall-stats-card')).getByText(/starters: 4/i)),
+    )
+
+    const card = screen.getByTestId('overall-stats-card')
+    // mockRunner: ACTIVE, mockRunner2: UNKNOWN (race 1) + DNS, FINISHED (race 2) = 4 starters
+    expect(within(card).getByText(/starters: 4/i)).toBeInTheDocument()
+    expect(within(card).getByText(/on course: 2/i)).toBeInTheDocument()
+    expect(within(card).getByText(/dns: 1/i)).toBeInTheDocument()
+    expect(within(card).getByText(/dnf: 0/i)).toBeInTheDocument()
+    expect(within(card).getByText(/finishers: 1/i)).toBeInTheDocument()
   })
 
   it('shows the Log Bib form', async () => {
