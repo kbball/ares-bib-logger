@@ -244,6 +244,7 @@ Three sections:
 
 **Tab 1: Data Entry**
 - Key race stats per race: total starters, on-course, DNS, DNF, finishers
+- Overall stats card: same fields as the per-race cards, summed across all races in the active event (GA Jewel's 4 races combined; GDR shows as a single card already so this is a no-op there). Projected next arrival is per-checkpoint/per-race, so the overall card omits it or notes it's not meaningful in aggregate — a per-implementation detail to resolve, not a plan-level decision
 - Manual bib entry form (source = MANUAL)
 - DNS / DNF entry (bib + optional note)
 - Recent activity log: last N bibs logged at this station (most recent first)
@@ -256,6 +257,7 @@ Three sections:
 - Large text area: paste received Winlink column
 - Submit: parses by row position → sort_order; stores CheckpointLog records
 - Import summary: Created / Updated / Skipped counts; table of skipped details with position, bib, and reason (blank line, no runner at position, duplicate, parse error)
+- Pre-write preview/confirm step: submit first calls `POST /api/winlink/import/preview` (dry-run, no writes) via `WinlinkService.Preview`; a 100% clean parse (zero skips) imports immediately as before, otherwise a confirm modal shows the full per-row breakdown (position, bib, Create/Update/Skip, value or skip reason) before the operator commits or cancels
 
 **Tab 3: Winlink Export**
 - Race selector (for GA Jewel; GDR auto-selects)
@@ -313,7 +315,39 @@ Three sections:
 - **CI/CD**: GitHub Actions lint+test on PR, build+push to GHCR on merge; docker-compose.operator.yml for operators; pre-commit hooks (fmt + lint); README split into Operator/Developer tracks
 - **Bug fixes**: Winlink blank-line positional shift (single-digit-hour time parsing); Docker timezone (TIMEZONE env var, WinlinkService); SSE flusher/write-deadline; Data Entry SSE closure stale state; null Checkpoints crash on Winlink tabs; MUI out-of-range Select warnings (session load race); HTML nesting (Typography/Chip); GHA test timing races
 
+**v1.1 — 2026-08-23**
+
+- Runners tab: multi-select status filter (chips), combining with search and race tabs
+- Winlink import preview/confirm step: `WinlinkService.Preview` (read-only, shares row classification with `Import` via new `parseImportRows`), `POST /api/winlink/import/preview`, frontend auto-imports on a clean parse and otherwise shows a confirm modal with the full per-row breakdown before committing
+
 ## Backlog
+
+### Add single runner to roster (late race addition)
+- Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
+- Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
+- Not yet implemented — captured here for future work
+
+### Overall stats card on Data Entry tab
+- Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
+- Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
+- Not yet implemented — captured here for future work
+
+### Winlink export: blank row between header and first data row
+- `WinlinkService.Export` (`backend/internal/application/service/winlink.go`) currently writes the checkpoint header line immediately followed by the first runner's data line
+- The reference spreadsheet format has a blank row between the header and the first data row — add one so the export matches exactly what operators paste into the spreadsheet / expect on the receiving end
+- Not yet implemented — captured here for future work
+
+### "Column Name" field on aid station / checkpoint definition
+- Add a `ColumnName` field to `Checkpoint` (`backend/internal/domain/entity/checkpoint.go`), set in the Admin panel's checkpoint definition UI, distinct from the existing `DisplayName`
+- `WinlinkService.Export` should use `ColumnName` (falling back to `DisplayName` if unset) as the header line, so the exported column header matches the exact header text used in the spreadsheet/Winlink convention rather than the app's internal display name
+- Needs a migration to add the column, plus admin form + API plumbing
+- Not yet implemented — captured here for future work
+
+### Bonus: validate Winlink import header against race/checkpoint selection
+- When pasting a Winlink column to import, the first line is typically a header identifying the source aid station/checkpoint (see header-detection logic already in `parseImportRows`/`looksLikeTimeOrStatus`)
+- Depends on the "Column Name" field above: once checkpoints have a known header string, the import flow can compare the pasted header line against the selected race/checkpoint's expected `ColumnName` and warn the operator if they don't match (e.g. wrong checkpoint selected in the dropdown, or pasted the wrong station's column) — catches a class of operator error before any rows are processed
+- Natural to surface as part of the [Winlink import preview/confirm step](#winlink-import-previewconfirm-step-before-save) UI once both exist
+- Not yet implemented — captured here for future work
 
 ### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
 - [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging

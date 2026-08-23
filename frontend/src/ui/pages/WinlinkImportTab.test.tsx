@@ -172,4 +172,112 @@ describe('WinlinkImportTab', () => {
     await waitFor(() => expect(screen.getByText(/skipped details/i)).toBeInTheDocument())
     expect(screen.getByText(/blank line/i)).toBeInTheDocument()
   })
+
+  it('opens a confirm modal instead of importing when preview has skips', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/winlink/import/preview', () =>
+        HttpResponse.json({
+          Created: 1,
+          Updated: 0,
+          Skipped: 1,
+          Rows: [
+            { Position: 1, BibNumber: 100, Kind: 'create', Value: '10:00', Reason: '' },
+            { Position: 2, BibNumber: 0, Kind: 'skip', Value: '', Reason: 'blank' },
+          ],
+        }),
+      ),
+    )
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
+    await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
+
+    await user.type(screen.getByLabelText(/paste winlink column/i), '10:00\n\n')
+    await user.click(screen.getByRole('button', { name: /import/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    expect(screen.getByText(/confirm winlink import/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 of 2 rows will be skipped/i)).toBeInTheDocument()
+    // No import summary yet — nothing was committed.
+    expect(screen.queryByText(/import summary/i)).not.toBeInTheDocument()
+  })
+
+  it('Cancel closes the confirm modal without importing', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/winlink/import/preview', () =>
+        HttpResponse.json({
+          Created: 0,
+          Updated: 0,
+          Skipped: 1,
+          Rows: [{ Position: 1, BibNumber: 0, Kind: 'skip', Value: '', Reason: 'blank' }],
+        }),
+      ),
+    )
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
+    await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
+
+    await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')
+    await user.click(screen.getByRole('button', { name: /import/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByText(/import summary/i)).not.toBeInTheDocument()
+  })
+
+  it('Confirm & Import commits and shows the summary', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/winlink/import/preview', () =>
+        HttpResponse.json({
+          Created: 0,
+          Updated: 0,
+          Skipped: 1,
+          Rows: [{ Position: 1, BibNumber: 0, Kind: 'skip', Value: '', Reason: 'blank' }],
+        }),
+      ),
+      http.post('/api/winlink/import', () =>
+        HttpResponse.json({ Created: 0, Updated: 0, Skipped: 1, SkippedDetails: [], Errors: [] }),
+      ),
+    )
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
+    await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
+
+    await user.type(screen.getByLabelText(/paste winlink column/i), '10:00')
+    await user.click(screen.getByRole('button', { name: /import/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /confirm & import/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText(/import summary/i)).toBeInTheDocument()
+  })
 })

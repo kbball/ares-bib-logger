@@ -124,6 +124,7 @@ func (m *mockSessionService) ClearCheckpoint(_ context.Context, raceID int) erro
 type mockWinlinkService struct {
 	exportText string
 	importRes  portsvc.WinlinkImportResult
+	previewRes portsvc.WinlinkPreviewResult
 	err        error
 }
 
@@ -132,6 +133,9 @@ func (m *mockWinlinkService) Export(_ context.Context, raceID int) (string, erro
 }
 func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
 	return m.importRes, m.err
+}
+func (m *mockWinlinkService) Preview(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
+	return m.previewRes, m.err
 }
 
 type mockEventExportService struct {

@@ -79,6 +79,21 @@ export interface WinlinkImportResult {
   Errors: string[]
 }
 
+export interface WinlinkRowOutcome {
+  Position: number
+  BibNumber: number
+  Kind: 'create' | 'update' | 'skip'
+  Value: string
+  Reason: string // set only when Kind === 'skip': "blank" | "no_runner" | "parse_error" | "moved"
+}
+
+export interface WinlinkPreviewResult {
+  Created: number
+  Updated: number
+  Skipped: number
+  Rows: WinlinkRowOutcome[]
+}
+
 // SSE event envelope
 export interface SSEEvent<T = unknown> {
   type: 'connected' | 'bib_logged' | 'session_changed'
