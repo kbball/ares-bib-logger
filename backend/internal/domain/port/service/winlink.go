@@ -31,6 +31,14 @@ type WinlinkPreviewResult struct {
 	Updated int
 	Skipped int
 	Rows    []WinlinkRowOutcome
+	// HeaderMismatch is true when the pasted text's header line doesn't match
+	// the selected checkpoint's expected header (ColumnName, falling back to
+	// DisplayName) — a signal the operator may have selected the wrong
+	// race/checkpoint or pasted the wrong station's column. False (with both
+	// header fields empty) when no header line was detected in the paste.
+	HeaderMismatch bool
+	PastedHeader   string
+	ExpectedHeader string
 }
 
 type WinlinkService interface {

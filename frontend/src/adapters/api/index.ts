@@ -79,6 +79,19 @@ export const logBib = (bibNumber: number) =>
   post<LogBibResult>('/api/log/bib', { bib_number: bibNumber })
 export const logStatus = (bibNumber: number, status: RunnerStatus) =>
   post<void>('/api/log/status', { bib_number: bibNumber, status })
+export const correctLog = (raceID: number, checkpointID: number, bibNumber: number, time: string) =>
+  post<CheckpointLog>('/api/log/correction', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    bib_number: bibNumber,
+    time,
+  })
+export const deleteLog = (raceID: number, checkpointID: number, bibNumber: number) =>
+  del<void>('/api/log/correction', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    bib_number: bibNumber,
+  })
 
 // Session
 export const getSession = () => get<ActiveSession>('/api/session')

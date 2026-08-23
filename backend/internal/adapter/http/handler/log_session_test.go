@@ -52,6 +52,18 @@ func postJSON(t *testing.T, h *handler.Handler, path string, body any) *httptest
 	return w
 }
 
+func deleteJSON(t *testing.T, h *handler.Handler, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodDelete, path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+	return w
+}
+
 func getReq(t *testing.T, h *handler.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)

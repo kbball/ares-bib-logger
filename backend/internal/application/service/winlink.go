@@ -352,6 +352,11 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 // anything to the database, so an operator can review what would happen
 // before committing.
 func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
+	cp, err := s.checkpoints.Get(ctx, checkpointID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, fmt.Errorf("getting checkpoint: %w", err)
+	}
+
 	runners, err := s.runners.List(ctx, raceID)
 	if err != nil {
 		return portsvc.WinlinkPreviewResult{}, fmt.Errorf("listing runners: %w", err)
@@ -419,7 +424,41 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 		}
 	}
 
+	if pastedHeader, ok := pastedHeaderLine(text); ok {
+		expected := checkpointHeader(cp)
+		result.PastedHeader = pastedHeader
+		result.ExpectedHeader = expected
+		if expected != "" && !strings.EqualFold(strings.TrimSpace(pastedHeader), expected) {
+			result.HeaderMismatch = true
+		}
+	}
+
 	return result, nil
+}
+
+// checkpointHeader returns the header text a Winlink paste for this checkpoint
+// is expected to start with: ColumnName when set and non-blank, else DisplayName.
+func checkpointHeader(cp entity.Checkpoint) string {
+	if cp.ColumnName != nil && strings.TrimSpace(*cp.ColumnName) != "" {
+		return strings.TrimSpace(*cp.ColumnName)
+	}
+	return strings.TrimSpace(cp.DisplayName)
+}
+
+// pastedHeaderLine returns the first line of the pasted text and true if it
+// looks like a header (not a time/status/blank data row) — mirrors the
+// header-detection parseImportRows already performs so the two never disagree
+// about whether a header is present.
+func pastedHeaderLine(text string) (string, bool) {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) == 0 {
+		return "", false
+	}
+	first := strings.TrimSpace(lines[0])
+	if looksLikeTimeOrStatus(first) {
+		return "", false
+	}
+	return first, true
 }
 
 // looksLikeTimeOrStatus returns true if the line appears to be a data row:
@@ -444,8 +483,16 @@ func looksLikeTimeOrStatus(s string) bool {
 // parseTimeOfDay parses HH:MM:SS or HH:MM as a wall-clock time on today's date
 // in the service's configured timezone.
 func (s *WinlinkService) parseTimeOfDay(str string) (time.Time, error) {
+	return parseWallClockTime(s.loc, str)
+}
+
+// parseWallClockTime parses HH:MM:SS or HH:MM as a wall-clock time on today's
+// date in the given timezone. Shared by WinlinkService (import) and
+// CheckpointLogService (manual corrections) so both interpret pasted/typed
+// times the same way.
+func parseWallClockTime(loc *time.Location, str string) (time.Time, error) {
 	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
+	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		t, err := time.Parse(layout, str)

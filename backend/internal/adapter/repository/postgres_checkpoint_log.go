@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 	portrepo "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/repository"
 )
@@ -59,6 +60,23 @@ func (r *CheckpointLogRepo) Upsert(ctx context.Context, log entity.CheckpointLog
 	}
 	l.RawMessage = rawMsg.String
 	return l, wasCreated, nil
+}
+
+func (r *CheckpointLogRepo) Delete(ctx context.Context, runnerID, checkpointID int) error {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM checkpoint_logs WHERE runner_id = $1 AND checkpoint_id = $2`,
+		runnerID, checkpointID)
+	if err != nil {
+		return fmt.Errorf("deleting checkpoint log: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking delete result: %w", err)
+	}
+	if n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 func (r *CheckpointLogRepo) ExistsByRunnerAndCheckpoint(ctx context.Context, runnerID, checkpointID int) (bool, error) {

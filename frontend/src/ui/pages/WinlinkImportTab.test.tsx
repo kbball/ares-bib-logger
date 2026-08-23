@@ -210,6 +210,43 @@ describe('WinlinkImportTab', () => {
     expect(screen.queryByText(/import summary/i)).not.toBeInTheDocument()
   })
 
+  it('opens a confirm modal with a header-mismatch warning even when nothing would be skipped', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/winlink/import/preview', () =>
+        HttpResponse.json({
+          Created: 1,
+          Updated: 0,
+          Skipped: 0,
+          Rows: [{ Position: 1, BibNumber: 100, Kind: 'create', Value: '10:00', Reason: '' }],
+          HeaderMismatch: true,
+          PastedHeader: 'AS #4',
+          ExpectedHeader: 'AS #2',
+        }),
+      ),
+    )
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await waitFor(() => screen.getByRole('combobox', { name: /checkpoint/i }))
+    await user.click(screen.getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 2/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 2/i }))
+
+    await user.type(screen.getByLabelText(/paste winlink column/i), 'AS #4\n10:00')
+    await user.click(screen.getByRole('button', { name: /import/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    expect(screen.getByRole('alert')).toHaveTextContent(/doesn.t match the expected header/i)
+    expect(screen.getByRole('alert')).toHaveTextContent('AS #4')
+    expect(screen.getByRole('alert')).toHaveTextContent('AS #2')
+    expect(screen.queryByText(/import summary/i)).not.toBeInTheDocument()
+  })
+
   it('Cancel closes the confirm modal without importing', async () => {
     const user = userEvent.setup()
     server.use(

@@ -13,6 +13,9 @@ type CheckpointLogRepository interface {
 	// newly inserted, false when an existing row was updated.
 	Upsert(ctx context.Context, log entity.CheckpointLog) (entity.CheckpointLog, bool, error)
 	ExistsByRunnerAndCheckpoint(ctx context.Context, runnerID, checkpointID int) (bool, error)
+	// Delete removes the checkpoint log for the given (runner_id, checkpoint_id)
+	// pair, if one exists. Returns domain.ErrNotFound if none exists.
+	Delete(ctx context.Context, runnerID, checkpointID int) error
 	ListByRaceAndCheckpoint(ctx context.Context, raceID, checkpointID int) ([]entity.CheckpointLog, error)
 	ListByRace(ctx context.Context, raceID int) ([]entity.CheckpointLog, error)
 }

@@ -107,7 +107,7 @@ export default function WinlinkImportTab() {
     if (!raceID || !checkpointID || !text.trim()) return
     try {
       const preview = await api.previewWinlink(Number(raceID), Number(checkpointID), text)
-      if (preview.Skipped === 0) {
+      if (preview.Skipped === 0 && !preview.HeaderMismatch) {
         await doImport()
       } else {
         setPendingPreview(preview)
@@ -275,6 +275,13 @@ export default function WinlinkImportTab() {
       >
         <DialogTitle>Confirm Winlink Import</DialogTitle>
         <DialogContent>
+          {pendingPreview?.HeaderMismatch && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Pasted header &quot;{pendingPreview.PastedHeader}&quot; doesn&apos;t match the
+              expected header &quot;{pendingPreview.ExpectedHeader}&quot; for this checkpoint.
+              Double-check the race/checkpoint selection before importing.
+            </Alert>
+          )}
           <DialogContentText sx={{ mb: 2 }}>
             {pendingPreview?.Skipped} of {pendingPreview?.Rows.length} rows will be skipped. Review
             the full breakdown below before importing.

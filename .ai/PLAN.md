@@ -326,36 +326,24 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Admin panel restructured into two collapsed-by-default accordions ("Setup", "Edit Runners")
 - Dark/light mode now persists across refreshes (`localStorage`, fails open if storage is unavailable); added a `window.localStorage` stub to the frontend test setup since this project's jsdom test environment doesn't implement it
 - "Column Name" field on checkpoints: migration 000006 adds `checkpoints.column_name` (nullable); `Checkpoint.ColumnName *string` threaded through repo/service/handler `Create`/`Update` and the event export/import DTO; `WinlinkService.Export` uses it for the header line, falling back to `DisplayName` when unset or blank; Admin panel checkpoint create/edit forms gained a "Column Name" input (table column + inline edit)
+- Winlink import header validation: `WinlinkService.Preview` now also fetches the target checkpoint and compares the pasted text's header line (when present) against the checkpoint's expected header (`ColumnName`, falling back to `DisplayName`) via new `checkpointHeader`/`pastedHeaderLine` helpers; `WinlinkPreviewResult` gained `HeaderMismatch`/`PastedHeader`/`ExpectedHeader`; frontend now shows the confirm modal (with a warning `Alert`) whenever there's a header mismatch, even on an otherwise-clean parse that would normally auto-import
+- Correct a mis-logged bib (Admin → Edit Runners): migration 000007 adds `CORRECTION` to the `log_source` enum; `CheckpointLogRepository.Delete(runnerID, checkpointID)` (new); `CheckpointLogService.CorrectLog` (parses `HH:MM`/`HH:MM:SS` via shared `parseWallClockTime`, upserts with `Source: CORRECTION`, wakes `UNKNOWN` runners to `ACTIVE`) and `.DeleteLog` (looks up the runner by bib within the race, deletes the log); new `POST /api/log/correction` and `DELETE /api/log/correction` endpoints (JSON body: `race_id`, `checkpoint_id`, `bib_number`, and `time` for the POST); `CheckpointLogService` now takes a `*time.Location` constructor param (same timezone source as `WinlinkService`); Admin panel "Edit Runners" accordion gained "Manually Log a Bib" and "Remove a Checkpoint Log" (with delete confirmation dialog) sections; `del()` API client helper gained an optional JSON body for the DELETE-with-body call
 
 ## Backlog
 
 Ordered by priority (2026-08-23):
 
-### 1. Bonus: validate Winlink import header against race/checkpoint selection
-- When pasting a Winlink column to import, the first line is typically a header identifying the source aid station/checkpoint (see header-detection logic already in `parseImportRows`/`looksLikeTimeOrStatus`)
-- Depends on the "Column Name" field above: once checkpoints have a known header string, the import flow can compare the pasted header line against the selected race/checkpoint's expected `ColumnName` and warn the operator if they don't match (e.g. wrong checkpoint selected in the dropdown, or pasted the wrong station's column) — catches a class of operator error before any rows are processed
-- Natural to surface as part of the Winlink import preview/confirm modal (Tab 2, above), which already exists
-- Not yet implemented — captured here for future work
-
-### 2. Correct a mis-logged bib (Admin → Edit Runners)
-- Scenario: a logger fat-fingers a bib — e.g. bib 11 gets logged as 111 — and the mistake needs correcting after the fact, likely at a different checkpoint than the one currently active at this station
-- Two controls, both under the "Edit Runners" accordion (`AdminTab.tsx`) alongside the existing Change Runner Status section:
-  1. **Remove a checkpoint log**: pick race + checkpoint + bib, delete that runner's `CheckpointLog` for that checkpoint. Requires a new `CheckpointLogRepository.Delete`/service method + `DELETE` endpoint — no delete-by-log capability exists today (only `Upsert`/`Create`/`ExistsByRunnerAndCheckpoint`/list methods).
-  2. **Manually log a bib with an explicit time**: pick race + checkpoint + bib + a time (24-hour `HH:MM` input), create/overwrite that runner's `CheckpointLog` at the chosen time. `LogBib`/`CheckpointLogService.LogBib` (`backend/internal/application/service/checkpoint_log.go`) always stamps `RecordedAt: time.Now()` today — this needs a variant (or an optional time param) that accepts an explicit timestamp, parsed the same way `parseTimeOfDay` does for Winlink import (today's date + the given wall-clock time, in the configured timezone)
-- Source for the manual entry should probably be `MANUAL` (or a new `CORRECTION` source) so it's distinguishable in the audit trail (`RawMessage`) from a genuine mesh-logged bib
-- Not yet implemented — captured here for future work
-
-### 3. Add single runner to roster (late race addition)
+### 1. Add single runner to roster (late race addition)
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
 - Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
 - Not yet implemented — captured here for future work
 
-### 4. Overall stats card on Data Entry tab
+### 2. Overall stats card on Data Entry tab
 - Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
 - Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
 - Not yet implemented — captured here for future work
 
-### 5. Split pace between aid stations on runner detail modal
+### 3. Split pace between aid stations on runner detail modal
 - The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only
 - Add a "Split pace" column: pace between each pair of consecutive logged checkpoints that both have a known `DistanceFromStart`, mirroring the distance/time-delta math already in `computeRunnerPace`/`formatPace` (`frontend/src/domain/pace.ts`) but computed for every consecutive pair in the table (a full splits view), not just the last two checkpoints used for the live "Pace" stat elsewhere
 - Blank/— for the first logged checkpoint (no prior split) and for any pair where either checkpoint lacks a distance
@@ -406,3 +394,7 @@ Ordered by priority (2026-08-23):
 | 2026-08-23 | Blank line only consumed when actually present, even if the event flag is on | A mismatched setting (flag enabled, but this particular paste has no blank line) must never eat a real data row — `parseImportRows` checks the line content, not just the flag, before advancing past it |
 | 2026-08-23 | Color mode persistence fails open (try/catch + fallback to light) instead of assuming `localStorage` exists | Private browsing and disabled storage can make `localStorage` unavailable or throw; the app must still boot and toggle themes in that case, just without persistence |
 | 2026-08-23 | `Checkpoint.ColumnName` is a nullable `*string`, falls back to `DisplayName` in `WinlinkService.Export` | Most stations' internal display name already matches their spreadsheet header — only override it when the two diverge; blank/unset never breaks export |
+| 2026-08-23 | Winlink import header validation only warns (never blocks) and is skipped entirely when no header line is present | A wrong-checkpoint paste is an operator error worth flagging, but the operator may have a legitimate reason to proceed (e.g. a renamed checkpoint); the existing preview/confirm modal is the natural place to surface it rather than a hard stop |
+| 2026-08-23 | Manual bib correction uses a new `CORRECTION` log source rather than reusing `MANUAL` | Keeps a post-hoc fix distinguishable in the audit trail from a genuine at-the-time manual entry, without overloading `RawMessage` to carry that distinction |
+| 2026-08-23 | `CorrectLog`/`DeleteLog` find the runner by listing the race's roster and matching bib number, instead of adding a new `RunnerRepository.GetByBibInRace` method | The operator already picks an explicit race in the UI (unlike mesh logging, which only has an event-wide active session), and races are small enough that an in-memory scan mirrors the pattern `WinlinkService` already uses for its `byOrder` map — no new repo method needed |
+| 2026-08-23 | `parseTimeOfDay` promoted to a package-level `parseWallClockTime(loc, str)` function shared by `WinlinkService` and `CheckpointLogService` | Both need identical wall-clock-on-today's-date parsing in the configured timezone; a shared free function avoids duplicating the logic while keeping each service's public API unchanged |
