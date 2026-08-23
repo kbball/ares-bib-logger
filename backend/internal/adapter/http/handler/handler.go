@@ -85,6 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Winlink
 	mux.HandleFunc("GET /api/winlink/export/{raceID}", h.exportWinlink)
 	mux.HandleFunc("POST /api/winlink/import", h.importWinlink)
+	mux.HandleFunc("POST /api/winlink/import/preview", h.previewWinlink)
 
 	// Event config export / import
 	mux.HandleFunc("POST /api/events/import", h.importEventConfig)

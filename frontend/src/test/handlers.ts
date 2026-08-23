@@ -132,4 +132,7 @@ export const handlers = [
   http.post('/api/winlink/import', () =>
     HttpResponse.json({ Created: 1, Updated: 0, Skipped: 0, SkippedDetails: [], Errors: [] }),
   ),
+  http.post('/api/winlink/import/preview', () =>
+    HttpResponse.json({ Created: 1, Updated: 0, Skipped: 0, Rows: [] }),
+  ),
 ]
