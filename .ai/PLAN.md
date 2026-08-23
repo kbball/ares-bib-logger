@@ -328,6 +328,20 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 
 ## Backlog
 
+### Correct a mis-logged bib (Admin → Edit Runners)
+- Scenario: a logger fat-fingers a bib — e.g. bib 11 gets logged as 111 — and the mistake needs correcting after the fact, likely at a different checkpoint than the one currently active at this station
+- Two controls, both under the "Edit Runners" accordion (`AdminTab.tsx`) alongside the existing Change Runner Status section:
+  1. **Remove a checkpoint log**: pick race + checkpoint + bib, delete that runner's `CheckpointLog` for that checkpoint. Requires a new `CheckpointLogRepository.Delete`/service method + `DELETE` endpoint — no delete-by-log capability exists today (only `Upsert`/`Create`/`ExistsByRunnerAndCheckpoint`/list methods).
+  2. **Manually log a bib with an explicit time**: pick race + checkpoint + bib + a time (24-hour `HH:MM` input), create/overwrite that runner's `CheckpointLog` at the chosen time. `LogBib`/`CheckpointLogService.LogBib` (`backend/internal/application/service/checkpoint_log.go`) always stamps `RecordedAt: time.Now()` today — this needs a variant (or an optional time param) that accepts an explicit timestamp, parsed the same way `parseTimeOfDay` does for Winlink import (today's date + the given wall-clock time, in the configured timezone)
+- Source for the manual entry should probably be `MANUAL` (or a new `CORRECTION` source) so it's distinguishable in the audit trail (`RawMessage`) from a genuine mesh-logged bib
+- Not yet implemented — captured here for future work
+
+### Split pace between aid stations on runner detail modal
+- The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only
+- Add a "Split pace" column: pace between each pair of consecutive logged checkpoints that both have a known `DistanceFromStart`, mirroring the distance/time-delta math already in `computeRunnerPace`/`formatPace` (`frontend/src/domain/pace.ts`) but computed for every consecutive pair in the table (a full splits view), not just the last two checkpoints used for the live "Pace" stat elsewhere
+- Blank/— for the first logged checkpoint (no prior split) and for any pair where either checkpoint lacks a distance
+- Not yet implemented — captured here for future work
+
 ### Add single runner to roster (late race addition)
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
 - Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
