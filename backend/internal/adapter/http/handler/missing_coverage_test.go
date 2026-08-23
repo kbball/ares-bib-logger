@@ -98,6 +98,26 @@ func TestHandler_ArchiveEvent_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// --- updateEventWinlinkFormat ---
+
+func TestHandler_UpdateEventWinlinkFormat_BadID(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/abc/winlink-format", map[string]any{"blank_line_after_header": true})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkFormat_Success(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/1/winlink-format", map[string]any{"blank_line_after_header": true})
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkFormat_ServiceError(t *testing.T) {
+	events := &mockEventService{err: domain.ErrNotFound}
+	h := newHandler(events, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/events/1/winlink-format", map[string]any{"blank_line_after_header": true})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 // --- listCheckpointLogs ---
 
 func TestHandler_ListCheckpointLogs_BadRaceID(t *testing.T) {

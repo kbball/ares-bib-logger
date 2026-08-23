@@ -43,6 +43,16 @@ func (m *mockEventRepository) Archive(_ context.Context, id int) error {
 	return nil
 }
 
+func (m *mockEventRepository) SetWinlinkBlankLineAfterHeader(_ context.Context, id int, enabled bool) error {
+	for i, e := range m.events {
+		if e.ID == id {
+			m.events[i].WinlinkBlankLineAfterHeader = enabled
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
 // --- EventService tests ---
 
 func TestEventService_CreateAndList(t *testing.T) {

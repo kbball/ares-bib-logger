@@ -25,6 +25,8 @@ import {
   DialogContentText,
   DialogActions,
   Tooltip,
+  Switch,
+  FormControlLabel,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import ArchiveIcon from '@mui/icons-material/Archive'
@@ -358,6 +360,33 @@ export default function AdminTab() {
           </Tooltip>
         )}
       </Stack>
+
+      {session?.EventID &&
+        (() => {
+          const activeEvent = events.find((e) => e.ID === session.EventID)
+          if (!activeEvent) return null
+          return (
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              <Tooltip title="Some stations' Winlink exports have a blank row between the header and the first runner's data row. Enable this to match that convention on both export and import for this event.">
+                <FormControlLabel
+                  control={
+                    <Switch
+                      size="small"
+                      checked={activeEvent.WinlinkBlankLineAfterHeader}
+                      onChange={(e) =>
+                        wrap(
+                          () => api.setEventWinlinkFormat(activeEvent.ID, e.target.checked),
+                          loadEvents,
+                        )
+                      }
+                    />
+                  }
+                  label="Blank line between header and first row (Winlink)"
+                />
+              </Tooltip>
+            </Stack>
+          )
+        })()}
 
       <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
         <TextField

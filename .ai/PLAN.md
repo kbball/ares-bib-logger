@@ -228,6 +228,7 @@ Three sections:
 - For each race: set the active checkpoint ID for this station (dropdown of checkpoints for that race)
 - For 100M: checkpoint dropdown handles the Out/In switch — operator just picks the new checkpoint mid-race
 - Settings persist in ActiveSession (survive restarts) — safe to update mid-race
+- Per-event toggle: "blank line between header and first row (Winlink)" — some stations' Winlink convention has a blank row between the header and first data row, some don't; `Event.WinlinkBlankLineAfterHeader` controls this for both Export and Import/Preview for that event. Import only skips the blank line when a header was actually detected *and* the next line really is blank, so a mismatched toggle never eats a real data row.
 
 **Roster import**
 - Race dropdown + large text area for tab-separated paste
@@ -321,6 +322,7 @@ Three sections:
 - Runners tab: multi-select status filter (chips), combining with search and race tabs
 - Winlink import preview/confirm step: `WinlinkService.Preview` (read-only, shares row classification with `Import` via new `parseImportRows`), `POST /api/winlink/import/preview`, frontend auto-imports on a clean parse and otherwise shows a confirm modal with the full per-row breakdown before committing
 - Mesh `query <bib>` command: new `backend/internal/domain/pace` package (Go port of `frontend/src/domain/pace.ts`); `CheckpointLogService.QueryRunner` assembles a compact status/last-station/pace reply; both MQTT/Meshtastic and MeshCore adapters detect the command ahead of bib parsing and reply over the mesh via a shared `publishText` helper
+- Winlink blank-line-after-header, event-configurable: migration 000005 adds `Event.WinlinkBlankLineAfterHeader`; `WinlinkService` resolves it per-race via race→event lookup and both `Export` and `parseImportRows` (shared by `Import`/`Preview`) respect it; new `PUT /api/events/{id}/winlink-format` endpoint; Admin panel toggle on the active event
 
 ## Backlog
 
@@ -332,11 +334,6 @@ Three sections:
 ### Overall stats card on Data Entry tab
 - Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
 - Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
-- Not yet implemented — captured here for future work
-
-### Winlink export: blank row between header and first data row
-- `WinlinkService.Export` (`backend/internal/application/service/winlink.go`) currently writes the checkpoint header line immediately followed by the first runner's data line
-- The reference spreadsheet format has a blank row between the header and the first data row — add one so the export matches exactly what operators paste into the spreadsheet / expect on the receiving end
 - Not yet implemented — captured here for future work
 
 ### "Column Name" field on aid station / checkpoint definition
@@ -392,3 +389,5 @@ Three sections:
 | 2026-08-23 | Runners tab status filter is multi-select, client-side | Runner data is already fully loaded client-side for the tab; multi-select chips let an operator combine statuses (e.g. DNS + DNF) without new API params |
 | 2026-08-23 | `LastLoggedCheckpoint` reports a runner's last station regardless of status | `ComputeRunnerPace` intentionally returns empty for DNS/DNF/MOVED/FINISHED (pace isn't meaningful once stopped) — but a dropped runner's last known location is exactly what a search-and-rescue mesh query needs, so it must not be gated by the same status check |
 | 2026-08-23 | `query <bib>` checked before bib-list parsing, not after | Both mesh adapters previously treated every non-numeric token as noise to skip; without an explicit early check, `"query 101"` would silently log bib 101 as a real checkpoint hit instead of being recognized as a command |
+| 2026-08-23 | Winlink blank-line-after-header is a per-event setting, resolved via race→event | Not tied to any one race/checkpoint — it's a formatting convention for the whole event's Winlink traffic; `Import`/`Preview` look it up from `raceID` rather than `ActiveSession` so they stay self-contained (no new session dependency) |
+| 2026-08-23 | Blank line only consumed when actually present, even if the event flag is on | A mismatched setting (flag enabled, but this particular paste has no blank line) must never eat a real data row — `parseImportRows` checks the line content, not just the flag, before advancing past it |

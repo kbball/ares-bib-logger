@@ -18,6 +18,7 @@ type WinlinkService struct {
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
 	races          portrepo.RaceRepository
+	events         portrepo.EventRepository
 	loc            *time.Location
 }
 
@@ -27,6 +28,7 @@ func NewWinlinkService(
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
 	races portrepo.RaceRepository,
+	events portrepo.EventRepository,
 	loc *time.Location,
 ) *WinlinkService {
 	if loc == nil {
@@ -38,8 +40,23 @@ func NewWinlinkService(
 		checkpointLogs: checkpointLogs,
 		session:        session,
 		races:          races,
+		events:         events,
 		loc:            loc,
 	}
+}
+
+// blankLineAfterHeader resolves the Winlink blank-line-after-header setting
+// for the event that owns raceID.
+func (s *WinlinkService) blankLineAfterHeader(ctx context.Context, raceID int) (bool, error) {
+	race, err := s.races.Get(ctx, raceID)
+	if err != nil {
+		return false, fmt.Errorf("getting race: %w", err)
+	}
+	event, err := s.events.Get(ctx, race.EventID)
+	if err != nil {
+		return false, fmt.Errorf("getting event: %w", err)
+	}
+	return event.WinlinkBlankLineAfterHeader, nil
 }
 
 var _ portsvc.WinlinkService = (*WinlinkService)(nil)
@@ -110,9 +127,17 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 		}
 	}
 
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return "", err
+	}
+
 	var sb strings.Builder
 	sb.WriteString(cp.DisplayName)
 	sb.WriteByte('\n')
+	if blankLine {
+		sb.WriteByte('\n')
+	}
 
 	for _, r := range runners {
 		if log, seen := logByRunner[r.ID]; seen {
@@ -168,7 +193,7 @@ type parsedRow struct {
 // looking up the runner at that sort_order and inspecting the line's
 // content. It performs no I/O, so Import and Preview can share it and can
 // never disagree about what a row *is* — only about what to do with it.
-func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Runner) []parsedRow {
+func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Runner, blankLineAfterHeader bool) []parsedRow {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	if len(lines) == 0 {
 		return nil
@@ -178,6 +203,12 @@ func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Run
 	start := 0
 	if len(lines) > 0 && !looksLikeTimeOrStatus(lines[0]) {
 		start = 1
+		// If this event's convention includes a blank line after the header,
+		// consume it too — but only when it's actually there, so a mismatched
+		// setting never eats a real data row.
+		if blankLineAfterHeader && len(lines) > 1 && strings.TrimSpace(lines[1]) == "" {
+			start = 2
+		}
 	}
 	lines = lines[start:]
 
@@ -241,6 +272,11 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 		byOrder[r.SortOrder] = r
 	}
 
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkImportResult{}, err
+	}
+
 	var result portsvc.WinlinkImportResult
 
 	skip := func(pos, bib int, reason string) {
@@ -252,7 +288,7 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 		})
 	}
 
-	for _, row := range s.parseImportRows(text, byOrder) {
+	for _, row := range s.parseImportRows(text, byOrder, blankLine) {
 		switch row.kind {
 		case rowBlank:
 			skip(row.position, 0, "blank")
@@ -331,6 +367,11 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 		hasLog[l.RunnerID] = true
 	}
 
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, err
+	}
+
 	var result portsvc.WinlinkPreviewResult
 
 	addRow := func(row portsvc.WinlinkRowOutcome) {
@@ -345,7 +386,7 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 		result.Rows = append(result.Rows, row)
 	}
 
-	for _, row := range s.parseImportRows(text, byOrder) {
+	for _, row := range s.parseImportRows(text, byOrder, blankLine) {
 		switch row.kind {
 		case rowBlank:
 			addRow(portsvc.WinlinkRowOutcome{Position: row.position, Kind: "skip", Reason: "blank"})

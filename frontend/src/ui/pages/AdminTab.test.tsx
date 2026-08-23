@@ -20,6 +20,43 @@ describe('AdminTab — Active Event', () => {
     await waitFor(() => expect(screen.getByText(/event #1 active/i)).toBeInTheDocument())
   })
 
+  it('shows the Winlink blank-line toggle for the active event', async () => {
+    render(<AdminTab />)
+    await waitFor(() =>
+      expect(screen.getByLabelText(/blank line between header and first row/i)).toBeInTheDocument(),
+    )
+    expect(screen.getByLabelText(/blank line between header and first row/i)).not.toBeChecked()
+  })
+
+  it('reflects an enabled Winlink blank-line flag on the active event', async () => {
+    server.use(
+      http.get('/api/events', () =>
+        HttpResponse.json([{ ...mockEvent, WinlinkBlankLineAfterHeader: true }]),
+      ),
+    )
+    render(<AdminTab />)
+    await waitFor(() =>
+      expect(screen.getByLabelText(/blank line between header and first row/i)).toBeChecked(),
+    )
+  })
+
+  it('toggling the Winlink blank-line switch calls the API', async () => {
+    const user = userEvent.setup()
+    let calledWith: unknown = null
+    server.use(
+      http.put('/api/events/:id/winlink-format', async ({ request }) => {
+        calledWith = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    render(<AdminTab />)
+
+    await waitFor(() => screen.getByLabelText(/blank line between header and first row/i))
+    await user.click(screen.getByLabelText(/blank line between header and first row/i))
+
+    await waitFor(() => expect(calledWith).toEqual({ blank_line_after_header: true }))
+  })
+
   it('allows creating a new event', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)

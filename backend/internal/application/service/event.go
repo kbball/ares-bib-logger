@@ -33,3 +33,7 @@ func (s *EventService) Create(ctx context.Context, name string) (entity.Event, e
 func (s *EventService) Archive(ctx context.Context, id int) error {
 	return s.repo.Archive(ctx, id)
 }
+
+func (s *EventService) SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error {
+	return s.repo.SetWinlinkBlankLineAfterHeader(ctx, id, enabled)
+}

@@ -33,6 +33,9 @@ func (m *mockEventService) Create(_ context.Context, name string) (entity.Event,
 	return e, m.err
 }
 func (m *mockEventService) Archive(_ context.Context, id int) error { return m.err }
+func (m *mockEventService) SetWinlinkBlankLineAfterHeader(_ context.Context, id int, enabled bool) error {
+	return m.err
+}
 
 type mockRaceService struct {
 	races []entity.Race
