@@ -29,4 +29,11 @@ type CheckpointLogService interface {
 	// command. Returns a "not found" message rather than an error when the
 	// bib doesn't match any runner in the active event.
 	QueryRunner(ctx context.Context, bibNumber int) (string, error)
+	// CorrectLog creates or overwrites (by runner+checkpoint) a checkpoint log
+	// at an explicit wall-clock time ("HH:MM" or "HH:MM:SS", today's date in
+	// the service's configured timezone), with Source set to CORRECTION, for
+	// fixing a mis-logged bib after the fact.
+	CorrectLog(ctx context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error)
+	// DeleteLog removes a runner's checkpoint log for the given race+checkpoint+bib.
+	DeleteLog(ctx context.Context, raceID, checkpointID, bibNumber int) error
 }

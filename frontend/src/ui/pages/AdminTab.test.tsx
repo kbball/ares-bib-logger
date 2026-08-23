@@ -340,6 +340,178 @@ describe('AdminTab — Change Runner Status', () => {
   })
 })
 
+describe('AdminTab — Manually Log a Bib', () => {
+  it('renders the Manually Log a Bib section', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => expect(screen.getByText(/manually log a bib/i)).toBeInTheDocument())
+  })
+
+  it('Log button is disabled until all fields are filled', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+    expect(within(form).getByRole('button', { name: /^log$/i })).toBeDisabled()
+  })
+
+  it('logs a bib with an explicit time', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.type(within(form).getByLabelText(/^time$/i), '14:32')
+    await user.click(within(form).getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(screen.getByText(/logged bib 100 at 14:32/i)).toBeInTheDocument())
+  })
+
+  it('shows error when correctLog API fails', async () => {
+    server.use(
+      http.post('/api/log/correction', () =>
+        HttpResponse.json({ error: 'bib not found' }, { status: 404 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '999')
+    await user.type(within(form).getByLabelText(/^time$/i), '14:32')
+    await user.click(within(form).getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
+  })
+})
+
+describe('AdminTab — Remove a Checkpoint Log', () => {
+  it('renders the Remove a Checkpoint Log section', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => expect(screen.getByText(/remove a checkpoint log/i)).toBeInTheDocument())
+  })
+
+  it('Remove button is disabled until race, checkpoint, and bib are filled', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('remove-log-form'))
+    const form = screen.getByTestId('remove-log-form')
+    expect(within(form).getByRole('button', { name: /^remove$/i })).toBeDisabled()
+  })
+
+  it('opens a confirm dialog and removes the log', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('remove-log-form'))
+    const form = screen.getByTestId('remove-log-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    expect(screen.getByText(/remove checkpoint log/i)).toBeInTheDocument()
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => expect(screen.getByText(/removed log for bib 100/i)).toBeInTheDocument())
+  })
+
+  it('cancels the remove-log confirm dialog without deleting', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('remove-log-form'))
+    const form = screen.getByTestId('remove-log-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => screen.getByRole('dialog'))
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByText(/removed log for bib/i)).not.toBeInTheDocument()
+  })
+
+  it('shows error when deleteLog API fails', async () => {
+    server.use(
+      http.delete('/api/log/correction', () =>
+        HttpResponse.json({ error: 'no log found' }, { status: 404 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('remove-log-form'))
+    const form = screen.getByTestId('remove-log-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => screen.getByRole('dialog'))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^remove$/i }))
+
+    await waitFor(() => expect(screen.getByText(/no log found/i)).toBeInTheDocument())
+  })
+})
+
 describe('AdminTab — Delete Confirmations', () => {
   it('confirms race delete when Delete button clicked in dialog', async () => {
     const user = userEvent.setup()
