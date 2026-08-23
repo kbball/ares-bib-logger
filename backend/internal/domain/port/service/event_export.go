@@ -30,6 +30,7 @@ type CheckpointExport struct {
 	ColumnName        *string  `json:"column_name,omitempty"`
 	DisplayOrder      int      `json:"display_order"`
 	DistanceFromStart *float64 `json:"distance_from_start,omitempty"`
+	CutoffTime        *string  `json:"cutoff_time,omitempty"`
 }
 
 type RunnerExport struct {

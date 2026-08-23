@@ -15,21 +15,21 @@ import (
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 )
 
-var cpCols = []string{"id", "race_id", "code", "display_name", "column_name", "display_order", "distance_from_start", "created_at"}
+var cpCols = []string{"id", "race_id", "code", "display_name", "column_name", "display_order", "distance_from_start", "cutoff_time", "created_at"}
 
 func cpRow(id, raceID int, code, name string, order int, dist interface{}) *sqlmock.Rows {
-	return sqlmock.NewRows(cpCols).AddRow(id, raceID, code, name, nil, order, dist, time.Now())
+	return sqlmock.NewRows(cpCols).AddRow(id, raceID, code, name, nil, order, dist, nil, time.Now())
 }
 
 func TestCheckpointRepo_List_ReturnsRows(t *testing.T) {
 	db, mock := newMock(t)
 	dist := 5.5
 
-	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, created_at FROM checkpoints WHERE race_id = $1 ORDER BY display_order`)).
+	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, cutoff_time, created_at FROM checkpoints WHERE race_id = $1 ORDER BY display_order`)).
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows(cpCols).
-			AddRow(1, 1, "AS1", "Aid 1", nil, 1, nil, time.Now()).
-			AddRow(2, 1, "AS2", "Aid 2", nil, 2, &dist, time.Now()))
+			AddRow(1, 1, "AS1", "Aid 1", nil, 1, nil, nil, time.Now()).
+			AddRow(2, 1, "AS2", "Aid 2", nil, 2, &dist, nil, time.Now()))
 
 	cps, err := repository.NewCheckpointRepo(db).List(context.Background(), 1)
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestCheckpointRepo_List_ReturnsRows(t *testing.T) {
 func TestCheckpointRepo_List_QueryError(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, created_at FROM checkpoints WHERE race_id = $1 ORDER BY display_order`)).
+	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, cutoff_time, created_at FROM checkpoints WHERE race_id = $1 ORDER BY display_order`)).
 		WithArgs(1).
 		WillReturnError(errors.New("db error"))
 
@@ -54,7 +54,7 @@ func TestCheckpointRepo_List_QueryError(t *testing.T) {
 func TestCheckpointRepo_Get_Found(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, created_at FROM checkpoints WHERE id = $1`)).
+	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, cutoff_time, created_at FROM checkpoints WHERE id = $1`)).
 		WithArgs(10).
 		WillReturnRows(cpRow(10, 1, "AS1", "Aid 1", 1, nil))
 
@@ -68,7 +68,7 @@ func TestCheckpointRepo_Get_Found(t *testing.T) {
 func TestCheckpointRepo_Get_NotFound(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, created_at FROM checkpoints WHERE id = $1`)).
+	mock.ExpectQuery(qe(`SELECT id, race_id, code, display_name, column_name, display_order, distance_from_start, cutoff_time, created_at FROM checkpoints WHERE id = $1`)).
 		WithArgs(999).
 		WillReturnRows(sqlmock.NewRows(cpCols))
 
@@ -82,7 +82,7 @@ func TestCheckpointRepo_Create_Success(t *testing.T) {
 	dist := 10.0
 
 	mock.ExpectQuery("INSERT INTO checkpoints").
-		WithArgs(1, "AS3", "Aid 3", 3, &dist, nil).
+		WithArgs(1, "AS3", "Aid 3", 3, &dist, nil, nil).
 		WillReturnRows(cpRow(3, 1, "AS3", "Aid 3", 3, &dist))
 
 	cp, err := repository.NewCheckpointRepo(db).Create(context.Background(), entity.Checkpoint{
@@ -99,7 +99,7 @@ func TestCheckpointRepo_Create_NoDistance(t *testing.T) {
 	db, mock := newMock(t)
 
 	mock.ExpectQuery("INSERT INTO checkpoints").
-		WithArgs(1, "AS3", "Aid 3", 3, nil, nil).
+		WithArgs(1, "AS3", "Aid 3", 3, nil, nil, nil).
 		WillReturnRows(cpRow(3, 1, "AS3", "Aid 3", 3, nil))
 
 	cp, err := repository.NewCheckpointRepo(db).Create(context.Background(), entity.Checkpoint{
@@ -115,8 +115,8 @@ func TestCheckpointRepo_Create_WithColumnName(t *testing.T) {
 	colName := "AS #3"
 
 	mock.ExpectQuery("INSERT INTO checkpoints").
-		WithArgs(1, "AS3", "Aid 3", 3, nil, &colName).
-		WillReturnRows(sqlmock.NewRows(cpCols).AddRow(3, 1, "AS3", "Aid 3", &colName, 3, nil, time.Now()))
+		WithArgs(1, "AS3", "Aid 3", 3, nil, &colName, nil).
+		WillReturnRows(sqlmock.NewRows(cpCols).AddRow(3, 1, "AS3", "Aid 3", &colName, 3, nil, nil, time.Now()))
 
 	cp, err := repository.NewCheckpointRepo(db).Create(context.Background(), entity.Checkpoint{
 		RaceID: 1, Code: "AS3", DisplayName: "Aid 3", DisplayOrder: 3, ColumnName: &colName,
@@ -127,11 +127,28 @@ func TestCheckpointRepo_Create_WithColumnName(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestCheckpointRepo_Create_WithCutoffTime(t *testing.T) {
+	db, mock := newMock(t)
+	cutoff := "18:00"
+
+	mock.ExpectQuery("INSERT INTO checkpoints").
+		WithArgs(1, "AS3", "Aid 3", 3, nil, nil, &cutoff).
+		WillReturnRows(sqlmock.NewRows(cpCols).AddRow(3, 1, "AS3", "Aid 3", nil, 3, nil, &cutoff, time.Now()))
+
+	cp, err := repository.NewCheckpointRepo(db).Create(context.Background(), entity.Checkpoint{
+		RaceID: 1, Code: "AS3", DisplayName: "Aid 3", DisplayOrder: 3, CutoffTime: &cutoff,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cp.CutoffTime)
+	assert.Equal(t, "18:00", *cp.CutoffTime)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestCheckpointRepo_Create_Error(t *testing.T) {
 	db, mock := newMock(t)
 
 	mock.ExpectQuery("INSERT INTO checkpoints").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnError(errors.New("unique violation"))
 
 	_, err := repository.NewCheckpointRepo(db).Create(context.Background(), entity.Checkpoint{
@@ -145,7 +162,7 @@ func TestCheckpointRepo_Update_Success(t *testing.T) {
 	db, mock := newMock(t)
 
 	mock.ExpectQuery("UPDATE checkpoints SET code").
-		WithArgs("AS1-NEW", "Aid 1 Updated", nil, nil, 10).
+		WithArgs("AS1-NEW", "Aid 1 Updated", nil, nil, nil, 10).
 		WillReturnRows(cpRow(10, 1, "AS1-NEW", "Aid 1 Updated", 1, nil))
 
 	updated, err := repository.NewCheckpointRepo(db).Update(context.Background(), entity.Checkpoint{
@@ -160,7 +177,7 @@ func TestCheckpointRepo_Update_NotFound(t *testing.T) {
 	db, mock := newMock(t)
 
 	mock.ExpectQuery("UPDATE checkpoints SET code").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 999).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 999).
 		WillReturnRows(sqlmock.NewRows(cpCols))
 
 	_, err := repository.NewCheckpointRepo(db).Update(context.Background(), entity.Checkpoint{ID: 999})

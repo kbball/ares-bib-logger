@@ -74,8 +74,8 @@ func (m *mockCheckpointService) Create(_ context.Context, cp entity.Checkpoint) 
 	cp.ID = 1
 	return cp, m.err
 }
-func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string, columnName *string, _ *float64) (entity.Checkpoint, error) {
-	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName, ColumnName: columnName}, m.err
+func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string, columnName *string, _ *float64, cutoffTime *string) (entity.Checkpoint, error) {
+	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName, ColumnName: columnName, CutoffTime: cutoffTime}, m.err
 }
 func (m *mockCheckpointService) Delete(_ context.Context, id int) error { return m.err }
 func (m *mockCheckpointService) Reorder(_ context.Context, raceID int, ids []int) error {
@@ -85,6 +85,7 @@ func (m *mockCheckpointService) Reorder(_ context.Context, raceID int, ids []int
 type mockRunnerService struct {
 	runners      []entity.Runner
 	importCalled bool
+	addArgs      []any
 	err          error
 }
 
@@ -96,6 +97,10 @@ func (m *mockRunnerService) ImportRoster(_ context.Context, raceID int, rows []p
 	return m.err
 }
 func (m *mockRunnerService) TransferRace(_ context.Context, bib, from, to int) error { return m.err }
+func (m *mockRunnerService) AddRunner(_ context.Context, raceID, bibNumber int, firstName, lastName string) error {
+	m.addArgs = []any{raceID, bibNumber, firstName, lastName}
+	return m.err
+}
 
 type mockCheckpointLogService struct {
 	result      portsvc.LogBibResult
@@ -118,8 +123,8 @@ func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]
 func (m *mockCheckpointLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
 	return m.queryText, m.err
 }
-func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
-	m.correctArgs = []any{raceID, checkpointID, bibNumber, timeStr}
+func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, dateStr, timeStr string) (entity.CheckpointLog, error) {
+	m.correctArgs = []any{raceID, checkpointID, bibNumber, dateStr, timeStr}
 	return m.correctLog, m.err
 }
 func (m *mockCheckpointLogService) DeleteLog(_ context.Context, raceID, checkpointID, bibNumber int) error {

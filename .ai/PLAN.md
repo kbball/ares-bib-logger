@@ -332,6 +332,10 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 **v1.2 — 2026-08-23**
 
 - Admin accordion open/closed state now persists across page visits via `localStorage`, independently for "Setup" and "Edit Runners" (`Accordion` made controlled with `expanded`/`onChange`, `openAccordions: Set<string>` state seeded from storage on mount)
+- Optional checkpoint cutoff time: migration 000008 adds `checkpoints.cutoff_time` (nullable text); `Checkpoint.CutoffTime *string` threaded through repo/service/handler `Create`/`Update` and the event export/import DTO; Admin panel checkpoint create/edit forms gained a Cutoff (`type="time"`) input (table column + inline edit); bulk checkpoint import TSV gained it as an optional 5th column
+- Manually Log a Bib now accepts an optional Date alongside Time: previously `parseWallClockTime` always stamped corrections onto "today" in the configured timezone regardless of when the crossing actually happened, silently mis-dating late-night/midnight-crossing and next-day corrections. `parseWallClockTime(loc, dateStr, timeStr)` now takes an optional `YYYY-MM-DD` date (empty defaults to today, unchanged behavior); `CheckpointLogService.CorrectLog` and the `CheckpointLogService` port gained a `dateStr` param; `POST /api/log/correction` gained an optional `date` field; Admin panel "Manually Log a Bib" form gained a Date input (MUI `type="date"`, defaults to today when left blank)
+- Admin page now unloads race/checkpoint data when the active event is archived: `EventService.Archive` clears the `ActiveSession` (event + its per-race checkpoints) via new `ActiveSessionRepository.ClearEvent` whenever the archived event was the currently active one, so the existing `session?.EventID` effect in `AdminTab` naturally reloads races to empty instead of leaving stale data on screen until a new event is selected. Also closed a latent gap where `checkpointsByRace` was never cleared when `races` emptied out.
+- Add single runner to roster (late race addition): `RunnerService.AddRunner` appends one runner to a race's roster (`sort_order = max + 1`, `Status: StatusUnknown`), reusing the `MaxSortOrder`/`BulkCreate` pattern from `TransferRace`; not gated by `RosterLocked`; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section
 
 ## Backlog
 
@@ -348,17 +352,15 @@ Ordered by priority (2026-08-23):
 - When logging using the timestamp on "Manually Log a Bib" (admin page), determine whether a date is/should be associated with the entered time, and add it to the form if needed
 - Not yet implemented — captured here for future work
 
-### 0. Optional cutoff time on checkpoint configuration
-- Add a cutoff time column to aid station / checkpoint configuration — optional, since not all aid stations have a cutoff
-- Not yet implemented — captured here for future work
+### ~~0. Optional cutoff time on checkpoint configuration~~ ✅ DONE
+- Added `Checkpoint.CutoffTime *string` (migration 000008, nullable `cutoff_time TEXT`), threaded through repo/service/handler `Create`/`Update`, the event export/import DTO, and the Admin panel's checkpoint create/edit forms (MUI `type="time"` input) and table (new "Cutoff" column). Bulk checkpoint import also gained it as an optional 5th TSV column (`Code, DisplayName, DistFromStart, ColumnName, CutoffTime`)
 
 ### ~~0. Persist last-opened admin accordion across navigation~~ ✅ DONE
 - Admin page's "Setup" and "Edit Runners" accordions now persist their open/closed state independently to `localStorage` (`ares-bib-logger:admin-accordions-open`, JSON array of open accordion names), fails open (defaults to collapsed) if storage is unavailable — same pattern as dark/light mode persistence
 
-### 1. Add single runner to roster (late race addition)
-- Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
-- Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
-- Not yet implemented — captured here for future work
+### ~~1. Add single runner to roster (late race addition)~~ ✅ DONE
+- Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1) — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
+- `RunnerService.AddRunner` (new port method) reuses the `MaxSortOrder` + `BulkCreate` pattern from `TransferRace`, with `Status: StatusUnknown` (fresh roster row, not yet seen at a checkpoint); intentionally **not** gated by `RosterLocked` and never calls `LockRoster` — late registrations must work even after the initial roster import; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section (race select shows all races, unlike Roster Import's locked-race filter)
 
 ### 2. Overall stats card on Data Entry tab
 - Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers

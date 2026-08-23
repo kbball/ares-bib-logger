@@ -102,7 +102,7 @@ func main() {
 	}
 
 	h := httphandler.New(
-		service.NewEventService(eventRepo),
+		service.NewEventService(eventRepo, sessionRepo),
 		service.NewRaceService(raceRepo),
 		service.NewCheckpointService(checkpointRepo, raceRepo),
 		service.NewRunnerService(runnerRepo, raceRepo),

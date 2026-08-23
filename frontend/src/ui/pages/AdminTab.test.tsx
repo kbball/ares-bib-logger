@@ -4,7 +4,7 @@ import { useStream } from '../../adapters/sse/useStream'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockEvent, mockCheckpoint } from '../../test/handlers'
+import { noSession, mockEvent, mockLog, mockSession, mockCheckpoint } from '../../test/handlers'
 import AdminTab from './AdminTab'
 
 vi.mock('../../adapters/sse/useStream', () => ({ useStream: vi.fn() }))
@@ -250,6 +250,86 @@ describe('AdminTab — Roster Import', () => {
   })
 })
 
+describe('AdminTab — Add Runner to Roster', () => {
+  it('renders the Add Runner to Roster section', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => expect(screen.getByText(/add runner to roster/i)).toBeInTheDocument())
+  })
+
+  it('Add Runner button is disabled until race, bib, and first name are filled', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+    expect(within(section).getByRole('button', { name: /^add runner$/i })).toBeDisabled()
+  })
+
+  it('adds a runner to the roster', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/runners', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+    await user.type(within(section).getByLabelText(/last name/i), 'Ortiz')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      bib_number: 200,
+      first_name: 'Dana',
+      last_name: 'Ortiz',
+    })
+    await waitFor(() =>
+      expect(screen.getByText(/added bib 200 to the roster/i)).toBeInTheDocument(),
+    )
+  })
+
+  it('shows error when addRunner API fails', async () => {
+    server.use(
+      http.post('/api/races/:raceID/runners', () =>
+        HttpResponse.json({ error: 'bib already exists' }, { status: 409 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(screen.getByText(/bib already exists/i)).toBeInTheDocument())
+  })
+})
+
 describe('AdminTab — Change Runner Status', () => {
   it('renders the Change Runner Status section', async () => {
     const user = userEvent.setup()
@@ -460,6 +540,42 @@ describe('AdminTab — Manually Log a Bib', () => {
 
     await waitFor(() => expect(screen.getByText(/bib not found/i)).toBeInTheDocument())
   })
+
+  it('logs a bib with an explicit date and time', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/log/correction', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockLog)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('correction-form'))
+    const form = screen.getByTestId('correction-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(within(form).getByRole('combobox', { name: /checkpoint/i }))
+    await waitFor(() => screen.getByRole('option', { name: /Aid Station 1/i }))
+    await user.click(screen.getByRole('option', { name: /Aid Station 1/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.type(within(form).getByLabelText(/^date$/i), '2026-08-22')
+    await user.type(within(form).getByLabelText(/^time$/i), '23:58')
+    await user.click(within(form).getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({ date: '2026-08-22', time: '23:58' })
+    await waitFor(() =>
+      expect(screen.getByText(/logged bib 100 at 23:58 on 2026-08-22/i)).toBeInTheDocument(),
+    )
+  })
 })
 
 describe('AdminTab — Remove a Checkpoint Log', () => {
@@ -623,6 +739,28 @@ describe('AdminTab — Archive Event', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it('unloads race/checkpoint data once the session no longer references the archived event', async () => {
+    let sessionCalls = 0
+    server.use(
+      http.get('/api/session', () => {
+        sessionCalls++
+        return HttpResponse.json(sessionCalls === 1 ? mockSession : noSession)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => expect(screen.getByText('GDR')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /archive this event/i }))
+    await waitFor(() => screen.getByRole('dialog'))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^archive$/i }))
+
+    await waitFor(() => expect(screen.queryByText('GDR')).not.toBeInTheDocument())
+  })
 })
 
 describe('AdminTab — Lock Order', () => {
@@ -737,6 +875,21 @@ describe('AdminTab — Checkpoint Management', () => {
     await waitFor(() => expect(screen.getByLabelText(/^column name$/i)).toHaveValue(''))
   })
 
+  it('creates a new checkpoint with a cutoff time', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByLabelText(/^code$/i))
+    await user.type(screen.getByLabelText(/^code$/i), 'FIN')
+    await user.type(screen.getByLabelText(/display name/i), 'Finish Line')
+    await user.type(screen.getByLabelText(/^cutoff$/i), '18:00')
+
+    await user.click(screen.getByRole('button', { name: /add checkpoint/i }))
+
+    await waitFor(() => expect(screen.getByLabelText(/^code$/i)).toHaveValue(''))
+  })
+
   it('edits a checkpoint inline, types new values, and saves', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
@@ -779,6 +932,26 @@ describe('AdminTab — Checkpoint Management', () => {
       ?.querySelectorAll('input')[2]
     expect(columnNameInput).toBeDefined()
     await user.type(columnNameInput as HTMLInputElement, 'AS #1')
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.queryByDisplayValue('AS1')).not.toBeInTheDocument())
+  })
+
+  it('edits a checkpoint cutoff time inline and saves', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(
+      () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
+    )
+    await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+
+    await waitFor(() => screen.getByDisplayValue('AS1'))
+    const cutoffInput = screen.getByDisplayValue('AS1').closest('tr')?.querySelectorAll('input')[4]
+    expect(cutoffInput).toBeDefined()
+    await user.type(cutoffInput as HTMLInputElement, '1800')
 
     await user.click(screen.getByRole('button', { name: /^save$/i }))
 
@@ -861,7 +1034,7 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
     await user.click(screen.getAllByRole('option')[0])
 
     const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
-    await user.type(textarea, 'AS1\tAid Station 1\t10.5\tAS #1')
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5\tAS #1\t18:00')
 
     await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
 
@@ -871,6 +1044,7 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
       display_name: 'Aid Station 1',
       distance_from_start: 10.5,
       column_name: 'AS #1',
+      cutoff_time: '18:00',
     })
   })
 
@@ -904,6 +1078,41 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
       display_name: 'Aid Station 1',
       distance_from_start: 10.5,
       column_name: null,
+      cutoff_time: null,
+    })
+  })
+
+  it('imports checkpoints from pasted TSV with cutoff time but no column name', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/checkpoints', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockCheckpoint)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('bulk-cp-section'))
+    const bulkCp = screen.getByTestId('bulk-cp-section')
+    await user.click(within(bulkCp).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getAllByRole('option').length > 0)
+    await user.click(screen.getAllByRole('option')[0])
+
+    const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5\t\t18:00')
+
+    await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      code: 'AS1',
+      display_name: 'Aid Station 1',
+      distance_from_start: 10.5,
+      column_name: null,
+      cutoff_time: '18:00',
     })
   })
 })

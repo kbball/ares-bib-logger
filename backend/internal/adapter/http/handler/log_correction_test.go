@@ -22,10 +22,10 @@ func TestHandler_CorrectLog_Success(t *testing.T) {
 		&mockRunnerService{}, logs, &mockSessionService{}, &mockWinlinkService{})
 
 	w := postJSON(t, h, "/api/log/correction", map[string]any{
-		"race_id": 1, "checkpoint_id": 5, "bib_number": 100, "time": "14:32",
+		"race_id": 1, "checkpoint_id": 5, "bib_number": 100, "date": "2026-08-22", "time": "14:32",
 	})
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, []any{1, 5, 100, "14:32"}, logs.correctArgs)
+	assert.Equal(t, []any{1, 5, 100, "2026-08-22", "14:32"}, logs.correctArgs)
 
 	var got entity.CheckpointLog
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
