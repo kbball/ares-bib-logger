@@ -24,4 +24,9 @@ type CheckpointLogService interface {
 	LogStatus(ctx context.Context, bibNumber int, status entity.RunnerStatus) error
 	// ListByRace returns all checkpoint logs for runners in a race.
 	ListByRace(ctx context.Context, raceID int) ([]entity.CheckpointLog, error)
+	// QueryRunner returns a compact, ready-to-send text summary of a runner's
+	// status, last known checkpoint, and pace, for replying to a mesh "query"
+	// command. Returns a "not found" message rather than an error when the
+	// bib doesn't match any runner in the active event.
+	QueryRunner(ctx context.Context, bibNumber int) (string, error)
 }

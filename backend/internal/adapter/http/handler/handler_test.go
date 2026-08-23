@@ -95,8 +95,9 @@ func (m *mockRunnerService) ImportRoster(_ context.Context, raceID int, rows []p
 func (m *mockRunnerService) TransferRace(_ context.Context, bib, from, to int) error { return m.err }
 
 type mockCheckpointLogService struct {
-	result portsvc.LogBibResult
-	err    error
+	result    portsvc.LogBibResult
+	queryText string
+	err       error
 }
 
 func (m *mockCheckpointLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -107,6 +108,9 @@ func (m *mockCheckpointLogService) LogStatus(_ context.Context, bib int, status 
 }
 func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]entity.CheckpointLog, error) {
 	return nil, m.err
+}
+func (m *mockCheckpointLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
+	return m.queryText, m.err
 }
 
 type mockSessionService struct {
@@ -124,6 +128,7 @@ func (m *mockSessionService) ClearCheckpoint(_ context.Context, raceID int) erro
 type mockWinlinkService struct {
 	exportText string
 	importRes  portsvc.WinlinkImportResult
+	previewRes portsvc.WinlinkPreviewResult
 	err        error
 }
 
@@ -132,6 +137,9 @@ func (m *mockWinlinkService) Export(_ context.Context, raceID int) (string, erro
 }
 func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
 	return m.importRes, m.err
+}
+func (m *mockWinlinkService) Preview(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
+	return m.previewRes, m.err
 }
 
 type mockEventExportService struct {

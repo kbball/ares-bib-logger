@@ -9,6 +9,7 @@ import type {
   LogBibResult,
   RunnerStatus,
   WinlinkImportResult,
+  WinlinkPreviewResult,
 } from '../../domain/types'
 
 // Events
@@ -87,6 +88,12 @@ export const exportWinlink = (raceID: number) =>
   fetch(`/api/winlink/export/${raceID}`).then((r) => r.text())
 export const importWinlink = (raceID: number, checkpointID: number, text: string) =>
   post<WinlinkImportResult>('/api/winlink/import', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    text,
+  })
+export const previewWinlink = (raceID: number, checkpointID: number, text: string) =>
+  post<WinlinkPreviewResult>('/api/winlink/import/preview', {
     race_id: raceID,
     checkpoint_id: checkpointID,
     text,

@@ -209,6 +209,19 @@ func TestHandler_ImportWinlink_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// --- previewWinlink ---
+
+func TestHandler_PreviewWinlink_ServiceError(t *testing.T) {
+	wl := &mockWinlinkService{err: domain.ErrNotFound}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	w := postJSON(t, h, "/api/winlink/import/preview", map[string]any{
+		"race_id": 1, "checkpoint_id": 5, "text": "AS6\n17:45:00\n",
+	})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 // --- errStatus default case ---
 
 func TestHandler_ErrStatus_InternalServerError(t *testing.T) {

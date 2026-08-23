@@ -186,6 +186,9 @@ func (m *mockCheckpointLogRepository) ListByRaceAndCheckpoint(_ context.Context,
 }
 
 func (m *mockCheckpointLogRepository) ListByRace(_ context.Context, raceID int) ([]entity.CheckpointLog, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	return m.logs, nil
 }
 

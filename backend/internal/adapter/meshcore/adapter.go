@@ -127,8 +127,21 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	channelIdx := msg.Payload.ChannelIdx
 	slog.Debug("meshcore: message decoded", "channel_idx", channelIdx, "text", text)
 
+	content := contentAfterPrefix(text)
+
+	if bib, ok := meshutil.ParseQuery(content); ok {
+		reply, err := a.svc.QueryRunner(ctx, bib)
+		if err != nil {
+			slog.Error("meshcore: error querying runner", "bib", bib, "error", err)
+			return
+		}
+		slog.Info("meshcore: query reply", "bib", bib, "reply", reply)
+		a.publishQueryReply(channelIdx, reply)
+		return
+	}
+
 	var loggedBibs, duplicateBibs []int
-	for _, bib := range parseBibsFromText(text) {
+	for _, bib := range meshutil.ParseBibs(content) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
 			BibNumber:  bib,
 			Source:     entity.SourceMeshcore,
@@ -169,15 +182,15 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	}
 }
 
-// parseBibsFromText extracts bib numbers from a MeshCore message text.
-// Expected format: "<node_name>: <bib>[,<bib>,...]"
-// Only the segment after the last ": " is parsed to avoid matching numbers in callsigns.
-func parseBibsFromText(text string) []int {
+// contentAfterPrefix strips the leading "<node_name>: " prefix MeshCore adds to
+// message text, returning the empty string if no prefix is present. Only the
+// segment after the last ": " is used, to avoid matching numbers in callsigns.
+func contentAfterPrefix(text string) string {
 	idx := strings.LastIndex(text, ": ")
 	if idx < 0 {
-		return nil
+		return ""
 	}
-	return meshutil.ParseBibs(text[idx+2:])
+	return text[idx+2:]
 }
 
 // publishAck sends an ACK message to the mesh summarising all bibs from one incoming message.
@@ -190,17 +203,26 @@ func (a *Adapter) publishAck(channelIdx int, loggedBibs, duplicateBibs []int) {
 	for _, b := range duplicateBibs {
 		lines = append(lines, fmt.Sprintf("DUPLICATE BIB: %d", b))
 	}
+	a.publishText(channelIdx, strings.Join(lines, "\n"))
+}
 
-	payload, err := json.Marshal(outgoingMsg{Channel: channelIdx, Message: strings.Join(lines, "\n")})
+// publishQueryReply sends a runner-status reply back to the mesh in response to a "query <bib>" command.
+func (a *Adapter) publishQueryReply(channelIdx int, text string) {
+	a.publishText(channelIdx, text)
+}
+
+// publishText publishes a single text message to the mesh on the given channel.
+func (a *Adapter) publishText(channelIdx int, text string) {
+	payload, err := json.Marshal(outgoingMsg{Channel: channelIdx, Message: text})
 	if err != nil {
-		slog.Error("meshcore: failed to marshal ack", "error", err)
+		slog.Error("meshcore: failed to marshal message", "error", err)
 		return
 	}
 
 	topic := a.cfg.PublishTopic()
-	slog.Debug("meshcore: publishing ack", "topic", topic, "channel", channelIdx)
+	slog.Debug("meshcore: publishing text", "topic", topic, "channel", channelIdx)
 
 	if err := a.publisher.Publish(topic, payload); err != nil {
-		slog.Error("meshcore: failed to publish ack", "error", err)
+		slog.Error("meshcore: failed to publish text", "error", err)
 	}
 }
