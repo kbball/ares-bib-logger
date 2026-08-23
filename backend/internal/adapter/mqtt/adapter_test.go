@@ -52,9 +52,12 @@ func (m *mockPahoClient) Publish(_ string, _ byte, _ bool, payload any) pahomqtt
 // --- service / publisher mocks ---
 
 type mockLogService struct {
-	result portsvc.LogBibResult
-	err    error
-	calls  []portsvc.LogBibInput
+	result     portsvc.LogBibResult
+	err        error
+	calls      []portsvc.LogBibInput
+	queryText  string
+	queryErr   error
+	queryCalls []int
 }
 
 func (m *mockLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -68,6 +71,11 @@ func (m *mockLogService) LogStatus(_ context.Context, _ int, _ entity.RunnerStat
 
 func (m *mockLogService) ListByRace(_ context.Context, _ int) ([]entity.CheckpointLog, error) {
 	return nil, nil
+}
+
+func (m *mockLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
+	m.queryCalls = append(m.queryCalls, bibNumber)
+	return m.queryText, m.queryErr
 }
 
 type mockPublisher struct {
@@ -237,6 +245,44 @@ func TestProcessMessage_LogsBibs(t *testing.T) {
 	var ack meshtastic.ServiceEnvelope
 	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
 	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Query_PublishesReplyAndDoesNotLogBib(t *testing.T) {
+	svc := &mockLogService{queryText: "101 Alice Smith: ACTIVE last AS2 11:00 pace 6:00 /mi"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("query 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
+	assert.Empty(t, svc.calls, "query must not fall through to bib logging")
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "101 Alice Smith: ACTIVE last AS2 11:00 pace 6:00 /mi", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Query_CaseInsensitive(t *testing.T) {
+	svc := &mockLogService{queryText: "101 not found"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("QUERY 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
+	assert.Empty(t, svc.calls)
+}
+
+func TestProcessMessage_Query_ServiceErrorDoesNotPublish(t *testing.T) {
+	svc := &mockLogService{queryErr: errors.New("db down")}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("query 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
+	assert.Empty(t, pub.published)
 }
 
 func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
