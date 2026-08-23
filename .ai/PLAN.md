@@ -331,6 +331,7 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 
 **v1.2 — 2026-08-23**
 
+- Admin page now unloads race/checkpoint data when the active event is archived: `EventService.Archive` clears the `ActiveSession` (event + its per-race checkpoints) via new `ActiveSessionRepository.ClearEvent` whenever the archived event was the currently active one, so the existing `session?.EventID` effect in `AdminTab` naturally reloads races to empty instead of leaving stale data on screen until a new event is selected. Also closed a latent gap where `checkpointsByRace` was never cleared when `races` emptied out.
 - Add single runner to roster (late race addition): `RunnerService.AddRunner` appends one runner to a race's roster (`sort_order = max + 1`, `Status: StatusUnknown`), reusing the `MaxSortOrder`/`BulkCreate` pattern from `TransferRace`; not gated by `RosterLocked`; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section
 
 ## Backlog
