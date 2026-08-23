@@ -95,6 +95,26 @@ export default function AdminTab() {
   const [statusMsg, setStatusMsg] = useState('')
   const [statusSearchErr, setStatusSearchErr] = useState('')
 
+  // Correction: manually log a bib with an explicit time
+  const [correctionRaceID, setCorrectionRaceID] = useState<number | ''>('')
+  const [correctionCheckpointID, setCorrectionCheckpointID] = useState<number | ''>('')
+  const [correctionBib, setCorrectionBib] = useState('')
+  const [correctionTime, setCorrectionTime] = useState('')
+  const [correctionMsg, setCorrectionMsg] = useState('')
+  const [correctionErr, setCorrectionErr] = useState('')
+
+  // Correction: remove a checkpoint log
+  const [removeLogRaceID, setRemoveLogRaceID] = useState<number | ''>('')
+  const [removeLogCheckpointID, setRemoveLogCheckpointID] = useState<number | ''>('')
+  const [removeLogBib, setRemoveLogBib] = useState('')
+  const [removeLogMsg, setRemoveLogMsg] = useState('')
+  const [removeLogErr, setRemoveLogErr] = useState('')
+  const [removeLogTarget, setRemoveLogTarget] = useState<{
+    raceID: number
+    checkpointID: number
+    bibNumber: number
+  } | null>(null)
+
   // Confirmation dialogs
   const [deleteTarget, setDeleteTarget] = useState<{
     type: 'race' | 'checkpoint'
@@ -244,6 +264,50 @@ export default function AdminTab() {
       setStatusSearchErr('')
     } catch (e: unknown) {
       setStatusSearchErr((e as Error).message)
+    }
+  }
+
+  const submitCorrection = async () => {
+    if (
+      !correctionRaceID ||
+      !correctionCheckpointID ||
+      !correctionBib.trim() ||
+      !correctionTime.trim()
+    )
+      return
+    setCorrectionMsg('')
+    setCorrectionErr('')
+    try {
+      await api.correctLog(
+        Number(correctionRaceID),
+        Number(correctionCheckpointID),
+        Number(correctionBib),
+        correctionTime.trim(),
+      )
+      setCorrectionMsg(`Logged bib ${correctionBib} at ${correctionTime}.`)
+      setCorrectionBib('')
+      setCorrectionTime('')
+    } catch (e: unknown) {
+      setCorrectionErr((e as Error).message)
+    }
+  }
+
+  const confirmRemoveLog = async () => {
+    if (!removeLogTarget) return
+    setRemoveLogMsg('')
+    setRemoveLogErr('')
+    try {
+      await api.deleteLog(
+        removeLogTarget.raceID,
+        removeLogTarget.checkpointID,
+        removeLogTarget.bibNumber,
+      )
+      setRemoveLogMsg(`Removed log for bib ${removeLogTarget.bibNumber}.`)
+      setRemoveLogBib('')
+    } catch (e: unknown) {
+      setRemoveLogErr((e as Error).message)
+    } finally {
+      setRemoveLogTarget(null)
     }
   }
 
@@ -1089,8 +1153,205 @@ export default function AdminTab() {
               )}
             </Stack>
           )}
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* ── Manually log a bib (correction) ── */}
+          <Typography variant="h6" gutterBottom>
+            Manually Log a Bib
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Create or overwrite a runner's checkpoint log at an explicit time — for correcting a
+            mis-logged bib after the fact, possibly at a checkpoint other than the one currently
+            active at this station.
+          </Typography>
+          {!session?.EventID && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Select an active event first.
+            </Alert>
+          )}
+          {session?.EventID && (
+            <Stack spacing={1} data-testid="correction-form">
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <InputLabel id="correction-race-label">Race</InputLabel>
+                  <Select
+                    value={correctionRaceID}
+                    label="Race"
+                    labelId="correction-race-label"
+                    onChange={(e) => {
+                      setCorrectionRaceID(Number(e.target.value))
+                      setCorrectionCheckpointID('')
+                    }}
+                  >
+                    {races.map((r) => (
+                      <MenuItem key={r.ID} value={r.ID}>
+                        {r.Name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="correction-cp-label">Checkpoint</InputLabel>
+                  <Select
+                    value={correctionCheckpointID}
+                    label="Checkpoint"
+                    labelId="correction-cp-label"
+                    disabled={!correctionRaceID}
+                    onChange={(e) => setCorrectionCheckpointID(Number(e.target.value))}
+                  >
+                    {(checkpointsByRace[correctionRaceID as number] ?? [])
+                      .sort((a, b) => a.DisplayOrder - b.DisplayOrder)
+                      .map((cp) => (
+                        <MenuItem key={cp.ID} value={cp.ID}>
+                          {cp.Code} – {cp.DisplayName}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small"
+                  label="Bib number"
+                  type="number"
+                  value={correctionBib}
+                  onChange={(e) => setCorrectionBib(e.target.value)}
+                  sx={{ width: 120 }}
+                />
+                <TextField
+                  size="small"
+                  label="Time"
+                  placeholder="HH:MM"
+                  value={correctionTime}
+                  onChange={(e) => setCorrectionTime(e.target.value)}
+                  sx={{ width: 100 }}
+                />
+                <Tooltip title="Create or overwrite this runner's log at the checkpoint with the given time">
+                  <span>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={
+                        !correctionRaceID ||
+                        !correctionCheckpointID ||
+                        !correctionBib.trim() ||
+                        !correctionTime.trim()
+                      }
+                      onClick={submitCorrection}
+                    >
+                      Log
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Stack>
+              {correctionErr && <Alert severity="error">{correctionErr}</Alert>}
+              {correctionMsg && <Alert severity="success">{correctionMsg}</Alert>}
+            </Stack>
+          )}
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* ── Remove a checkpoint log ── */}
+          <Typography variant="h6" gutterBottom>
+            Remove a Checkpoint Log
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Delete a runner's log at a checkpoint — for undoing a fat-fingered bib logged at the
+            wrong station.
+          </Typography>
+          {!session?.EventID && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Select an active event first.
+            </Alert>
+          )}
+          {session?.EventID && (
+            <Stack spacing={1} data-testid="remove-log-form">
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <InputLabel id="remove-log-race-label">Race</InputLabel>
+                  <Select
+                    value={removeLogRaceID}
+                    label="Race"
+                    labelId="remove-log-race-label"
+                    onChange={(e) => {
+                      setRemoveLogRaceID(Number(e.target.value))
+                      setRemoveLogCheckpointID('')
+                    }}
+                  >
+                    {races.map((r) => (
+                      <MenuItem key={r.ID} value={r.ID}>
+                        {r.Name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="remove-log-cp-label">Checkpoint</InputLabel>
+                  <Select
+                    value={removeLogCheckpointID}
+                    label="Checkpoint"
+                    labelId="remove-log-cp-label"
+                    disabled={!removeLogRaceID}
+                    onChange={(e) => setRemoveLogCheckpointID(Number(e.target.value))}
+                  >
+                    {(checkpointsByRace[removeLogRaceID as number] ?? [])
+                      .sort((a, b) => a.DisplayOrder - b.DisplayOrder)
+                      .map((cp) => (
+                        <MenuItem key={cp.ID} value={cp.ID}>
+                          {cp.Code} – {cp.DisplayName}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small"
+                  label="Bib number"
+                  type="number"
+                  value={removeLogBib}
+                  onChange={(e) => setRemoveLogBib(e.target.value)}
+                  sx={{ width: 120 }}
+                />
+                <Tooltip title="Delete this runner's log at the selected checkpoint">
+                  <span>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      disabled={!removeLogRaceID || !removeLogCheckpointID || !removeLogBib.trim()}
+                      onClick={() =>
+                        setRemoveLogTarget({
+                          raceID: Number(removeLogRaceID),
+                          checkpointID: Number(removeLogCheckpointID),
+                          bibNumber: Number(removeLogBib),
+                        })
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Stack>
+              {removeLogErr && <Alert severity="error">{removeLogErr}</Alert>}
+              {removeLogMsg && <Alert severity="success">{removeLogMsg}</Alert>}
+            </Stack>
+          )}
         </AccordionDetails>
       </Accordion>
+
+      {/* ── Remove checkpoint log confirmation ── */}
+      <Dialog open={!!removeLogTarget} onClose={() => setRemoveLogTarget(null)}>
+        <DialogTitle>Remove Checkpoint Log</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Remove bib {removeLogTarget?.bibNumber}'s log at this checkpoint? This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoveLogTarget(null)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={confirmRemoveLog}>
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Archive confirmation ── */}
       <Dialog open={!!archiveTarget} onClose={() => setArchiveTarget(null)}>

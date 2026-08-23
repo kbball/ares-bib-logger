@@ -483,8 +483,16 @@ func looksLikeTimeOrStatus(s string) bool {
 // parseTimeOfDay parses HH:MM:SS or HH:MM as a wall-clock time on today's date
 // in the service's configured timezone.
 func (s *WinlinkService) parseTimeOfDay(str string) (time.Time, error) {
+	return parseWallClockTime(s.loc, str)
+}
+
+// parseWallClockTime parses HH:MM:SS or HH:MM as a wall-clock time on today's
+// date in the given timezone. Shared by WinlinkService (import) and
+// CheckpointLogService (manual corrections) so both interpret pasted/typed
+// times the same way.
+func parseWallClockTime(loc *time.Location, str string) (time.Time, error) {
 	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
+	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		t, err := time.Parse(layout, str)

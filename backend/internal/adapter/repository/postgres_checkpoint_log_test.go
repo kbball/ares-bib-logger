@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
+	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 )
 
@@ -116,6 +117,42 @@ func TestCheckpointLogRepo_Upsert_Error(t *testing.T) {
 		RunnerID: 1, CheckpointID: 2, RecordedAt: time.Now(), Source: entity.SourceManual,
 	})
 	assert.ErrorContains(t, err, "upsert failed")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCheckpointLogRepo_Delete_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`DELETE FROM checkpoint_logs WHERE runner_id = $1 AND checkpoint_id = $2`)).
+		WithArgs(1, 2).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewCheckpointLogRepo(db).Delete(context.Background(), 1, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCheckpointLogRepo_Delete_NotFound(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`DELETE FROM checkpoint_logs WHERE runner_id = $1 AND checkpoint_id = $2`)).
+		WithArgs(1, 2).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err := repository.NewCheckpointLogRepo(db).Delete(context.Background(), 1, 2)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCheckpointLogRepo_Delete_Error(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`DELETE FROM checkpoint_logs WHERE runner_id = $1 AND checkpoint_id = $2`)).
+		WithArgs(1, 2).
+		WillReturnError(errors.New("db error"))
+
+	err := repository.NewCheckpointLogRepo(db).Delete(context.Background(), 1, 2)
+	assert.ErrorContains(t, err, "db error")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

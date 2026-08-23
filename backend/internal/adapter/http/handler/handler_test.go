@@ -98,9 +98,12 @@ func (m *mockRunnerService) ImportRoster(_ context.Context, raceID int, rows []p
 func (m *mockRunnerService) TransferRace(_ context.Context, bib, from, to int) error { return m.err }
 
 type mockCheckpointLogService struct {
-	result    portsvc.LogBibResult
-	queryText string
-	err       error
+	result      portsvc.LogBibResult
+	queryText   string
+	err         error
+	correctLog  entity.CheckpointLog
+	correctArgs []any
+	deleteArgs  []any
 }
 
 func (m *mockCheckpointLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -114,6 +117,14 @@ func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]
 }
 func (m *mockCheckpointLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
 	return m.queryText, m.err
+}
+func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
+	m.correctArgs = []any{raceID, checkpointID, bibNumber, timeStr}
+	return m.correctLog, m.err
+}
+func (m *mockCheckpointLogService) DeleteLog(_ context.Context, raceID, checkpointID, bibNumber int) error {
+	m.deleteArgs = []any{raceID, checkpointID, bibNumber}
+	return m.err
 }
 
 type mockSessionService struct {

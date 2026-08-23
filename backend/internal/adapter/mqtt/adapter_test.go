@@ -78,6 +78,14 @@ func (m *mockLogService) QueryRunner(_ context.Context, bibNumber int) (string, 
 	return m.queryText, m.queryErr
 }
 
+func (m *mockLogService) CorrectLog(_ context.Context, _, _, _ int, _ string) (entity.CheckpointLog, error) {
+	return entity.CheckpointLog{}, nil
+}
+
+func (m *mockLogService) DeleteLog(_ context.Context, _, _, _ int) error {
+	return nil
+}
+
 type mockPublisher struct {
 	published []struct {
 		topic   string

@@ -76,6 +76,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/log/bib", h.logBib)
 	mux.HandleFunc("POST /api/log/status", h.logStatus)
 	mux.HandleFunc("GET /api/races/{raceID}/logs", h.listCheckpointLogs)
+	mux.HandleFunc("POST /api/log/correction", h.correctLog)
+	mux.HandleFunc("DELETE /api/log/correction", h.deleteLog)
 
 	// Session
 	mux.HandleFunc("GET /api/session", h.getSession)
