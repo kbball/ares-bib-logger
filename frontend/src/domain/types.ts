@@ -20,6 +20,7 @@ export interface Checkpoint {
   RaceID: number
   Code: string
   DisplayName: string
+  ColumnName: string | null
   DisplayOrder: number
   DistanceFromStart: number | null
   CreatedAt: string

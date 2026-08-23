@@ -20,6 +20,7 @@ const makeCheckpoint = (id: number, order: number, dist: number | null): Checkpo
   RaceID: 1,
   Code: `AS${id}`,
   DisplayName: `Aid Station ${id}`,
+  ColumnName: null,
   DisplayOrder: order,
   DistanceFromStart: dist,
   CreatedAt: '',

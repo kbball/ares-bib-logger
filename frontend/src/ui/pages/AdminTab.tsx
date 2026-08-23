@@ -68,11 +68,13 @@ export default function AdminTab() {
   const [cpCode, setCpCode] = useState('')
   const [cpName, setCpName] = useState('')
   const [cpDist, setCpDist] = useState('')
+  const [cpColumnName, setCpColumnName] = useState('')
   // Checkpoint inline edit
   const [editingCpID, setEditingCpID] = useState<number | null>(null)
   const [editCode, setEditCode] = useState('')
   const [editName, setEditName] = useState('')
   const [editDist, setEditDist] = useState('')
+  const [editColumnName, setEditColumnName] = useState('')
   // Roster import
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
@@ -269,16 +271,20 @@ export default function AdminTab() {
     setEditCode(cp.Code)
     setEditName(cp.DisplayName)
     setEditDist(cp.DistanceFromStart != null ? String(cp.DistanceFromStart) : '')
+    setEditColumnName(cp.ColumnName ?? '')
   }
 
   const saveEditCp = () => {
     if (!editingCpID || !editCode.trim() || !editName.trim()) return
     const dist = editDist.trim() ? parseFloat(editDist) : null
+    const columnName = editColumnName.trim() ? editColumnName.trim() : null
     wrap(() =>
-      api.updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist).then(() => {
-        setEditingCpID(null)
-        return loadCheckpoints(races.map((r) => r.ID))
-      }),
+      api
+        .updateCheckpoint(editingCpID, editCode.trim(), editName.trim(), dist, columnName)
+        .then(() => {
+          setEditingCpID(null)
+          return loadCheckpoints(races.map((r) => r.ID))
+        }),
     )
   }
 
@@ -592,6 +598,7 @@ export default function AdminTab() {
                         <TableCell>Order</TableCell>
                         <TableCell>Code</TableCell>
                         <TableCell>Name</TableCell>
+                        <TableCell>Column Name</TableCell>
                         <TableCell>Dist (mi)</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
@@ -624,6 +631,15 @@ export default function AdminTab() {
                                 <TableCell>
                                   <TextField
                                     size="small"
+                                    value={editColumnName}
+                                    onChange={(e) => setEditColumnName(e.target.value)}
+                                    sx={{ width: 140 }}
+                                    placeholder={editName}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    size="small"
                                     type="number"
                                     value={editDist}
                                     onChange={(e) => setEditDist(e.target.value)}
@@ -636,6 +652,7 @@ export default function AdminTab() {
                               <>
                                 <TableCell>{cp.Code}</TableCell>
                                 <TableCell>{cp.DisplayName}</TableCell>
+                                <TableCell>{cp.ColumnName || '—'}</TableCell>
                                 <TableCell>
                                   {cp.DistanceFromStart != null ? cp.DistanceFromStart : '—'}
                                 </TableCell>
@@ -757,6 +774,17 @@ export default function AdminTab() {
                       />
                       <TextField
                         size="small"
+                        label="Column name"
+                        value={cpRaceID === race.ID ? cpColumnName : ''}
+                        onChange={(e) => {
+                          setCpRaceID(race.ID)
+                          setCpColumnName(e.target.value)
+                        }}
+                        placeholder={cpRaceID === race.ID ? cpName : ''}
+                        sx={{ width: 140 }}
+                      />
+                      <TextField
+                        size="small"
                         label="Dist (mi)"
                         type="number"
                         value={cpRaceID === race.ID ? cpDist : ''}
@@ -775,13 +803,21 @@ export default function AdminTab() {
                             disabled={cpRaceID !== race.ID || !cpCode.trim() || !cpName.trim()}
                             onClick={() => {
                               const dist = cpDist.trim() ? parseFloat(cpDist) : null
+                              const columnName = cpColumnName.trim() ? cpColumnName.trim() : null
                               wrap(() =>
                                 api
-                                  .createCheckpoint(race.ID, cpCode.trim(), cpName.trim(), dist)
+                                  .createCheckpoint(
+                                    race.ID,
+                                    cpCode.trim(),
+                                    cpName.trim(),
+                                    dist,
+                                    columnName,
+                                  )
                                   .then(() => {
                                     setCpCode('')
                                     setCpName('')
                                     setCpDist('')
+                                    setCpColumnName('')
                                     setCpRaceID('')
                                     return loadCheckpoints(races.map((r) => r.ID))
                                   }),
