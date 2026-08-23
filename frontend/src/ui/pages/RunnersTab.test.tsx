@@ -274,6 +274,68 @@ describe('RunnersTab', () => {
     vi.mocked(useStream).mockReset()
   })
 
+  it('filters runners by status chip', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByRole('button', { name: 'ACTIVE' }))
+
+    await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
+    expect(screen.queryByText(/bob jones/i)).not.toBeInTheDocument()
+  })
+
+  it('shows union of runners when multiple status chips are selected', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByRole('button', { name: 'ACTIVE' }))
+    await user.click(screen.getByRole('button', { name: 'UNKNOWN' }))
+
+    await waitFor(() => expect(screen.getByText(/bob jones/i)).toBeInTheDocument())
+    expect(screen.getByText(/alice smith/i)).toBeInTheDocument()
+  })
+
+  it('combines status filter with an active race tab', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByRole('tab', { name: /GDR/i }))
+    await user.click(screen.getByRole('tab', { name: /GDR/i }))
+    await user.click(screen.getByRole('button', { name: 'ACTIVE' }))
+
+    await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
+    expect(screen.queryByText(/bob jones/i)).not.toBeInTheDocument()
+  })
+
+  it('hides a race tab whose runners are excluded by the status filter', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByRole('tab', { name: /GDR/i }))
+    // No runner has status DNF, so filtering on it should empty the GDR tab and hide it
+    await user.click(screen.getByRole('button', { name: 'DNF' }))
+
+    await waitFor(() => expect(screen.queryByRole('tab', { name: /GDR/i })).not.toBeInTheDocument())
+    expect(screen.getByText(/0 runners/i)).toBeInTheDocument()
+  })
+
+  it('clearing all status chips shows every status again', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByRole('button', { name: 'ACTIVE' }))
+    await waitFor(() => expect(screen.queryByText(/bob jones/i)).not.toBeInTheDocument())
+
+    // Toggle it back off
+    await user.click(screen.getByRole('button', { name: 'ACTIVE' }))
+
+    await waitFor(() => expect(screen.getByText(/bob jones/i)).toBeInTheDocument())
+    expect(screen.getByText(/alice smith/i)).toBeInTheDocument()
+  })
+
   it('shows Pace and Proj. Next columns when filtering by race with distances', async () => {
     const user = userEvent.setup()
     render(<RunnersTab />)

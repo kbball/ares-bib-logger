@@ -268,6 +268,7 @@ Three sections:
 **Tab 4: Runners (Tabular — view only)**
 - Search bar: filter by bib number or runner name (live filter, no page reload)
 - Race filter (tab or dropdown for GA Jewel)
+- Status filter: multi-select chips (ACTIVE/DNS/DNF/FINISHED/MOVED/UNKNOWN); combines with search and applies on both the All tab and individual race tabs
 - Full runner list in sort_order
 - Columns: bib, name, status — then one column per checkpoint in configured display order
 - Each cell: time at that checkpoint (our logs or Winlink imports), DNS/DNF, or blank
@@ -352,3 +353,4 @@ Three sections:
 | 2026-06-13 | Dark mode default, user-toggleable light mode | Field use is often in low-light or tent environments — dark default reduces eye strain; light mode available for daylight use |
 | 2026-06-14 | React Router inside App (not main.tsx) | BrowserRouter placed inside App so existing tests that `render(<App />)` automatically get router context without needing a wrapper — zero test changes required |
 | 2026-06-13 | Theme as `createAppTheme(mode)` factory | Single source of truth for both themes; `App.tsx` holds the `colorMode` state and passes it to `ThemeProvider` via `useMemo` |
+| 2026-08-23 | Runners tab status filter is multi-select, client-side | Runner data is already fully loaded client-side for the tab; multi-select chips let an operator combine statuses (e.g. DNS + DNF) without new API params |
