@@ -165,7 +165,57 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 			return
 		}
 		slog.Info("mqtt: query reply", "bib", bib, "reply", reply)
-		a.publishQueryReply(reply)
+		a.publishText(reply)
+		return
+	}
+
+	if meshutil.ParseCheckpoint(text) {
+		reply, err := a.svc.StationCheckpoints(ctx)
+		if err != nil {
+			slog.Error("mqtt: error getting station checkpoints", "error", err)
+			return
+		}
+		slog.Info("mqtt: checkpoint reply", "reply", reply)
+		a.publishText(reply)
+		return
+	}
+
+	if meshutil.ParseCount(text) {
+		reply, err := a.svc.StationCount(ctx)
+		if err != nil {
+			slog.Error("mqtt: error getting station count", "error", err)
+			return
+		}
+		slog.Info("mqtt: count reply", "reply", reply)
+		a.publishText(reply)
+		return
+	}
+
+	if name, ok := meshutil.ParseSearch(text); ok {
+		reply, err := a.svc.SearchRunners(ctx, name)
+		if err != nil {
+			slog.Error("mqtt: error searching runners", "name", name, "error", err)
+			return
+		}
+		slog.Info("mqtt: search reply", "name", name, "reply", reply)
+		a.publishText(reply)
+		return
+	}
+
+	if bib, ok := meshutil.ParseDup(text); ok {
+		reply, err := a.svc.CheckDuplicate(ctx, bib)
+		if err != nil {
+			slog.Error("mqtt: error checking duplicate", "bib", bib, "error", err)
+			return
+		}
+		slog.Info("mqtt: dup reply", "bib", bib, "reply", reply)
+		a.publishText(reply)
+		return
+	}
+
+	if meshutil.ParseHelp(text) {
+		slog.Info("mqtt: help reply")
+		a.publishText(meshutil.HelpText)
 		return
 	}
 
@@ -235,11 +285,6 @@ func (a *Adapter) publishAck(loggedBibs, duplicateBibs []int) {
 		lines = append(lines, fmt.Sprintf("DUPLICATE BIB: %d", b))
 	}
 	a.publishText(strings.Join(lines, "\n"))
-}
-
-// publishQueryReply sends a runner-status reply back to the mesh in response to a "query <bib>" command.
-func (a *Adapter) publishQueryReply(text string) {
-	a.publishText(text)
 }
 
 // publishText encodes and publishes a single text message downlink to the mesh.

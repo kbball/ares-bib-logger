@@ -338,6 +338,14 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Add single runner to roster (late race addition): `RunnerService.AddRunner` appends one runner to a race's roster (`sort_order = max + 1`, `Status: StatusUnknown`), reusing the `MaxSortOrder`/`BulkCreate` pattern from `TransferRace`; not gated by `RosterLocked`; new `POST /api/races/{raceID}/runners` endpoint; Admin panel "Setup" accordion gained an "Add Runner to Roster" section
 - Overall stats card on Data Entry tab: new "Overall" card (shown only when `races.length > 1`) sums Starters/On course/DNS/DNF/Finishers across all races in the active event from `Runner.Status`, since the per-race cards' active-checkpoint-based partition doesn't generalize across races
 - Split pace column on runner detail modal: Checkpoint Log table gained a "Split pace" column showing pace between each pair of consecutive logged-with-distance checkpoints; `frontend/src/domain/pace.ts` refactored to share filter/sort/pairwise-pace logic between `computeRunnerPace` and new `computeSplitPaces`
+- New mesh station-query commands alongside the existing `query <bib>`, on both MQTT/Meshtastic and MeshCore adapters:
+  - `checkpoint` (alias `cp`) — this station's active checkpoint for each race in the event, e.g. `100M StoverRoadOut | 50M PocketDepart`
+  - `count` — how many bibs this station has logged at its active checkpoint(s), e.g. `logged 15 at AS6`, for a sanity check against a paper tally
+  - `search <name>` — reverse bib lookup by case-insensitive last-name substring across the active event, capped to 5 results with a `+N more` suffix
+  - `dup <bib>` — whether a bib has already been logged at this station's active checkpoint for that runner's race, before submitting it
+  - `help` (alias `?`) — one-line list of every command this app understands
+  - `CheckpointLogService` gained a `RaceRepository` dependency (previously didn't need one) and four new port methods (`StationCheckpoints`, `StationCount`, `SearchRunners`, `CheckDuplicate`); parsing lives in `backend/internal/adapter/meshutil/parse.go` (`ParseCheckpoint`/`ParseCount`/`ParseSearch`/`ParseDup`/`ParseHelp`, plus a `HelpText` constant), checked in both adapters' `processMessage` before bib-list parsing, same pattern as the existing `query` command
+  - **Flagged for future work, not implemented**: `overdue` (runners not yet through this checkpoint whose projected arrival, or `CutoffTime`, has passed — the most operationally useful of the deferred set, since it's the first thing that would use `CutoffTime` for more than display), `missing` (stricter search-and-rescue variant — logged at the previous checkpoint with an implausible gap and no log here), `first <n>`/`leader` (first N bibs through this checkpoint)
 
 ## Backlog
 
@@ -369,6 +377,16 @@ Ordered by priority (2026-08-23):
 ### ~~3. Split pace between aid stations on runner detail modal~~ ✅ DONE
 - Runner detail modal's Checkpoint Log table (`RunnersTab.tsx`) gained a "Split pace" column: pace between each pair of consecutive logged-with-distance checkpoints, blank for the first logged checkpoint and for checkpoints lacking a distance
 - `frontend/src/domain/pace.ts` refactored to share its filter/sort/pairwise-pace logic (`loggedWithDistance`, `pairPace`) between `computeRunnerPace` (last split only) and new `computeSplitPaces` (every split, keyed by checkpoint ID) — same DNS/DNF/MOVED/FINISHED guard as `computeRunnerPace`
+
+### ~~4. Mesh station-query commands (checkpoint, count, search, dup, help)~~ ✅ DONE
+- New mesh commands on both MQTT/Meshtastic and MeshCore adapters, alongside the existing `query <bib>`: `checkpoint`/`cp` (this station's active checkpoint per race), `count` (bibs logged at this station's active checkpoint(s)), `search <name>` (reverse bib lookup by last-name substring, capped to 5 results), `dup <bib>` (already-logged check before submitting), `help`/`?` (one-line command list)
+- `CheckpointLogService` gained a `RaceRepository` dependency and four new port methods; parsing lives in `backend/internal/adapter/meshutil/parse.go`
+
+### 5. Additional mesh station-query commands (deferred)
+- `overdue` — runners not yet through this checkpoint whose projected arrival (existing `computeRunnerPace`/`projectArrival` math) or `CutoffTime` has passed. Highest-value of this set — the first thing that would make `CutoffTime` actionable over mesh rather than display-only
+- `missing` — stricter search-and-rescue variant: logged at the previous checkpoint with an implausibly long gap and no log at this one
+- `first <n>` / `leader` — first N bibs through this checkpoint
+- Not yet implemented — captured here for future work; each needs a reply-length cap given mesh packet size limits, same as `search`
 
 ### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
 - [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
