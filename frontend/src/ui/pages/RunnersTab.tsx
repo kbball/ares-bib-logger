@@ -273,7 +273,7 @@ export default function RunnersTab() {
         </Alert>
       )}
 
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap' }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           size="small"
           label="Search bib / name"
