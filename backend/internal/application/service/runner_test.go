@@ -162,6 +162,58 @@ func TestRunnerService_TransferRace_UpdateStatusError(t *testing.T) {
 	assert.ErrorContains(t, err, "marking runner moved")
 }
 
+func TestRunnerService_AddRunner_Success(t *testing.T) {
+	runners := &mockRunnerRepository{maxSortOrder: 5}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1}}}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.AddRunner(context.Background(), 1, 200, "Dana", "Ortiz")
+
+	require.NoError(t, err)
+	require.Len(t, runners.bulkCreated, 1)
+	created := runners.bulkCreated[0]
+	assert.Equal(t, 1, created.RaceID)
+	assert.Equal(t, 200, created.BibNumber)
+	assert.Equal(t, "Dana", created.FirstName)
+	assert.Equal(t, "Ortiz", created.LastName)
+	assert.Equal(t, 6, created.SortOrder)
+	assert.Equal(t, entity.StatusUnknown, created.Status)
+}
+
+func TestRunnerService_AddRunner_AllowedWhenRosterLocked(t *testing.T) {
+	runners := &mockRunnerRepository{maxSortOrder: 2}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, RosterLocked: true}}}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.AddRunner(context.Background(), 1, 300, "Erin", "Park")
+
+	require.NoError(t, err)
+	require.Len(t, runners.bulkCreated, 1)
+	assert.Equal(t, 3, runners.bulkCreated[0].SortOrder)
+}
+
+func TestRunnerService_AddRunner_MaxSortOrderError(t *testing.T) {
+	dbErr := errors.New("db down")
+	runners := &mockRunnerRepository{maxSortOrderErr: dbErr}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1}}}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.AddRunner(context.Background(), 1, 200, "Dana", "Ortiz")
+
+	assert.ErrorContains(t, err, "getting max sort order")
+}
+
+func TestRunnerService_AddRunner_BulkCreateError(t *testing.T) {
+	dbErr := errors.New("db down")
+	runners := &mockRunnerRepository{bulkCreateErr: dbErr}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1}}}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.AddRunner(context.Background(), 1, 200, "Dana", "Ortiz")
+
+	assert.ErrorContains(t, err, "creating runner")
+}
+
 func TestRunnerService_TransferRace_MaxSortOrderError(t *testing.T) {
 	dbErr := errors.New("db down")
 	runners := &mockRunnerRepository{

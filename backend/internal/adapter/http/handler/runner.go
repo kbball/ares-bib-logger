@@ -94,6 +94,30 @@ func parseTSVRoster(tsv string) ([]portsvc.RosterRow, error) {
 	return rows, nil
 }
 
+func (h *Handler) addRunner(w http.ResponseWriter, r *http.Request) {
+	raceID, ok := pathInt(r, "raceID")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid race id")
+		return
+	}
+
+	var body struct {
+		BibNumber int    `json:"bib_number"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	}
+	if err := decode(r, &body); err != nil || body.BibNumber <= 0 || body.FirstName == "" {
+		writeError(w, http.StatusBadRequest, "bib_number and first_name are required")
+		return
+	}
+
+	if err := h.runners.AddRunner(r.Context(), raceID, body.BibNumber, body.FirstName, body.LastName); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) transferRunner(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		BibNumber  int `json:"bib_number"`

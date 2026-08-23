@@ -198,6 +198,86 @@ describe('AdminTab — Roster Import', () => {
   })
 })
 
+describe('AdminTab — Add Runner to Roster', () => {
+  it('renders the Add Runner to Roster section', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => expect(screen.getByText(/add runner to roster/i)).toBeInTheDocument())
+  })
+
+  it('Add Runner button is disabled until race, bib, and first name are filled', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+    expect(within(section).getByRole('button', { name: /^add runner$/i })).toBeDisabled()
+  })
+
+  it('adds a runner to the roster', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/runners', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+    await user.type(within(section).getByLabelText(/last name/i), 'Ortiz')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      bib_number: 200,
+      first_name: 'Dana',
+      last_name: 'Ortiz',
+    })
+    await waitFor(() =>
+      expect(screen.getByText(/added bib 200 to the roster/i)).toBeInTheDocument(),
+    )
+  })
+
+  it('shows error when addRunner API fails', async () => {
+    server.use(
+      http.post('/api/races/:raceID/runners', () =>
+        HttpResponse.json({ error: 'bib already exists' }, { status: 409 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('add-runner-section'))
+    const section = screen.getByTestId('add-runner-section')
+
+    await user.click(within(section).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(section).getByLabelText(/bib number/i), '200')
+    await user.type(within(section).getByLabelText(/first name/i), 'Dana')
+
+    await user.click(within(section).getByRole('button', { name: /^add runner$/i }))
+
+    await waitFor(() => expect(screen.getByText(/bib already exists/i)).toBeInTheDocument())
+  })
+})
+
 describe('AdminTab — Change Runner Status', () => {
   it('renders the Change Runner Status section', async () => {
     const user = userEvent.setup()
