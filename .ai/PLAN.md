@@ -212,6 +212,7 @@ ActiveSession  (one row, updated in place — survives restarts)
 - Look up each bib → race → active checkpoint → create CheckpointLog
 - Store raw JSON payload for audit
 - Detect duplicates (same bib, same checkpoint, same session); alert in UI and publish warning back to mesh
+- **`query <bib>` command** (both MQTT/Meshtastic and MeshCore): checked before bib parsing on every inbound text message, so it never falls through and gets logged as a bib itself. Replies over the same mesh with a compact one-line summary — status, name, last known checkpoint + time, and pace (when computable) — e.g. `"101 Jane Doe: ACTIVE last AS4 14:32 pace 12:30/mi"`, or `"101 not found"` for an unrecognized bib. Reuses each adapter's existing ack/reply publish mechanism (`publishText`). Last-known-checkpoint is always reported regardless of runner status (including DNS/DNF) since locating a dropped runner is the primary emergency-comms use case; pace is omitted for terminal statuses and when fewer than 2 distance-tagged checkpoints have been logged.
 
 **Fallback / manual-entry mode:**
 - Controlled by `MQTT_ENABLED` env var (default `true`)
@@ -220,13 +221,14 @@ ActiveSession  (one row, updated in place — survives restarts)
 - Useful when Meshtastic infrastructure is unavailable or being tested without a gateway
 
 ### 2. Admin Panel (UI)
-Three sections:
+Three sections, grouped into two collapsed-by-default accordions: **Setup** (Active Event, Roster Import, Bulk Checkpoint Import, Races) and **Edit Runners** (Change Runner Status) — keeps the page short on load; operators expand only what they need.
 
 **Event & checkpoint configuration**
 - Select active event (GDR or GA Jewel)
 - For each race: set the active checkpoint ID for this station (dropdown of checkpoints for that race)
 - For 100M: checkpoint dropdown handles the Out/In switch — operator just picks the new checkpoint mid-race
 - Settings persist in ActiveSession (survive restarts) — safe to update mid-race
+- Per-event toggle: "blank line between header and first row (Winlink)" — some stations' Winlink convention has a blank row between the header and first data row, some don't; `Event.WinlinkBlankLineAfterHeader` controls this for both Export and Import/Preview for that event. Import only skips the blank line when a header was actually detected *and* the next line really is blank, so a mismatched toggle never eats a real data row.
 
 **Roster import**
 - Race dropdown + large text area for tab-separated paste
@@ -244,6 +246,7 @@ Three sections:
 
 **Tab 1: Data Entry**
 - Key race stats per race: total starters, on-course, DNS, DNF, finishers
+- **(Planned, not yet built)** Overall stats card: same fields as the per-race cards, summed across all races in the active event (GA Jewel's 4 races combined; GDR shows as a single card already so this is a no-op there). Projected next arrival is per-checkpoint/per-race, so the overall card omits it or notes it's not meaningful in aggregate — a per-implementation detail to resolve, not a plan-level decision. See Backlog.
 - Manual bib entry form (source = MANUAL)
 - DNS / DNF entry (bib + optional note)
 - Recent activity log: last N bibs logged at this station (most recent first)
@@ -256,6 +259,7 @@ Three sections:
 - Large text area: paste received Winlink column
 - Submit: parses by row position → sort_order; stores CheckpointLog records
 - Import summary: Created / Updated / Skipped counts; table of skipped details with position, bib, and reason (blank line, no runner at position, duplicate, parse error)
+- Pre-write preview/confirm step: submit first calls `POST /api/winlink/import/preview` (dry-run, no writes) via `WinlinkService.Preview`; a 100% clean parse (zero skips) imports immediately as before, otherwise a confirm modal shows the full per-row breakdown (position, bib, Create/Update/Skip, value or skip reason) before the operator commits or cancels
 
 **Tab 3: Winlink Export**
 - Race selector (for GA Jewel; GDR auto-selects)
@@ -268,6 +272,7 @@ Three sections:
 **Tab 4: Runners (Tabular — view only)**
 - Search bar: filter by bib number or runner name (live filter, no page reload)
 - Race filter (tab or dropdown for GA Jewel)
+- Status filter: multi-select chips (ACTIVE/DNS/DNF/FINISHED/MOVED/UNKNOWN); combines with search and applies on both the All tab and individual race tabs
 - Full runner list in sort_order
 - Columns: bib, name, status — then one column per checkpoint in configured display order
 - Each cell: time at that checkpoint (our logs or Winlink imports), DNS/DNF, or blank
@@ -312,13 +317,43 @@ Three sections:
 - **CI/CD**: GitHub Actions lint+test on PR, build+push to GHCR on merge; docker-compose.operator.yml for operators; pre-commit hooks (fmt + lint); README split into Operator/Developer tracks
 - **Bug fixes**: Winlink blank-line positional shift (single-digit-hour time parsing); Docker timezone (TIMEZONE env var, WinlinkService); SSE flusher/write-deadline; Data Entry SSE closure stale state; null Checkpoints crash on Winlink tabs; MUI out-of-range Select warnings (session load race); HTML nesting (Typography/Chip); GHA test timing races
 
+**v1.1 — 2026-08-23**
+
+- Runners tab: multi-select status filter (chips), combining with search and race tabs
+- Winlink import preview/confirm step: `WinlinkService.Preview` (read-only, shares row classification with `Import` via new `parseImportRows`), `POST /api/winlink/import/preview`, frontend auto-imports on a clean parse and otherwise shows a confirm modal with the full per-row breakdown before committing
+- Mesh `query <bib>` command: new `backend/internal/domain/pace` package (Go port of `frontend/src/domain/pace.ts`); `CheckpointLogService.QueryRunner` assembles a compact status/last-station/pace reply; both MQTT/Meshtastic and MeshCore adapters detect the command ahead of bib parsing and reply over the mesh via a shared `publishText` helper
+- Winlink blank-line-after-header, event-configurable: migration 000005 adds `Event.WinlinkBlankLineAfterHeader`; `WinlinkService` resolves it per-race via race→event lookup and both `Export` and `parseImportRows` (shared by `Import`/`Preview`) respect it; new `PUT /api/events/{id}/winlink-format` endpoint; Admin panel toggle on the active event
+- Admin panel restructured into two collapsed-by-default accordions ("Setup", "Edit Runners")
+- Dark/light mode now persists across refreshes (`localStorage`, fails open if storage is unavailable); added a `window.localStorage` stub to the frontend test setup since this project's jsdom test environment doesn't implement it
+- "Column Name" field on checkpoints: migration 000006 adds `checkpoints.column_name` (nullable); `Checkpoint.ColumnName *string` threaded through repo/service/handler `Create`/`Update` and the event export/import DTO; `WinlinkService.Export` uses it for the header line, falling back to `DisplayName` when unset or blank; Admin panel checkpoint create/edit forms gained a "Column Name" input (table column + inline edit)
+- Winlink import header validation: `WinlinkService.Preview` now also fetches the target checkpoint and compares the pasted text's header line (when present) against the checkpoint's expected header (`ColumnName`, falling back to `DisplayName`) via new `checkpointHeader`/`pastedHeaderLine` helpers; `WinlinkPreviewResult` gained `HeaderMismatch`/`PastedHeader`/`ExpectedHeader`; frontend now shows the confirm modal (with a warning `Alert`) whenever there's a header mismatch, even on an otherwise-clean parse that would normally auto-import
+- Correct a mis-logged bib (Admin → Edit Runners): migration 000007 adds `CORRECTION` to the `log_source` enum; `CheckpointLogRepository.Delete(runnerID, checkpointID)` (new); `CheckpointLogService.CorrectLog` (parses `HH:MM`/`HH:MM:SS` via shared `parseWallClockTime`, upserts with `Source: CORRECTION`, wakes `UNKNOWN` runners to `ACTIVE`) and `.DeleteLog` (looks up the runner by bib within the race, deletes the log); new `POST /api/log/correction` and `DELETE /api/log/correction` endpoints (JSON body: `race_id`, `checkpoint_id`, `bib_number`, and `time` for the POST); `CheckpointLogService` now takes a `*time.Location` constructor param (same timezone source as `WinlinkService`); Admin panel "Edit Runners" accordion gained "Manually Log a Bib" and "Remove a Checkpoint Log" (with delete confirmation dialog) sections; `del()` API client helper gained an optional JSON body for the DELETE-with-body call
+
 ## Backlog
 
-### User Testing — MQTT Gateway and Meshtastic Messaging (Priority: Medium) 🚧 BLOCKED
-- [ ] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
-- [ ] Verify duplicate-bib detection and outbound alert publish back to the mesh
-- [ ] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
-- **Blocked:** test hardware (Meshtastic nodes + gateway) not yet configured
+Ordered by priority (2026-08-23):
+
+### 1. Add single runner to roster (late race addition)
+- Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
+- Reasoning: covers a runner who registers late and isn't in the pre-loaded roster or any other race — distinct from [Runner Race Transfer](#7-runner-race-transfer), which moves an existing runner between races
+- Not yet implemented — captured here for future work
+
+### 2. Overall stats card on Data Entry tab
+- Add a card alongside the existing per-race stat cards showing totals across all races in the active event: total starters, on-course, DNS, DNF, finishers
+- Same underlying data as the per-race cards, just summed; primarily useful for GA Jewel (4 concurrent races) — GDR already effectively shows one card
+- Not yet implemented — captured here for future work
+
+### 3. Split pace between aid stations on runner detail modal
+- The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only
+- Add a "Split pace" column: pace between each pair of consecutive logged checkpoints that both have a known `DistanceFromStart`, mirroring the distance/time-delta math already in `computeRunnerPace`/`formatPace` (`frontend/src/domain/pace.ts`) but computed for every consecutive pair in the table (a full splits view), not just the last two checkpoints used for the live "Pace" stat elsewhere
+- Blank/— for the first logged checkpoint (no prior split) and for any pair where either checkpoint lacks a distance
+- Not yet implemented — captured here for future work
+
+### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
+- [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
+- [x] End-to-end user test of the full MeshCore path: MeshCore node → meshcore-mqtt bridge → Mosquitto broker → backend subscriber → bib logging
+- [x] Verify duplicate-bib detection and outbound ack back to the mesh (both technologies)
+- [x] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
 
 ---
 
@@ -352,3 +387,14 @@ Three sections:
 | 2026-06-13 | Dark mode default, user-toggleable light mode | Field use is often in low-light or tent environments — dark default reduces eye strain; light mode available for daylight use |
 | 2026-06-14 | React Router inside App (not main.tsx) | BrowserRouter placed inside App so existing tests that `render(<App />)` automatically get router context without needing a wrapper — zero test changes required |
 | 2026-06-13 | Theme as `createAppTheme(mode)` factory | Single source of truth for both themes; `App.tsx` holds the `colorMode` state and passes it to `ThemeProvider` via `useMemo` |
+| 2026-08-23 | Runners tab status filter is multi-select, client-side | Runner data is already fully loaded client-side for the tab; multi-select chips let an operator combine statuses (e.g. DNS + DNF) without new API params |
+| 2026-08-23 | `LastLoggedCheckpoint` reports a runner's last station regardless of status | `ComputeRunnerPace` intentionally returns empty for DNS/DNF/MOVED/FINISHED (pace isn't meaningful once stopped) — but a dropped runner's last known location is exactly what a search-and-rescue mesh query needs, so it must not be gated by the same status check |
+| 2026-08-23 | `query <bib>` checked before bib-list parsing, not after | Both mesh adapters previously treated every non-numeric token as noise to skip; without an explicit early check, `"query 101"` would silently log bib 101 as a real checkpoint hit instead of being recognized as a command |
+| 2026-08-23 | Winlink blank-line-after-header is a per-event setting, resolved via race→event | Not tied to any one race/checkpoint — it's a formatting convention for the whole event's Winlink traffic; `Import`/`Preview` look it up from `raceID` rather than `ActiveSession` so they stay self-contained (no new session dependency) |
+| 2026-08-23 | Blank line only consumed when actually present, even if the event flag is on | A mismatched setting (flag enabled, but this particular paste has no blank line) must never eat a real data row — `parseImportRows` checks the line content, not just the flag, before advancing past it |
+| 2026-08-23 | Color mode persistence fails open (try/catch + fallback to light) instead of assuming `localStorage` exists | Private browsing and disabled storage can make `localStorage` unavailable or throw; the app must still boot and toggle themes in that case, just without persistence |
+| 2026-08-23 | `Checkpoint.ColumnName` is a nullable `*string`, falls back to `DisplayName` in `WinlinkService.Export` | Most stations' internal display name already matches their spreadsheet header — only override it when the two diverge; blank/unset never breaks export |
+| 2026-08-23 | Winlink import header validation only warns (never blocks) and is skipped entirely when no header line is present | A wrong-checkpoint paste is an operator error worth flagging, but the operator may have a legitimate reason to proceed (e.g. a renamed checkpoint); the existing preview/confirm modal is the natural place to surface it rather than a hard stop |
+| 2026-08-23 | Manual bib correction uses a new `CORRECTION` log source rather than reusing `MANUAL` | Keeps a post-hoc fix distinguishable in the audit trail from a genuine at-the-time manual entry, without overloading `RawMessage` to carry that distinction |
+| 2026-08-23 | `CorrectLog`/`DeleteLog` find the runner by listing the race's roster and matching bib number, instead of adding a new `RunnerRepository.GetByBibInRace` method | The operator already picks an explicit race in the UI (unlike mesh logging, which only has an event-wide active session), and races are small enough that an in-memory scan mirrors the pattern `WinlinkService` already uses for its `byOrder` map — no new repo method needed |
+| 2026-08-23 | `parseTimeOfDay` promoted to a package-level `parseWallClockTime(loc, str)` function shared by `WinlinkService` and `CheckpointLogService` | Both need identical wall-clock-on-today's-date parsing in the configured timezone; a shared free function avoids duplicating the logic while keeping each service's public API unchanged |

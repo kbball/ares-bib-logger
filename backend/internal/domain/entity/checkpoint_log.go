@@ -6,8 +6,10 @@ type LogSource string
 
 const (
 	SourceMeshtastic    LogSource = "MESHTASTIC"
+	SourceMeshcore      LogSource = "MESHCORE"
 	SourceManual        LogSource = "MANUAL"
 	SourceWinlinkImport LogSource = "WINLINK_IMPORT"
+	SourceCorrection    LogSource = "CORRECTION"
 )
 
 type CheckpointLog struct {

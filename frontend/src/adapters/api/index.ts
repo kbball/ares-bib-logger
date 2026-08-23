@@ -9,12 +9,15 @@ import type {
   LogBibResult,
   RunnerStatus,
   WinlinkImportResult,
+  WinlinkPreviewResult,
 } from '../../domain/types'
 
 // Events
 export const listEvents = () => get<Event[]>('/api/events')
 export const createEvent = (name: string) => post<Event>('/api/events', { name })
 export const archiveEvent = (id: number) => put<void>(`/api/events/${id}/archive`)
+export const setEventWinlinkFormat = (id: number, blankLineAfterHeader: boolean) =>
+  put<void>(`/api/events/${id}/winlink-format`, { blank_line_after_header: blankLineAfterHeader })
 
 // Races
 export const listRaces = (eventID: number) => get<Race[]>(`/api/events/${eventID}/races`)
@@ -31,22 +34,26 @@ export const createCheckpoint = (
   code: string,
   displayName: string,
   distance?: number | null,
+  columnName?: string | null,
 ) =>
   post<Checkpoint>(`/api/races/${raceID}/checkpoints`, {
     code,
     display_name: displayName,
     distance_from_start: distance ?? null,
+    column_name: columnName ?? null,
   })
 export const updateCheckpoint = (
   id: number,
   code: string,
   displayName: string,
   distance?: number | null,
+  columnName?: string | null,
 ) =>
   put<Checkpoint>(`/api/checkpoints/${id}`, {
     code,
     display_name: displayName,
     distance_from_start: distance ?? null,
+    column_name: columnName ?? null,
   })
 export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>
@@ -72,6 +79,19 @@ export const logBib = (bibNumber: number) =>
   post<LogBibResult>('/api/log/bib', { bib_number: bibNumber })
 export const logStatus = (bibNumber: number, status: RunnerStatus) =>
   post<void>('/api/log/status', { bib_number: bibNumber, status })
+export const correctLog = (raceID: number, checkpointID: number, bibNumber: number, time: string) =>
+  post<CheckpointLog>('/api/log/correction', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    bib_number: bibNumber,
+    time,
+  })
+export const deleteLog = (raceID: number, checkpointID: number, bibNumber: number) =>
+  del<void>('/api/log/correction', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    bib_number: bibNumber,
+  })
 
 // Session
 export const getSession = () => get<ActiveSession>('/api/session')
@@ -87,6 +107,12 @@ export const exportWinlink = (raceID: number) =>
   fetch(`/api/winlink/export/${raceID}`).then((r) => r.text())
 export const importWinlink = (raceID: number, checkpointID: number, text: string) =>
   post<WinlinkImportResult>('/api/winlink/import', {
+    race_id: raceID,
+    checkpoint_id: checkpointID,
+    text,
+  })
+export const previewWinlink = (raceID: number, checkpointID: number, text: string) =>
+  post<WinlinkPreviewResult>('/api/winlink/import/preview', {
     race_id: raceID,
     checkpoint_id: checkpointID,
     text,

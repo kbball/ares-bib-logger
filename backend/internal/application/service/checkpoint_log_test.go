@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,13 @@ func newCheckpointLogSvc(
 	runners *mockRunnerRepository,
 	logs *mockCheckpointLogRepository,
 	sess *mockActiveSessionRepository,
+	checkpoints ...*mockCheckpointRepository,
 ) *service.CheckpointLogService {
-	return service.NewCheckpointLogService(runners, logs, sess)
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}
+	if len(checkpoints) > 0 {
+		cps = checkpoints[0]
+	}
+	return service.NewCheckpointLogService(runners, cps, logs, sess, time.UTC)
 }
 
 func TestCheckpointLogService_LogBib_Success(t *testing.T) {
@@ -216,4 +222,232 @@ func TestCheckpointLogService_ListByRace(t *testing.T) {
 	result, err := svc.ListByRace(context.Background(), 1)
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
+}
+
+// --- CheckpointLogService.CorrectLog ---
+
+func TestCheckpointLogService_CorrectLog_CreatesLog(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, Status: entity.StatusUnknown}},
+	}
+	logs := &mockCheckpointLogRepository{}
+	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
+
+	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	require.NoError(t, err)
+	assert.Equal(t, 1, log.RunnerID)
+	assert.Equal(t, 5, log.CheckpointID)
+	assert.Equal(t, entity.SourceCorrection, log.Source)
+	assert.Equal(t, entity.StatusActive, runners.runners[0].Status)
+}
+
+func TestCheckpointLogService_CorrectLog_OverwritesExistingLog(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, Status: entity.StatusActive}},
+	}
+	logs := &mockCheckpointLogRepository{
+		logs: []entity.CheckpointLog{{ID: 9, RunnerID: 1, CheckpointID: 5, Source: entity.SourceMeshtastic}},
+	}
+	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
+
+	log, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	require.NoError(t, err)
+	assert.Equal(t, 9, log.ID)
+	assert.Equal(t, entity.SourceCorrection, log.Source)
+	require.Len(t, logs.logs, 1)
+}
+
+func TestCheckpointLogService_CorrectLog_InvalidTime(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "not-a-time")
+	assert.ErrorContains(t, err, "cannot parse time")
+}
+
+func TestCheckpointLogService_CorrectLog_BibNotFound(t *testing.T) {
+	runners := &mockRunnerRepository{}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 999, "14:32")
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointLogService_CorrectLog_ListRunnersError(t *testing.T) {
+	runners := &mockRunnerRepository{listErr: errors.New("db down")}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	assert.ErrorContains(t, err, "db down")
+}
+
+func TestCheckpointLogService_CorrectLog_UpsertError(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
+	logs := &mockCheckpointLogRepository{upsertErr: errors.New("upsert failed")}
+	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	assert.ErrorContains(t, err, "upsert failed")
+}
+
+func TestCheckpointLogService_CorrectLog_UpdateStatusError(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners:         []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, Status: entity.StatusUnknown}},
+		updateStatusErr: errors.New("status update failed"),
+	}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	_, err := svc.CorrectLog(context.Background(), 1, 5, 100, "14:32")
+	assert.ErrorContains(t, err, "status update failed")
+}
+
+// --- CheckpointLogService.DeleteLog ---
+
+func TestCheckpointLogService_DeleteLog_Success(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
+	logs := &mockCheckpointLogRepository{
+		logs: []entity.CheckpointLog{{ID: 9, RunnerID: 1, CheckpointID: 5}},
+	}
+	svc := newCheckpointLogSvc(runners, logs, &mockActiveSessionRepository{})
+
+	err := svc.DeleteLog(context.Background(), 1, 5, 100)
+	require.NoError(t, err)
+	assert.Empty(t, logs.logs)
+}
+
+func TestCheckpointLogService_DeleteLog_BibNotFound(t *testing.T) {
+	runners := &mockRunnerRepository{}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	err := svc.DeleteLog(context.Background(), 1, 5, 999)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCheckpointLogService_DeleteLog_NoLogAtCheckpoint(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100}}}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+
+	err := svc.DeleteLog(context.Background(), 1, 5, 100)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+// --- CheckpointLogService.QueryRunner ---
+
+func dist(v float64) *float64 { return &v }
+
+func TestCheckpointLogService_QueryRunner_NotFound(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	svc := newCheckpointLogSvc(&mockRunnerRepository{}, &mockCheckpointLogRepository{}, sess)
+
+	reply, err := svc.QueryRunner(context.Background(), 999)
+	require.NoError(t, err)
+	assert.Equal(t, "999 not found", reply)
+}
+
+func TestCheckpointLogService_QueryRunner_NoSession(t *testing.T) {
+	sess := &mockActiveSessionRepository{}
+	svc := newCheckpointLogSvc(&mockRunnerRepository{}, &mockCheckpointLogRepository{}, sess)
+
+	_, err := svc.QueryRunner(context.Background(), 100)
+	assert.ErrorIs(t, err, domain.ErrNoSession)
+}
+
+func TestCheckpointLogService_QueryRunner_SessionError(t *testing.T) {
+	sess := &mockActiveSessionRepository{getErr: errors.New("db down")}
+	svc := newCheckpointLogSvc(&mockRunnerRepository{}, &mockCheckpointLogRepository{}, sess)
+
+	_, err := svc.QueryRunner(context.Background(), 100)
+	assert.ErrorContains(t, err, "getting session")
+}
+
+func TestCheckpointLogService_QueryRunner_NeverSeen(t *testing.T) {
+	eventIDVal := 1
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 5, BibNumber: 100, FirstName: "Jane", LastName: "Doe", Status: entity.StatusActive}},
+	}
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5, DisplayOrder: 1, DisplayName: "AS1", DistanceFromStart: dist(5.0)},
+	}}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, sess, cps)
+
+	reply, err := svc.QueryRunner(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Jane Doe: ACTIVE not yet seen", reply)
+}
+
+func TestCheckpointLogService_QueryRunner_LastStationNoPace(t *testing.T) {
+	eventIDVal := 1
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 5, BibNumber: 100, FirstName: "Jane", LastName: "Doe", Status: entity.StatusDNF}},
+	}
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5, DisplayOrder: 1, DisplayName: "AS1", DistanceFromStart: dist(5.0)},
+	}}
+	logs := &mockCheckpointLogRepository{logs: []entity.CheckpointLog{
+		{RunnerID: 1, CheckpointID: 1, RecordedAt: mustParseTime("2026-06-14T14:32:00Z")},
+	}}
+	svc := newCheckpointLogSvc(runners, logs, sess, cps)
+
+	reply, err := svc.QueryRunner(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Jane Doe: DNF last AS1 14:32", reply)
+}
+
+func TestCheckpointLogService_QueryRunner_LastStationWithPace(t *testing.T) {
+	eventIDVal := 1
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 5, BibNumber: 100, FirstName: "Jane", LastName: "Doe", Status: entity.StatusActive}},
+	}
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{
+		1: {ID: 1, RaceID: 5, DisplayOrder: 1, DisplayName: "AS1", DistanceFromStart: dist(10.0)},
+		2: {ID: 2, RaceID: 5, DisplayOrder: 2, DisplayName: "AS2", DistanceFromStart: dist(20.0)},
+	}}
+	logs := &mockCheckpointLogRepository{logs: []entity.CheckpointLog{
+		{RunnerID: 1, CheckpointID: 1, RecordedAt: mustParseTime("2026-06-14T10:00:00Z")},
+		{RunnerID: 1, CheckpointID: 2, RecordedAt: mustParseTime("2026-06-14T11:00:00Z")},
+	}}
+	svc := newCheckpointLogSvc(runners, logs, sess, cps)
+
+	reply, err := svc.QueryRunner(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, "100 Jane Doe: ACTIVE last AS2 11:00 pace 6:00 /mi", reply)
+}
+
+func TestCheckpointLogService_QueryRunner_ListCheckpointsError(t *testing.T) {
+	eventIDVal := 1
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 5, BibNumber: 100}},
+	}
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	cps := &mockCheckpointRepository{listErr: errors.New("db down")}
+	svc := newCheckpointLogSvc(runners, &mockCheckpointLogRepository{}, sess, cps)
+
+	_, err := svc.QueryRunner(context.Background(), 100)
+	assert.ErrorContains(t, err, "listing checkpoints")
+}
+
+func TestCheckpointLogService_QueryRunner_ListLogsError(t *testing.T) {
+	eventIDVal := 1
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 5, BibNumber: 100}},
+	}
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	cps := &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{}}
+	logs := &mockCheckpointLogRepository{listErr: errors.New("db down")}
+	svc := newCheckpointLogSvc(runners, logs, sess, cps)
+
+	_, err := svc.QueryRunner(context.Background(), 100)
+	assert.ErrorContains(t, err, "listing checkpoint logs")
+}
+
+func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

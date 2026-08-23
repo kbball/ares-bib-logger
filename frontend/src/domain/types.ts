@@ -2,6 +2,7 @@ export interface Event {
   ID: number
   Name: string
   Archived: boolean
+  WinlinkBlankLineAfterHeader: boolean
   CreatedAt: string
 }
 
@@ -19,6 +20,7 @@ export interface Checkpoint {
   RaceID: number
   Code: string
   DisplayName: string
+  ColumnName: string | null
   DisplayOrder: number
   DistanceFromStart: number | null
   CreatedAt: string
@@ -77,6 +79,24 @@ export interface WinlinkImportResult {
   Skipped: number
   SkippedDetails: WinlinkSkipDetail[]
   Errors: string[]
+}
+
+export interface WinlinkRowOutcome {
+  Position: number
+  BibNumber: number
+  Kind: 'create' | 'update' | 'skip'
+  Value: string
+  Reason: string // set only when Kind === 'skip': "blank" | "no_runner" | "parse_error" | "moved"
+}
+
+export interface WinlinkPreviewResult {
+  Created: number
+  Updated: number
+  Skipped: number
+  Rows: WinlinkRowOutcome[]
+  HeaderMismatch: boolean
+  PastedHeader: string
+  ExpectedHeader: string
 }
 
 // SSE event envelope

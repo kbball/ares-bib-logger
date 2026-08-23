@@ -18,6 +18,7 @@ type WinlinkService struct {
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
 	races          portrepo.RaceRepository
+	events         portrepo.EventRepository
 	loc            *time.Location
 }
 
@@ -27,6 +28,7 @@ func NewWinlinkService(
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
 	races portrepo.RaceRepository,
+	events portrepo.EventRepository,
 	loc *time.Location,
 ) *WinlinkService {
 	if loc == nil {
@@ -38,8 +40,23 @@ func NewWinlinkService(
 		checkpointLogs: checkpointLogs,
 		session:        session,
 		races:          races,
+		events:         events,
 		loc:            loc,
 	}
+}
+
+// blankLineAfterHeader resolves the Winlink blank-line-after-header setting
+// for the event that owns raceID.
+func (s *WinlinkService) blankLineAfterHeader(ctx context.Context, raceID int) (bool, error) {
+	race, err := s.races.Get(ctx, raceID)
+	if err != nil {
+		return false, fmt.Errorf("getting race: %w", err)
+	}
+	event, err := s.events.Get(ctx, race.EventID)
+	if err != nil {
+		return false, fmt.Errorf("getting event: %w", err)
+	}
+	return event.WinlinkBlankLineAfterHeader, nil
 }
 
 var _ portsvc.WinlinkService = (*WinlinkService)(nil)
@@ -110,9 +127,21 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 		}
 	}
 
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return "", err
+	}
+
 	var sb strings.Builder
-	sb.WriteString(cp.DisplayName)
+	if cp.ColumnName != nil && *cp.ColumnName != "" {
+		sb.WriteString(*cp.ColumnName)
+	} else {
+		sb.WriteString(cp.DisplayName)
+	}
 	sb.WriteByte('\n')
+	if blankLine {
+		sb.WriteByte('\n')
+	}
 
 	for _, r := range runners {
 		if log, seen := logByRunner[r.ID]; seen {
@@ -139,19 +168,104 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 	return sb.String(), nil
 }
 
-func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
+// rowKind classifies a single pasted line, independent of whether it will be
+// written to the DB (Import) or merely reported (Preview).
+type rowKind string
+
+const (
+	rowBlank      rowKind = "blank"
+	rowNoRunner   rowKind = "no_runner"
+	rowMoved      rowKind = "moved"
+	rowParseError rowKind = "parse_error"
+	rowDNS        rowKind = "dns"
+	rowDNF        rowKind = "dnf"
+	rowTime       rowKind = "time"
+)
+
+// parsedRow is the pure, side-effect-free classification of one pasted line.
+type parsedRow struct {
+	position   int
+	sortOrder  int
+	runner     entity.Runner
+	hasRunner  bool
+	kind       rowKind
+	raw        string // trimmed original line
+	parsedTime time.Time
+}
+
+// parseImportRows classifies each data row (after header stripping) by
+// looking up the runner at that sort_order and inspecting the line's
+// content. It performs no I/O, so Import and Preview can share it and can
+// never disagree about what a row *is* — only about what to do with it.
+func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Runner, blankLineAfterHeader bool) []parsedRow {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	if len(lines) == 0 {
-		return portsvc.WinlinkImportResult{}, nil
+		return nil
 	}
 
 	// Skip a non-numeric header line if present.
 	start := 0
 	if len(lines) > 0 && !looksLikeTimeOrStatus(lines[0]) {
 		start = 1
+		// If this event's convention includes a blank line after the header,
+		// consume it too — but only when it's actually there, so a mismatched
+		// setting never eats a real data row.
+		if blankLineAfterHeader && len(lines) > 1 && strings.TrimSpace(lines[1]) == "" {
+			start = 2
+		}
 	}
 	lines = lines[start:]
 
+	rows := make([]parsedRow, 0, len(lines))
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		sortOrder := i + 1
+		pos := i + 1
+
+		if line == "" {
+			rows = append(rows, parsedRow{position: pos, sortOrder: sortOrder, kind: rowBlank})
+			continue
+		}
+
+		runner, ok := byOrder[sortOrder]
+		if !ok {
+			rows = append(rows, parsedRow{position: pos, sortOrder: sortOrder, kind: rowNoRunner, raw: line})
+			continue
+		}
+
+		upper := strings.ToUpper(line)
+		if strings.HasPrefix(upper, "MOVED") {
+			rows = append(rows, parsedRow{
+				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowMoved, raw: line,
+			})
+			continue
+		}
+		switch upper {
+		case "DNS":
+			rows = append(rows, parsedRow{
+				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowDNS, raw: upper,
+			})
+		case "DNF":
+			rows = append(rows, parsedRow{
+				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowDNF, raw: upper,
+			})
+		default:
+			t, err := s.parseTimeOfDay(line)
+			if err != nil {
+				rows = append(rows, parsedRow{
+					position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowParseError, raw: line,
+				})
+				continue
+			}
+			rows = append(rows, parsedRow{
+				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowTime, raw: line, parsedTime: t,
+			})
+		}
+	}
+	return rows
+}
+
+func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
 	runners, err := s.runners.List(ctx, raceID)
 	if err != nil {
 		return portsvc.WinlinkImportResult{}, fmt.Errorf("listing runners: %w", err)
@@ -160,6 +274,11 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 	byOrder := make(map[int]entity.Runner, len(runners))
 	for _, r := range runners {
 		byOrder[r.SortOrder] = r
+	}
+
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkImportResult{}, err
 	}
 
 	var result portsvc.WinlinkImportResult
@@ -173,66 +292,49 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 		})
 	}
 
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		sortOrder := i + 1
-		pos := i + 1
-
-		if line == "" {
-			skip(pos, 0, "blank")
-			continue
-		}
-
-		runner, ok := byOrder[sortOrder]
-		if !ok {
-			skip(pos, 0, "no_runner")
-			continue
-		}
-
-		upper := strings.ToUpper(line)
-		if strings.HasPrefix(upper, "MOVED") {
+	for _, row := range s.parseImportRows(text, byOrder, blankLine) {
+		switch row.kind {
+		case rowBlank:
+			skip(row.position, 0, "blank")
+		case rowNoRunner:
+			skip(row.position, 0, "no_runner")
+		case rowMoved:
 			// Runner was transferred out of this race; no action needed.
-			skip(pos, runner.BibNumber, "moved")
-			continue
-		}
-		switch upper {
-		case "DNS", "DNF":
+			skip(row.position, row.runner.BibNumber, "moved")
+		case rowParseError:
+			skip(row.position, row.runner.BibNumber, "parse_error")
+		case rowDNS, rowDNF:
 			status := entity.StatusDNS
-			if upper == "DNF" {
+			if row.kind == rowDNF {
 				status = entity.StatusDNF
 			}
-			if err := s.runners.UpdateStatus(ctx, runner.ID, status); err != nil {
-				return result, fmt.Errorf("updating %s status for bib %d: %w", upper, runner.BibNumber, err)
+			if err := s.runners.UpdateStatus(ctx, row.runner.ID, status); err != nil {
+				return result, fmt.Errorf("updating %s status for bib %d: %w", row.raw, row.runner.BibNumber, err)
 			}
 			if _, _, err := s.checkpointLogs.Upsert(ctx, entity.CheckpointLog{
-				RunnerID:     runner.ID,
+				RunnerID:     row.runner.ID,
 				CheckpointID: checkpointID,
 				RecordedAt:   time.Now().UTC(),
 				Source:       entity.SourceWinlinkImport,
-				RawMessage:   upper,
+				RawMessage:   row.raw,
 			}); err != nil {
-				return result, fmt.Errorf("upserting %s log for bib %d: %w", upper, runner.BibNumber, err)
+				return result, fmt.Errorf("upserting %s log for bib %d: %w", row.raw, row.runner.BibNumber, err)
 			}
 			result.Updated++
-		default:
-			t, err := s.parseTimeOfDay(line)
-			if err != nil {
-				skip(pos, runner.BibNumber, "parse_error")
-				continue
-			}
+		case rowTime:
 			_, wasCreated, err := s.checkpointLogs.Upsert(ctx, entity.CheckpointLog{
-				RunnerID:     runner.ID,
+				RunnerID:     row.runner.ID,
 				CheckpointID: checkpointID,
-				RecordedAt:   t,
+				RecordedAt:   row.parsedTime,
 				Source:       entity.SourceWinlinkImport,
-				RawMessage:   line,
+				RawMessage:   row.raw,
 			})
 			if err != nil {
-				return result, fmt.Errorf("upserting log for bib %d: %w", runner.BibNumber, err)
+				return result, fmt.Errorf("upserting log for bib %d: %w", row.runner.BibNumber, err)
 			}
-			if runner.Status == entity.StatusUnknown {
-				if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusActive); err != nil {
-					return result, fmt.Errorf("updating status for bib %d: %w", runner.BibNumber, err)
+			if row.runner.Status == entity.StatusUnknown {
+				if err := s.runners.UpdateStatus(ctx, row.runner.ID, entity.StatusActive); err != nil {
+					return result, fmt.Errorf("updating status for bib %d: %w", row.runner.BibNumber, err)
 				}
 			}
 			if wasCreated {
@@ -244,6 +346,119 @@ func (s *WinlinkService) Import(ctx context.Context, raceID, checkpointID int, t
 	}
 
 	return result, nil
+}
+
+// Preview classifies every row the same way Import would, without writing
+// anything to the database, so an operator can review what would happen
+// before committing.
+func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
+	cp, err := s.checkpoints.Get(ctx, checkpointID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, fmt.Errorf("getting checkpoint: %w", err)
+	}
+
+	runners, err := s.runners.List(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, fmt.Errorf("listing runners: %w", err)
+	}
+
+	byOrder := make(map[int]entity.Runner, len(runners))
+	for _, r := range runners {
+		byOrder[r.SortOrder] = r
+	}
+
+	existingLogs, err := s.checkpointLogs.ListByRaceAndCheckpoint(ctx, raceID, checkpointID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, fmt.Errorf("listing checkpoint logs: %w", err)
+	}
+	hasLog := make(map[int]bool, len(existingLogs))
+	for _, l := range existingLogs {
+		hasLog[l.RunnerID] = true
+	}
+
+	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkPreviewResult{}, err
+	}
+
+	var result portsvc.WinlinkPreviewResult
+
+	addRow := func(row portsvc.WinlinkRowOutcome) {
+		switch row.Kind {
+		case "create":
+			result.Created++
+		case "update":
+			result.Updated++
+		case "skip":
+			result.Skipped++
+		}
+		result.Rows = append(result.Rows, row)
+	}
+
+	for _, row := range s.parseImportRows(text, byOrder, blankLine) {
+		switch row.kind {
+		case rowBlank:
+			addRow(portsvc.WinlinkRowOutcome{Position: row.position, Kind: "skip", Reason: "blank"})
+		case rowNoRunner:
+			addRow(portsvc.WinlinkRowOutcome{Position: row.position, Kind: "skip", Reason: "no_runner"})
+		case rowMoved:
+			addRow(portsvc.WinlinkRowOutcome{
+				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "skip", Value: row.raw, Reason: "moved",
+			})
+		case rowParseError:
+			addRow(portsvc.WinlinkRowOutcome{
+				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "skip", Value: row.raw, Reason: "parse_error",
+			})
+		case rowDNS, rowDNF:
+			addRow(portsvc.WinlinkRowOutcome{
+				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "update", Value: row.raw,
+			})
+		case rowTime:
+			kind := "create"
+			if hasLog[row.runner.ID] {
+				kind = "update"
+			}
+			addRow(portsvc.WinlinkRowOutcome{
+				Position: row.position, BibNumber: row.runner.BibNumber, Kind: kind, Value: row.raw,
+			})
+		}
+	}
+
+	if pastedHeader, ok := pastedHeaderLine(text); ok {
+		expected := checkpointHeader(cp)
+		result.PastedHeader = pastedHeader
+		result.ExpectedHeader = expected
+		if expected != "" && !strings.EqualFold(strings.TrimSpace(pastedHeader), expected) {
+			result.HeaderMismatch = true
+		}
+	}
+
+	return result, nil
+}
+
+// checkpointHeader returns the header text a Winlink paste for this checkpoint
+// is expected to start with: ColumnName when set and non-blank, else DisplayName.
+func checkpointHeader(cp entity.Checkpoint) string {
+	if cp.ColumnName != nil && strings.TrimSpace(*cp.ColumnName) != "" {
+		return strings.TrimSpace(*cp.ColumnName)
+	}
+	return strings.TrimSpace(cp.DisplayName)
+}
+
+// pastedHeaderLine returns the first line of the pasted text and true if it
+// looks like a header (not a time/status/blank data row) — mirrors the
+// header-detection parseImportRows already performs so the two never disagree
+// about whether a header is present.
+func pastedHeaderLine(text string) (string, bool) {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) == 0 {
+		return "", false
+	}
+	first := strings.TrimSpace(lines[0])
+	if looksLikeTimeOrStatus(first) {
+		return "", false
+	}
+	return first, true
 }
 
 // looksLikeTimeOrStatus returns true if the line appears to be a data row:
@@ -268,8 +483,16 @@ func looksLikeTimeOrStatus(s string) bool {
 // parseTimeOfDay parses HH:MM:SS or HH:MM as a wall-clock time on today's date
 // in the service's configured timezone.
 func (s *WinlinkService) parseTimeOfDay(str string) (time.Time, error) {
+	return parseWallClockTime(s.loc, str)
+}
+
+// parseWallClockTime parses HH:MM:SS or HH:MM as a wall-clock time on today's
+// date in the given timezone. Shared by WinlinkService (import) and
+// CheckpointLogService (manual corrections) so both interpret pasted/typed
+// times the same way.
+func parseWallClockTime(loc *time.Location, str string) (time.Time, error) {
 	now := time.Now()
-	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
+	base := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		t, err := time.Parse(layout, str)

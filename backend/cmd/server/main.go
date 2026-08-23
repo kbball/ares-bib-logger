@@ -19,6 +19,7 @@ import (
 	_ "github.com/lib/pq"
 
 	httphandler "github.com/kevinball/ares-bib-logger/backend/internal/adapter/http/handler"
+	meshcoreadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/meshcore"
 	mqttadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/mqtt"
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
 	sseadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
@@ -69,21 +70,35 @@ func main() {
 	broker := sseadapter.NewBroker()
 
 	// Application services
-	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointLogRepo, sessionRepo)
+	checkpointLogSvc := service.NewCheckpointLogService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, loc)
 
 	if cfg.MQTT.Enabled {
-		mqttA, err := mqttadapter.New(cfg.MQTT, checkpointLogSvc, broker)
-		if err != nil {
-			slog.Error("failed to start MQTT adapter", "error", err)
-			os.Exit(1)
+		switch cfg.MeshTechnology {
+		case "meshcore":
+			a, err := meshcoreadapter.New(cfg.Meshcore, checkpointLogSvc, broker)
+			if err != nil {
+				slog.Error("failed to start MeshCore adapter", "error", err)
+				os.Exit(1)
+			}
+			defer a.Stop()
+			slog.Info("MeshCore adapter started",
+				"broker", fmt.Sprintf("%s:%d", cfg.Meshcore.MQTTHost, cfg.Meshcore.MQTTPort),
+				"subscribe", cfg.Meshcore.SubscribeTopic(),
+			)
+		default: // meshtastic
+			a, err := mqttadapter.New(cfg.MQTT, checkpointLogSvc, broker)
+			if err != nil {
+				slog.Error("failed to start MQTT adapter", "error", err)
+				os.Exit(1)
+			}
+			defer a.Stop()
+			slog.Info("Meshtastic MQTT adapter started",
+				"broker", fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.Port),
+				"subscribe", cfg.MQTT.SubscribeTopic(),
+			)
 		}
-		defer mqttA.Stop()
-		slog.Info("MQTT adapter started",
-			"broker", fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.Port),
-			"subscribe", cfg.MQTT.SubscribeTopic(),
-		)
 	} else {
-		slog.Info("MQTT disabled — running in manual-entry mode")
+		slog.Info("mesh disabled — running in manual-entry mode")
 	}
 
 	h := httphandler.New(
@@ -93,7 +108,7 @@ func main() {
 		service.NewRunnerService(runnerRepo, raceRepo),
 		checkpointLogSvc,
 		service.NewSessionService(sessionRepo),
-		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo, loc),
+		service.NewWinlinkService(runnerRepo, checkpointRepo, checkpointLogRepo, sessionRepo, raceRepo, eventRepo, loc),
 		service.NewEventExportImportService(eventRepo, raceRepo, checkpointRepo, runnerRepo),
 		broker,
 	)

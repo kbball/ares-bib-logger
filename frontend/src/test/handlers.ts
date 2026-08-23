@@ -7,6 +7,7 @@ export const mockEvent: Event = {
   ID: 1,
   Name: 'GDR 2026',
   Archived: false,
+  WinlinkBlankLineAfterHeader: false,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
@@ -24,6 +25,7 @@ export const mockCheckpoint: Checkpoint = {
   RaceID: 1,
   Code: 'AS1',
   DisplayName: 'Aid Station 1',
+  ColumnName: null,
   DisplayOrder: 1,
   DistanceFromStart: 10.5,
   CreatedAt: '2026-06-14T00:00:00Z',
@@ -34,6 +36,7 @@ export const mockCheckpoint2: Checkpoint = {
   RaceID: 1,
   Code: 'AS2',
   DisplayName: 'Aid Station 2',
+  ColumnName: null,
   DisplayOrder: 2,
   DistanceFromStart: 21.0,
   CreatedAt: '2026-06-14T00:00:00Z',
@@ -90,6 +93,7 @@ export const handlers = [
   http.get('/api/events', () => HttpResponse.json([mockEvent])),
   http.post('/api/events', () => HttpResponse.json(mockEvent, { status: 201 })),
   http.put('/api/events/:id/archive', () => new HttpResponse(null, { status: 204 })),
+  http.put('/api/events/:id/winlink-format', () => new HttpResponse(null, { status: 204 })),
   http.get('/api/events/:id', () => HttpResponse.json(mockEvent)),
 
   // Races
@@ -120,6 +124,8 @@ export const handlers = [
     HttpResponse.json({ runner: mockRunner, log: mockLog, is_duplicate: false }),
   ),
   http.post('/api/log/status', () => new HttpResponse(null, { status: 204 })),
+  http.post('/api/log/correction', () => HttpResponse.json(mockLog)),
+  http.delete('/api/log/correction', () => new HttpResponse(null, { status: 204 })),
 
   // Session
   http.get('/api/session', () => HttpResponse.json(mockSession)),
@@ -131,5 +137,8 @@ export const handlers = [
   http.get('/api/winlink/export/:raceID', () => new HttpResponse('AS1\n10:00\n', { status: 200 })),
   http.post('/api/winlink/import', () =>
     HttpResponse.json({ Created: 1, Updated: 0, Skipped: 0, SkippedDetails: [], Errors: [] }),
+  ),
+  http.post('/api/winlink/import/preview', () =>
+    HttpResponse.json({ Created: 1, Updated: 0, Skipped: 0, Rows: [] }),
   ),
 ]

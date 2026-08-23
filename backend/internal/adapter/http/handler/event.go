@@ -63,3 +63,25 @@ func (h *Handler) archiveEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) updateEventWinlinkFormat(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid event id")
+		return
+	}
+
+	var body struct {
+		BlankLineAfterHeader bool `json:"blank_line_after_header"`
+	}
+	if err := decode(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.events.SetWinlinkBlankLineAfterHeader(r.Context(), id, body.BlankLineAfterHeader); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

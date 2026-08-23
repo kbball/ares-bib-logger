@@ -33,6 +33,9 @@ func (m *mockEventService) Create(_ context.Context, name string) (entity.Event,
 	return e, m.err
 }
 func (m *mockEventService) Archive(_ context.Context, id int) error { return m.err }
+func (m *mockEventService) SetWinlinkBlankLineAfterHeader(_ context.Context, id int, enabled bool) error {
+	return m.err
+}
 
 type mockRaceService struct {
 	races []entity.Race
@@ -71,8 +74,8 @@ func (m *mockCheckpointService) Create(_ context.Context, cp entity.Checkpoint) 
 	cp.ID = 1
 	return cp, m.err
 }
-func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string, _ *float64) (entity.Checkpoint, error) {
-	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName}, m.err
+func (m *mockCheckpointService) Update(_ context.Context, id int, code, displayName string, columnName *string, _ *float64) (entity.Checkpoint, error) {
+	return entity.Checkpoint{ID: id, Code: code, DisplayName: displayName, ColumnName: columnName}, m.err
 }
 func (m *mockCheckpointService) Delete(_ context.Context, id int) error { return m.err }
 func (m *mockCheckpointService) Reorder(_ context.Context, raceID int, ids []int) error {
@@ -95,8 +98,12 @@ func (m *mockRunnerService) ImportRoster(_ context.Context, raceID int, rows []p
 func (m *mockRunnerService) TransferRace(_ context.Context, bib, from, to int) error { return m.err }
 
 type mockCheckpointLogService struct {
-	result portsvc.LogBibResult
-	err    error
+	result      portsvc.LogBibResult
+	queryText   string
+	err         error
+	correctLog  entity.CheckpointLog
+	correctArgs []any
+	deleteArgs  []any
 }
 
 func (m *mockCheckpointLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -107,6 +114,17 @@ func (m *mockCheckpointLogService) LogStatus(_ context.Context, bib int, status 
 }
 func (m *mockCheckpointLogService) ListByRace(_ context.Context, raceID int) ([]entity.CheckpointLog, error) {
 	return nil, m.err
+}
+func (m *mockCheckpointLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
+	return m.queryText, m.err
+}
+func (m *mockCheckpointLogService) CorrectLog(_ context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
+	m.correctArgs = []any{raceID, checkpointID, bibNumber, timeStr}
+	return m.correctLog, m.err
+}
+func (m *mockCheckpointLogService) DeleteLog(_ context.Context, raceID, checkpointID, bibNumber int) error {
+	m.deleteArgs = []any{raceID, checkpointID, bibNumber}
+	return m.err
 }
 
 type mockSessionService struct {
@@ -124,6 +142,7 @@ func (m *mockSessionService) ClearCheckpoint(_ context.Context, raceID int) erro
 type mockWinlinkService struct {
 	exportText string
 	importRes  portsvc.WinlinkImportResult
+	previewRes portsvc.WinlinkPreviewResult
 	err        error
 }
 
@@ -133,11 +152,14 @@ func (m *mockWinlinkService) Export(_ context.Context, raceID int) (string, erro
 func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
 	return m.importRes, m.err
 }
+func (m *mockWinlinkService) Preview(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
+	return m.previewRes, m.err
+}
 
 type mockEventExportService struct {
-	payload  portsvc.EventExportPayload
-	eventID  int
-	err      error
+	payload portsvc.EventExportPayload
+	eventID int
+	err     error
 }
 
 func (m *mockEventExportService) Export(_ context.Context, _ int) (portsvc.EventExportPayload, error) {

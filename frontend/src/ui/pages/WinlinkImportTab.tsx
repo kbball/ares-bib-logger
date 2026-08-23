@@ -3,6 +3,11 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   InputLabel,
   MenuItem,
@@ -18,7 +23,13 @@ import {
   TableCell,
   TableBody,
 } from '@mui/material'
-import type { ActiveSession, Checkpoint, Race, WinlinkImportResult } from '../../domain/types'
+import type {
+  ActiveSession,
+  Checkpoint,
+  Race,
+  WinlinkImportResult,
+  WinlinkPreviewResult,
+} from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -29,8 +40,14 @@ const SKIP_REASON: Record<string, string> = {
   moved: 'Runner transferred out of this race',
 }
 
-function skipLabel(d: { Reason: string }): string {
-  return SKIP_REASON[d.Reason] ?? d.Reason
+function skipLabel(reason: string): string {
+  return SKIP_REASON[reason] ?? reason
+}
+
+const KIND_LABEL: Record<string, string> = {
+  create: 'Create',
+  update: 'Update',
+  skip: 'Skip',
 }
 
 export default function WinlinkImportTab() {
@@ -43,6 +60,7 @@ export default function WinlinkImportTab() {
   const [text, setText] = useState('')
   const [result, setResult] = useState<WinlinkImportResult | null>(null)
   const [error, setError] = useState('')
+  const [pendingPreview, setPendingPreview] = useState<WinlinkPreviewResult | null>(null)
 
   useEffect(() => {
     api
@@ -78,14 +96,33 @@ export default function WinlinkImportTab() {
     ? (checkpointsByRace[raceID] ?? []).filter((cp) => cp.ID !== activeCheckpointID)
     : []
 
+  const doImport = async () => {
+    const r = await api.importWinlink(Number(raceID), Number(checkpointID), text)
+    setResult(r)
+    setError('')
+    setPendingPreview(null)
+  }
+
   const submit = async () => {
     if (!raceID || !checkpointID || !text.trim()) return
     try {
-      const r = await api.importWinlink(Number(raceID), Number(checkpointID), text)
-      setResult(r)
-      setError('')
+      const preview = await api.previewWinlink(Number(raceID), Number(checkpointID), text)
+      if (preview.Skipped === 0 && !preview.HeaderMismatch) {
+        await doImport()
+      } else {
+        setPendingPreview(preview)
+      }
     } catch (e: unknown) {
       setError((e as Error).message)
+    }
+  }
+
+  const confirmImport = async () => {
+    try {
+      await doImport()
+    } catch (e: unknown) {
+      setError((e as Error).message)
+      setPendingPreview(null)
     }
   }
 
@@ -198,7 +235,7 @@ export default function WinlinkImportTab() {
                       <TableRow key={i}>
                         <TableCell>{d.Position}</TableCell>
                         <TableCell>{d.BibNumber || '—'}</TableCell>
-                        <TableCell>{skipLabel(d)}</TableCell>
+                        <TableCell>{skipLabel(d.Reason)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -229,6 +266,54 @@ export default function WinlinkImportTab() {
           </Paper>
         )}
       </Stack>
+
+      <Dialog
+        open={!!pendingPreview}
+        onClose={() => setPendingPreview(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Confirm Winlink Import</DialogTitle>
+        <DialogContent>
+          {pendingPreview?.HeaderMismatch && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Pasted header &quot;{pendingPreview.PastedHeader}&quot; doesn&apos;t match the
+              expected header &quot;{pendingPreview.ExpectedHeader}&quot; for this checkpoint.
+              Double-check the race/checkpoint selection before importing.
+            </Alert>
+          )}
+          <DialogContentText sx={{ mb: 2 }}>
+            {pendingPreview?.Skipped} of {pendingPreview?.Rows.length} rows will be skipped. Review
+            the full breakdown below before importing.
+          </DialogContentText>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Position</TableCell>
+                <TableCell>Bib</TableCell>
+                <TableCell>Action</TableCell>
+                <TableCell>Value / Reason</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {pendingPreview?.Rows.map((row, i) => (
+                <TableRow key={i}>
+                  <TableCell>{row.Position}</TableCell>
+                  <TableCell>{row.BibNumber || '—'}</TableCell>
+                  <TableCell>{KIND_LABEL[row.Kind] ?? row.Kind}</TableCell>
+                  <TableCell>{row.Kind === 'skip' ? skipLabel(row.Reason) : row.Value}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingPreview(null)}>Cancel</Button>
+          <Button color="warning" variant="contained" onClick={confirmImport}>
+            Confirm &amp; Import
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

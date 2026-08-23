@@ -57,3 +57,42 @@ func (h *Handler) logStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) correctLog(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RaceID       int    `json:"race_id"`
+		CheckpointID int    `json:"checkpoint_id"`
+		BibNumber    int    `json:"bib_number"`
+		Time         string `json:"time"`
+	}
+	if err := decode(r, &body); err != nil || body.RaceID == 0 || body.CheckpointID == 0 ||
+		body.BibNumber == 0 || body.Time == "" {
+		writeError(w, http.StatusBadRequest, "race_id, checkpoint_id, bib_number, and time are required")
+		return
+	}
+
+	log, err := h.checkpointLogs.CorrectLog(r.Context(), body.RaceID, body.CheckpointID, body.BibNumber, body.Time)
+	if err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, log)
+}
+
+func (h *Handler) deleteLog(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RaceID       int `json:"race_id"`
+		CheckpointID int `json:"checkpoint_id"`
+		BibNumber    int `json:"bib_number"`
+	}
+	if err := decode(r, &body); err != nil || body.RaceID == 0 || body.CheckpointID == 0 || body.BibNumber == 0 {
+		writeError(w, http.StatusBadRequest, "race_id, checkpoint_id, and bib_number are required")
+		return
+	}
+
+	if err := h.checkpointLogs.DeleteLog(r.Context(), body.RaceID, body.CheckpointID, body.BibNumber); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

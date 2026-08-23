@@ -43,6 +43,16 @@ func (m *mockEventRepository) Archive(_ context.Context, id int) error {
 	return nil
 }
 
+func (m *mockEventRepository) SetWinlinkBlankLineAfterHeader(_ context.Context, id int, enabled bool) error {
+	for i, e := range m.events {
+		if e.ID == id {
+			m.events[i].WinlinkBlankLineAfterHeader = enabled
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
 // --- EventService tests ---
 
 func TestEventService_CreateAndList(t *testing.T) {
@@ -209,16 +219,19 @@ func TestCheckpointService_Update_Success(t *testing.T) {
 	svc := service.NewCheckpointService(cps, races)
 
 	dist := 5.0
-	updated, err := svc.Update(context.Background(), 1, "AS1-NEW", "Aid 1 Updated", &dist)
+	colName := "AS #1"
+	updated, err := svc.Update(context.Background(), 1, "AS1-NEW", "Aid 1 Updated", &colName, &dist)
 	require.NoError(t, err)
 	assert.Equal(t, "AS1-NEW", updated.Code)
+	require.NotNil(t, updated.ColumnName)
+	assert.Equal(t, "AS #1", *updated.ColumnName)
 }
 
 func TestCheckpointService_Update_CPNotFound(t *testing.T) {
 	cps := &mockCheckpointRepository{getErr: domain.ErrNotFound}
 	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
 
-	_, err := svc.Update(context.Background(), 99, "X", "Y", nil)
+	_, err := svc.Update(context.Background(), 99, "X", "Y", nil, nil)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -228,7 +241,7 @@ func TestCheckpointService_Update_RaceNotFound(t *testing.T) {
 	}}
 	svc := service.NewCheckpointService(cps, &mockRaceRepository{races: map[int]entity.Race{}})
 
-	_, err := svc.Update(context.Background(), 1, "X", "Y", nil)
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -239,7 +252,7 @@ func TestCheckpointService_Update_Locked(t *testing.T) {
 	races := &mockRaceRepository{races: map[int]entity.Race{5: {ID: 5, OrderLocked: true}}}
 	svc := service.NewCheckpointService(cps, races)
 
-	_, err := svc.Update(context.Background(), 1, "X", "Y", nil)
+	_, err := svc.Update(context.Background(), 1, "X", "Y", nil, nil)
 	assert.ErrorIs(t, err, domain.ErrLocked)
 }
 

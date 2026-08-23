@@ -76,6 +76,14 @@ make fmt
 - Backend formatter: `gofmt`
 - Frontend formatter: Prettier
 
+## Git Workflow
+
+- NEVER commit directly to `main`/`master`. Before starting any new feature, bugfix, or task, always create a new branch first.
+- Before making changes, check the current branch with `git branch --show-current`. If on `main`/`master`, create and switch to a new branch before editing any files.
+- Branch naming convention: `feature/<short-description>`, `fix/<short-description>`, or `chore/<short-description>` (e.g. `feature/mqtt-retry-logic`).
+- If it's unclear whether a task warrants a new branch (e.g. a one-line typo fix), ask before proceeding.
+- Do not create a new branch if one was already created for this task/session — reuse it.
+
 ## Plan File
 
 `.ai/PLAN.md` is the source of truth for project progress. Keep it updated:

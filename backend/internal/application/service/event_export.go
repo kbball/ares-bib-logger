@@ -58,6 +58,7 @@ func (s *EventExportImportService) Export(ctx context.Context, eventID int) (por
 			cpExports[i] = portsvc.CheckpointExport{
 				Code:              cp.Code,
 				DisplayName:       cp.DisplayName,
+				ColumnName:        cp.ColumnName,
 				DisplayOrder:      cp.DisplayOrder,
 				DistanceFromStart: cp.DistanceFromStart,
 			}
@@ -111,6 +112,7 @@ func (s *EventExportImportService) Import(ctx context.Context, payload portsvc.E
 				RaceID:            race.ID,
 				Code:              cpData.Code,
 				DisplayName:       cpData.DisplayName,
+				ColumnName:        cpData.ColumnName,
 				DisplayOrder:      cpData.DisplayOrder,
 				DistanceFromStart: cpData.DistanceFromStart,
 			})

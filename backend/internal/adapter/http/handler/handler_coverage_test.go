@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
+	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 )
 
 func putJSON(t *testing.T, h interface{ Register(*http.ServeMux) }, path string, body any) *httptest.ResponseRecorder {
@@ -97,6 +99,26 @@ func TestHandler_CreateCheckpoint_ServiceError(t *testing.T) {
 	h.Register(mux)
 	mux.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestHandler_CreateCheckpoint_ColumnName(t *testing.T) {
+	cps := &mockCheckpointService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"code": "AS6", "display_name": "AS6", "display_order": 1, "column_name": "AS #6"})
+	req := httptest.NewRequest(http.MethodPost, "/api/races/1/checkpoints", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	var got entity.Checkpoint
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.NotNil(t, got.ColumnName)
+	assert.Equal(t, "AS #6", *got.ColumnName)
 }
 
 // --- reorderCheckpoints ---
@@ -204,6 +226,19 @@ func TestHandler_ImportWinlink_ServiceError(t *testing.T) {
 		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
 
 	w := postJSON(t, h, "/api/winlink/import", map[string]any{
+		"race_id": 1, "checkpoint_id": 5, "text": "AS6\n17:45:00\n",
+	})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- previewWinlink ---
+
+func TestHandler_PreviewWinlink_ServiceError(t *testing.T) {
+	wl := &mockWinlinkService{err: domain.ErrNotFound}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	w := postJSON(t, h, "/api/winlink/import/preview", map[string]any{
 		"race_id": 1, "checkpoint_id": 5, "text": "AS6\n17:45:00\n",
 	})
 	assert.Equal(t, http.StatusNotFound, w.Code)

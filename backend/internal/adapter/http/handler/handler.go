@@ -51,6 +51,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events", h.createEvent)
 	mux.HandleFunc("GET /api/events/{id}", h.getEvent)
 	mux.HandleFunc("PUT /api/events/{id}/archive", h.archiveEvent)
+	mux.HandleFunc("PUT /api/events/{id}/winlink-format", h.updateEventWinlinkFormat)
 	mux.HandleFunc("GET /api/events/{id}/export", h.exportEventConfig)
 
 	// Races
@@ -75,6 +76,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/log/bib", h.logBib)
 	mux.HandleFunc("POST /api/log/status", h.logStatus)
 	mux.HandleFunc("GET /api/races/{raceID}/logs", h.listCheckpointLogs)
+	mux.HandleFunc("POST /api/log/correction", h.correctLog)
+	mux.HandleFunc("DELETE /api/log/correction", h.deleteLog)
 
 	// Session
 	mux.HandleFunc("GET /api/session", h.getSession)
@@ -85,6 +88,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Winlink
 	mux.HandleFunc("GET /api/winlink/export/{raceID}", h.exportWinlink)
 	mux.HandleFunc("POST /api/winlink/import", h.importWinlink)
+	mux.HandleFunc("POST /api/winlink/import/preview", h.previewWinlink)
 
 	// Event config export / import
 	mux.HandleFunc("POST /api/events/import", h.importEventConfig)

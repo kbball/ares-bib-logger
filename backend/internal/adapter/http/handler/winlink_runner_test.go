@@ -67,6 +67,51 @@ func TestHandler_ImportWinlink_MissingFields(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestHandler_PreviewWinlink(t *testing.T) {
+	wl := &mockWinlinkService{previewRes: portsvc.WinlinkPreviewResult{
+		Created: 1, Updated: 0, Skipped: 1,
+		Rows: []portsvc.WinlinkRowOutcome{
+			{Position: 1, BibNumber: 100, Kind: "create", Value: "17:45:00"},
+			{Position: 2, Kind: "skip", Reason: "blank"},
+		},
+	}}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	body := map[string]any{
+		"race_id": 1, "checkpoint_id": 5,
+		"text": "AS6\n17:45:00\n\n",
+	}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/winlink/import/preview", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, float64(1), resp["Created"])
+	assert.Equal(t, float64(1), resp["Skipped"])
+	rows, ok := resp["Rows"].([]any)
+	require.True(t, ok)
+	assert.Len(t, rows, 2)
+}
+
+func TestHandler_PreviewWinlink_MissingFields(t *testing.T) {
+	body, _ := json.Marshal(map[string]any{"race_id": 1})
+	req := httptest.NewRequest(http.MethodPost, "/api/winlink/import/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	defaultHandler().Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 // --- Runners / Roster ---
 
 func TestHandler_ListRunners(t *testing.T) {

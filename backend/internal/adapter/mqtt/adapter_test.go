@@ -2,14 +2,18 @@ package mqtt
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
+	meshtastic "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
@@ -48,9 +52,12 @@ func (m *mockPahoClient) Publish(_ string, _ byte, _ bool, payload any) pahomqtt
 // --- service / publisher mocks ---
 
 type mockLogService struct {
-	result portsvc.LogBibResult
-	err    error
-	calls  []portsvc.LogBibInput
+	result     portsvc.LogBibResult
+	err        error
+	calls      []portsvc.LogBibInput
+	queryText  string
+	queryErr   error
+	queryCalls []int
 }
 
 func (m *mockLogService) LogBib(_ context.Context, input portsvc.LogBibInput) (portsvc.LogBibResult, error) {
@@ -64,6 +71,19 @@ func (m *mockLogService) LogStatus(_ context.Context, _ int, _ entity.RunnerStat
 
 func (m *mockLogService) ListByRace(_ context.Context, _ int) ([]entity.CheckpointLog, error) {
 	return nil, nil
+}
+
+func (m *mockLogService) QueryRunner(_ context.Context, bibNumber int) (string, error) {
+	m.queryCalls = append(m.queryCalls, bibNumber)
+	return m.queryText, m.queryErr
+}
+
+func (m *mockLogService) CorrectLog(_ context.Context, _, _, _ int, _ string) (entity.CheckpointLog, error) {
+	return entity.CheckpointLog{}, nil
+}
+
+func (m *mockLogService) DeleteLog(_ context.Context, _, _, _ int) error {
+	return nil
 }
 
 type mockPublisher struct {
@@ -104,6 +124,8 @@ func testCfg() config.MQTTConfig {
 		ChannelNum:    2,
 		ChannelName:   "LongFast",
 		GatewayNodeID: "a3b4c5d6",
+		NodeLongName:  "Auto Logger",
+		NodeShortName: "Log",
 	}
 }
 
@@ -112,11 +134,59 @@ func newTestAdapter(svc *mockLogService, pub *mockPublisher) *Adapter {
 	return newAdapter(pub, &mockSSEPublisher{}, func() {}, testCfg(), svc)
 }
 
-// envelope serialises a ServiceEnvelope for use in processMessage tests.
-func envelope(typ string, text string) []byte {
-	env := serviceEnvelope{Type: typ}
-	env.Payload.Text = text
-	b, _ := json.Marshal(env)
+// textEnvelope serialises a ServiceEnvelope containing a TEXT_MESSAGE_APP payload.
+// From is set to a non-zero node ID to simulate a real mesh sender (not our own echo).
+func textEnvelope(text string) []byte {
+	env := &meshtastic.ServiceEnvelope{
+		ChannelId: "LongFast",
+		GatewayId: "!a3b4c5d6",
+		Packet: &meshtastic.MeshPacket{
+			From: 0x00000001,
+			PayloadVariant: &meshtastic.MeshPacket_Decoded{
+				Decoded: &meshtastic.Data{
+					Portnum: meshtastic.PortNum_TEXT_MESSAGE_APP,
+					Payload: []byte(text),
+				},
+			},
+		},
+	}
+	b, _ := proto.Marshal(env)
+	return b
+}
+
+// ackEchoEnvelope simulates the broker echoing back one of our own ack messages.
+func ackEchoEnvelope(text string) []byte {
+	env := &meshtastic.ServiceEnvelope{
+		ChannelId: "LongFast",
+		GatewayId: "!" + alertGatewayID,
+		Packet: &meshtastic.MeshPacket{
+			From: alertFromNodeID,
+			PayloadVariant: &meshtastic.MeshPacket_Decoded{
+				Decoded: &meshtastic.Data{
+					Portnum: meshtastic.PortNum_TEXT_MESSAGE_APP,
+					Payload: []byte(text),
+				},
+			},
+		},
+	}
+	b, _ := proto.Marshal(env)
+	return b
+}
+
+// positionEnvelope serialises a ServiceEnvelope with a non-text portnum.
+func positionEnvelope() []byte {
+	env := &meshtastic.ServiceEnvelope{
+		Packet: &meshtastic.MeshPacket{
+			From: 0x00000001,
+			PayloadVariant: &meshtastic.MeshPacket_Decoded{
+				Decoded: &meshtastic.Data{
+					Portnum: meshtastic.PortNum_POSITION_APP,
+					Payload: []byte("ignored"),
+				},
+			},
+		},
+	}
+	b, _ := proto.Marshal(env)
 	return b
 }
 
@@ -155,7 +225,7 @@ func TestPahoPublisher_CoversPublish(t *testing.T) {
 	a, err := newFromClient(paho, testCfg(), svc, &mockSSEPublisher{})
 	require.NoError(t, err)
 
-	a.processMessage(context.Background(), envelope("text", "42\n"))
+	a.processMessage(context.Background(), textEnvelope("42\n"))
 
 	assert.NotEmpty(t, paho.published, "pahoPublisher.Publish should have been called")
 }
@@ -172,12 +242,54 @@ func TestProcessMessage_LogsBibs(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), envelope("text", "101\n202\n"))
+	a.processMessage(context.Background(), textEnvelope("101\n202\n"))
 
 	require.Len(t, svc.calls, 2)
 	assert.Equal(t, 101, svc.calls[0].BibNumber)
 	assert.Equal(t, 202, svc.calls[1].BibNumber)
 	assert.Equal(t, entity.SourceMeshtastic, svc.calls[0].Source)
+	// Single ack covering both bibs.
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Query_PublishesReplyAndDoesNotLogBib(t *testing.T) {
+	svc := &mockLogService{queryText: "101 Alice Smith: ACTIVE last AS2 11:00 pace 6:00 /mi"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("query 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
+	assert.Empty(t, svc.calls, "query must not fall through to bib logging")
+
+	require.Len(t, pub.published, 1)
+	var ack meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &ack))
+	assert.Equal(t, "101 Alice Smith: ACTIVE last AS2 11:00 pace 6:00 /mi", string(ack.GetPacket().GetDecoded().GetPayload()))
+}
+
+func TestProcessMessage_Query_CaseInsensitive(t *testing.T) {
+	svc := &mockLogService{queryText: "101 not found"}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("QUERY 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
+	assert.Empty(t, svc.calls)
+}
+
+func TestProcessMessage_Query_ServiceErrorDoesNotPublish(t *testing.T) {
+	svc := &mockLogService{queryErr: errors.New("db down")}
+	pub := &mockPublisher{}
+	a := newTestAdapter(svc, pub)
+
+	a.processMessage(context.Background(), textEnvelope("query 101"))
+
+	require.Equal(t, []int{101}, svc.queryCalls)
 	assert.Empty(t, pub.published)
 }
 
@@ -191,33 +303,40 @@ func TestProcessMessage_DuplicatePublishesAlert(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), envelope("text", "42\n"))
+	a.processMessage(context.Background(), textEnvelope("42\n"))
 
 	require.Len(t, pub.published, 1)
 	assert.Equal(t, testCfg().PublishTopic(), pub.published[0].topic)
 
-	var alert map[string]any
-	require.NoError(t, json.Unmarshal(pub.published[0].payload, &alert))
-	assert.Equal(t, "LongFast", alert["channel_id"])
-	assert.Equal(t, "!a3b4c5d6", alert["gateway_id"])
-	decoded := alert["packet"].(map[string]any)["decoded"].(map[string]any)
-	assert.Contains(t, decoded["payload"], "42")
+	var alert meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &alert))
+	assert.Equal(t, "LongFast", alert.GetChannelId())
+	// gateway_id must be non-empty (firmware rejects NULL) but must NOT match the gateway's
+	// own node ID or the firmware silently drops it as "downlink we originally sent".
+	assert.Equal(t, "!00000001", alert.GetGatewayId())
+	pkt := alert.GetPacket()
+	assert.Equal(t, uint32(1), pkt.GetFrom()) // must not be selfNodeID — see publishAck / alertFromNodeID
+	assert.Equal(t, uint32(0xFFFFFFFF), pkt.GetTo())
+	assert.NotZero(t, pkt.GetId())
+	assert.Equal(t, uint32(3), pkt.GetHopLimit())
+	assert.Equal(t, uint32(3), pkt.GetHopStart()) // must equal hop_limit for a fresh packet
+	assert.Contains(t, string(pkt.GetDecoded().GetPayload()), "42")
 }
 
 func TestProcessMessage_NonTextIgnored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), envelope("position", "101\n"))
+	a.processMessage(context.Background(), positionEnvelope())
 
 	assert.Empty(t, svc.calls)
 }
 
-func TestProcessMessage_InvalidJSONIgnored(t *testing.T) {
+func TestProcessMessage_InvalidProtoIgnored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), []byte("not json at all"))
+	a.processMessage(context.Background(), []byte("not valid protobuf \xff\xfe"))
 
 	assert.Empty(t, svc.calls)
 }
@@ -226,7 +345,7 @@ func TestProcessMessage_NoSession(t *testing.T) {
 	svc := &mockLogService{err: domain.ErrNoSession}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), envelope("text", "101\n"))
+	a.processMessage(context.Background(), textEnvelope("101\n"))
 
 	assert.Len(t, svc.calls, 1)
 }
@@ -235,7 +354,7 @@ func TestProcessMessage_UnknownBib(t *testing.T) {
 	svc := &mockLogService{err: domain.ErrNotFound}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), envelope("text", "999\n"))
+	a.processMessage(context.Background(), textEnvelope("999\n"))
 
 	assert.Len(t, svc.calls, 1)
 }
@@ -245,7 +364,7 @@ func TestProcessMessage_ServiceError(t *testing.T) {
 	pub := &mockPublisher{}
 	a := newTestAdapter(svc, pub)
 
-	a.processMessage(context.Background(), envelope("text", "101\n"))
+	a.processMessage(context.Background(), textEnvelope("101\n"))
 
 	assert.Len(t, svc.calls, 1)
 	assert.Empty(t, pub.published)
@@ -255,7 +374,7 @@ func TestProcessMessage_MultipleBibsOneBad(t *testing.T) {
 	svc := &mockLogService{result: portsvc.LogBibResult{Runner: entity.Runner{BibNumber: 101}}}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	a.processMessage(context.Background(), envelope("text", "101\nabc\n202\n"))
+	a.processMessage(context.Background(), textEnvelope("101\nabc\n202\n"))
 
 	assert.Len(t, svc.calls, 2)
 	assert.Equal(t, 101, svc.calls[0].BibNumber)
@@ -266,38 +385,142 @@ func TestProcessMessage_RawMessageStored(t *testing.T) {
 	svc := &mockLogService{}
 	a := newTestAdapter(svc, &mockPublisher{})
 
-	raw := envelope("text", "101\n")
+	raw := textEnvelope("101\n")
 	a.processMessage(context.Background(), raw)
 
 	require.Len(t, svc.calls, 1)
-	assert.Equal(t, string(raw), svc.calls[0].RawMessage)
+	assert.Equal(t, base64.StdEncoding.EncodeToString(raw), svc.calls[0].RawMessage)
 }
 
-// --- publishDuplicateAlert ---
+func TestProcessMessage_SelfOriginatedIgnored(t *testing.T) {
+	svc := &mockLogService{}
+	a := newTestAdapter(svc, &mockPublisher{})
 
-func TestPublishDuplicateAlert_PublishError(t *testing.T) {
+	// Simulate the broker echoing back an uplink we sent (from == selfNodeID).
+	env := &meshtastic.ServiceEnvelope{
+		Packet: &meshtastic.MeshPacket{
+			From: 0xa3b4c5d6, // matches testCfg().GatewayNodeID parsed as uint32
+			PayloadVariant: &meshtastic.MeshPacket_Decoded{
+				Decoded: &meshtastic.Data{
+					Portnum: meshtastic.PortNum_TEXT_MESSAGE_APP,
+					Payload: []byte("19"),
+				},
+			},
+		},
+	}
+	b, _ := proto.Marshal(env)
+	a.processMessage(context.Background(), b)
+
+	assert.Empty(t, svc.calls)
+}
+
+func TestProcessMessage_AckEchoIgnored(t *testing.T) {
+	svc := &mockLogService{}
+	a := newTestAdapter(svc, &mockPublisher{})
+
+	// Broker echoes our own ack back; gateway_id == "!"+alertGatewayID must drop it.
+	// Without this filter, parseBibs would extract the numbers from "LOGGED: N" lines.
+	a.processMessage(context.Background(), ackEchoEnvelope("LOGGED: 42\nDUPLICATE BIB: 7"))
+
+	assert.Empty(t, svc.calls)
+}
+
+func TestProcessMessage_EncryptedPacketIgnored(t *testing.T) {
+	env := &meshtastic.ServiceEnvelope{
+		Packet: &meshtastic.MeshPacket{
+			PayloadVariant: &meshtastic.MeshPacket_Encrypted{
+				Encrypted: []byte("cipher"),
+			},
+		},
+	}
+	b, _ := proto.Marshal(env)
+
+	svc := &mockLogService{}
+	a := newTestAdapter(svc, &mockPublisher{})
+	a.processMessage(context.Background(), b)
+
+	assert.Empty(t, svc.calls)
+}
+
+// --- publishAck ---
+
+func TestPublishAck_PublishError(t *testing.T) {
 	pub := &mockPublisher{err: errors.New("broker gone")}
 	a := newTestAdapter(&mockLogService{}, pub)
 
-	a.publishDuplicateAlert(42)
+	a.publishAck([]int{42}, nil)
 
 	assert.Len(t, pub.published, 1)
 }
 
-// --- parseBibs ---
+func TestPublishAck_LoggedOnly(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
 
-func TestParseBibs_Mixed(t *testing.T) {
-	bibs := parseBibs("101\n\nabc\n202\n  303  \n")
-	assert.Equal(t, []int{101, 202, 303}, bibs)
+	a.publishAck([]int{101, 202}, nil)
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "LOGGED: 101\nLOGGED: 202", string(env.GetPacket().GetDecoded().GetPayload()))
 }
 
-func TestParseBibs_Empty(t *testing.T) {
-	assert.Empty(t, parseBibs(""))
-	assert.Empty(t, parseBibs("\n\n\n"))
+func TestPublishAck_DuplicateOnly(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishAck(nil, []int{42})
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "DUPLICATE BIB: 42", string(env.GetPacket().GetDecoded().GetPayload()))
 }
 
-func TestParseBibs_SingleBib(t *testing.T) {
-	assert.Equal(t, []int{42}, parseBibs("42"))
+func TestPublishAck_Mixed(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishAck([]int{101}, []int{42})
+
+	require.Len(t, pub.published, 1)
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	assert.Equal(t, "LOGGED: 101\nDUPLICATE BIB: 42", string(env.GetPacket().GetDecoded().GetPayload()))
+}
+
+// --- publishNodeInfo ---
+
+func TestPublishNodeInfo_PublishError(t *testing.T) {
+	pub := &mockPublisher{err: errors.New("broker gone")}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishNodeInfo() // must not panic; error is logged, not returned
+
+	assert.Len(t, pub.published, 1)
+}
+
+func TestPublishNodeInfo_SendsNodeInfo(t *testing.T) {
+	pub := &mockPublisher{}
+	a := newTestAdapter(&mockLogService{}, pub)
+
+	a.publishNodeInfo()
+
+	require.Len(t, pub.published, 1)
+	assert.Equal(t, testCfg().PublishTopic(), pub.published[0].topic)
+
+	var env meshtastic.ServiceEnvelope
+	require.NoError(t, proto.Unmarshal(pub.published[0].payload, &env))
+	pkt := env.GetPacket()
+	assert.Equal(t, uint32(alertFromNodeID), pkt.GetFrom())
+	assert.Equal(t, uint32(0xFFFFFFFF), pkt.GetTo())
+	assert.Equal(t, meshtastic.PortNum_NODEINFO_APP, pkt.GetDecoded().GetPortnum())
+
+	var user meshtastic.User
+	require.NoError(t, proto.Unmarshal(pkt.GetDecoded().GetPayload(), &user))
+	assert.Equal(t, fmt.Sprintf("!%08x", alertFromNodeID), user.GetId())
+	assert.Equal(t, "Auto Logger", user.GetLongName())
+	assert.Equal(t, "Log", user.GetShortName())
 }
 
 // --- Stop ---

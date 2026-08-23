@@ -19,14 +19,15 @@ type EventExportInfo struct {
 }
 
 type RaceExportData struct {
-	Name        string               `json:"name"`
-	Checkpoints []CheckpointExport   `json:"checkpoints"`
-	Runners     []RunnerExport       `json:"runners"`
+	Name        string             `json:"name"`
+	Checkpoints []CheckpointExport `json:"checkpoints"`
+	Runners     []RunnerExport     `json:"runners"`
 }
 
 type CheckpointExport struct {
 	Code              string   `json:"code"`
 	DisplayName       string   `json:"display_name"`
+	ColumnName        *string  `json:"column_name,omitempty"`
 	DisplayOrder      int      `json:"display_order"`
 	DistanceFromStart *float64 `json:"distance_from_start,omitempty"`
 }

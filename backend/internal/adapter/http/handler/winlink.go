@@ -40,3 +40,22 @@ func (h *Handler) importWinlink(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, result)
 }
+
+func (h *Handler) previewWinlink(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RaceID       int    `json:"race_id"`
+		CheckpointID int    `json:"checkpoint_id"`
+		Text         string `json:"text"`
+	}
+	if err := decode(r, &body); err != nil || body.RaceID == 0 || body.CheckpointID == 0 || body.Text == "" {
+		writeError(w, http.StatusBadRequest, "race_id, checkpoint_id, and text are required")
+		return
+	}
+
+	result, err := h.winlink.Preview(r.Context(), body.RaceID, body.CheckpointID, body.Text)
+	if err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}

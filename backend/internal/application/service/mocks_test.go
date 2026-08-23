@@ -129,6 +129,20 @@ type mockCheckpointLogRepository struct {
 	createErr error
 	upsertErr error
 	listErr   error
+	deleteErr error
+}
+
+func (m *mockCheckpointLogRepository) Delete(_ context.Context, runnerID, checkpointID int) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	for i, l := range m.logs {
+		if l.RunnerID == runnerID && l.CheckpointID == checkpointID {
+			m.logs = append(m.logs[:i], m.logs[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
 }
 
 func (m *mockCheckpointLogRepository) Create(_ context.Context, log entity.CheckpointLog) (entity.CheckpointLog, error) {
@@ -186,6 +200,9 @@ func (m *mockCheckpointLogRepository) ListByRaceAndCheckpoint(_ context.Context,
 }
 
 func (m *mockCheckpointLogRepository) ListByRace(_ context.Context, raceID int) ([]entity.CheckpointLog, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	return m.logs, nil
 }
 

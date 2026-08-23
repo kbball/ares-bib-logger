@@ -48,6 +48,21 @@ func TestHandler_UpdateCheckpoint_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestHandler_UpdateCheckpoint_ColumnName(t *testing.T) {
+	cps := &mockCheckpointService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/checkpoints/1", map[string]string{
+		"code": "AS1", "display_name": "Aid 1", "column_name": "AS #1",
+	})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var got entity.Checkpoint
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.NotNil(t, got.ColumnName)
+	assert.Equal(t, "AS #1", *got.ColumnName)
+}
+
 func TestHandler_UpdateCheckpoint_ServiceError(t *testing.T) {
 	cps := &mockCheckpointService{err: domain.ErrNotFound}
 	h := newHandler(&mockEventService{}, &mockRaceService{}, cps,
@@ -95,6 +110,26 @@ func TestHandler_ArchiveEvent_ServiceError(t *testing.T) {
 	h := newHandler(events, &mockRaceService{}, &mockCheckpointService{},
 		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
 	w := doRequest(t, h, http.MethodPut, "/api/events/1/archive")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- updateEventWinlinkFormat ---
+
+func TestHandler_UpdateEventWinlinkFormat_BadID(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/abc/winlink-format", map[string]any{"blank_line_after_header": true})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkFormat_Success(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/1/winlink-format", map[string]any{"blank_line_after_header": true})
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkFormat_ServiceError(t *testing.T) {
+	events := &mockEventService{err: domain.ErrNotFound}
+	h := newHandler(events, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/events/1/winlink-format", map[string]any{"blank_line_after_header": true})
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
