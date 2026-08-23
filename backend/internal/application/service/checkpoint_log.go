@@ -18,6 +18,7 @@ type CheckpointLogService struct {
 	checkpoints    portrepo.CheckpointRepository
 	checkpointLogs portrepo.CheckpointLogRepository
 	session        portrepo.ActiveSessionRepository
+	loc            *time.Location
 }
 
 func NewCheckpointLogService(
@@ -25,12 +26,17 @@ func NewCheckpointLogService(
 	checkpoints portrepo.CheckpointRepository,
 	checkpointLogs portrepo.CheckpointLogRepository,
 	session portrepo.ActiveSessionRepository,
+	loc *time.Location,
 ) *CheckpointLogService {
+	if loc == nil {
+		loc = time.Local
+	}
 	return &CheckpointLogService{
 		runners:        runners,
 		checkpoints:    checkpoints,
 		checkpointLogs: checkpointLogs,
 		session:        session,
+		loc:            loc,
 	}
 }
 
@@ -153,6 +159,61 @@ func (s *CheckpointLogService) QueryRunner(ctx context.Context, bibNumber int) (
 	}
 
 	return reply, nil
+}
+
+// CorrectLog creates or overwrites a runner's checkpoint log at an explicit
+// time, for correcting a mis-logged bib after the fact — possibly at a
+// checkpoint other than the one currently active at this station.
+func (s *CheckpointLogService) CorrectLog(ctx context.Context, raceID, checkpointID, bibNumber int, timeStr string) (entity.CheckpointLog, error) {
+	recordedAt, err := parseWallClockTime(s.loc, timeStr)
+	if err != nil {
+		return entity.CheckpointLog{}, err
+	}
+
+	runner, err := s.findRunnerByBibInRace(ctx, raceID, bibNumber)
+	if err != nil {
+		return entity.CheckpointLog{}, fmt.Errorf("bib %d: %w", bibNumber, err)
+	}
+
+	log, _, err := s.checkpointLogs.Upsert(ctx, entity.CheckpointLog{
+		RunnerID:     runner.ID,
+		CheckpointID: checkpointID,
+		RecordedAt:   recordedAt,
+		Source:       entity.SourceCorrection,
+	})
+	if err != nil {
+		return entity.CheckpointLog{}, fmt.Errorf("upserting log: %w", err)
+	}
+
+	if runner.Status == entity.StatusUnknown {
+		if err := s.runners.UpdateStatus(ctx, runner.ID, entity.StatusActive); err != nil {
+			return entity.CheckpointLog{}, fmt.Errorf("updating runner status: %w", err)
+		}
+	}
+
+	return log, nil
+}
+
+// DeleteLog removes a runner's checkpoint log for the given race+checkpoint+bib.
+func (s *CheckpointLogService) DeleteLog(ctx context.Context, raceID, checkpointID, bibNumber int) error {
+	runner, err := s.findRunnerByBibInRace(ctx, raceID, bibNumber)
+	if err != nil {
+		return fmt.Errorf("bib %d: %w", bibNumber, err)
+	}
+	return s.checkpointLogs.Delete(ctx, runner.ID, checkpointID)
+}
+
+func (s *CheckpointLogService) findRunnerByBibInRace(ctx context.Context, raceID, bibNumber int) (entity.Runner, error) {
+	runners, err := s.runners.List(ctx, raceID)
+	if err != nil {
+		return entity.Runner{}, fmt.Errorf("listing runners: %w", err)
+	}
+	for _, r := range runners {
+		if r.BibNumber == bibNumber {
+			return r, nil
+		}
+	}
+	return entity.Runner{}, domain.ErrNotFound
 }
 
 func activeCheckpointForRace(sess entity.ActiveSession, raceID int) (int, bool) {

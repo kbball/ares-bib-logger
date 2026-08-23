@@ -124,6 +124,8 @@ export const handlers = [
     HttpResponse.json({ runner: mockRunner, log: mockLog, is_duplicate: false }),
   ),
   http.post('/api/log/status', () => new HttpResponse(null, { status: 204 })),
+  http.post('/api/log/correction', () => HttpResponse.json(mockLog)),
+  http.delete('/api/log/correction', () => new HttpResponse(null, { status: 204 })),
 
   // Session
   http.get('/api/session', () => HttpResponse.json(mockSession)),
