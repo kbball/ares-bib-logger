@@ -37,6 +37,58 @@ describe('AdminTab — Active Event', () => {
     )
   })
 
+  it('persists an opened accordion across remounts', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<AdminTab />)
+    await user.click(await screen.findByRole('button', { name: /^setup$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      ),
+    )
+    unmount()
+
+    render(<AdminTab />)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      ),
+    )
+    expect(screen.getByRole('button', { name: /^edit runners$/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  })
+
+  it('forgets a closed accordion across remounts', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<AdminTab />)
+    await user.click(await screen.findByRole('button', { name: /^setup$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      ),
+    )
+    await user.click(screen.getByRole('button', { name: /^setup$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      ),
+    )
+    unmount()
+
+    render(<AdminTab />)
+    await waitFor(() => screen.getByRole('button', { name: /^setup$/i }))
+    expect(screen.getByRole('button', { name: /^setup$/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  })
+
   it('shows event chip when session has an active event', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)

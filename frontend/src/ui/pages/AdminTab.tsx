@@ -52,7 +52,40 @@ import type {
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
 
+const ACCORDION_STORAGE_KEY = 'ares-bib-logger:admin-accordions-open'
+
+// localStorage can be unavailable (private browsing, disabled storage, some
+// test environments) — fail open rather than crash the app.
+function loadOpenAccordions(): Set<string> {
+  try {
+    const stored = window.localStorage?.getItem(ACCORDION_STORAGE_KEY)
+    const names = stored ? (JSON.parse(stored) as unknown) : []
+    return new Set(Array.isArray(names) ? names.filter((n) => typeof n === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function storeOpenAccordions(names: Set<string>) {
+  try {
+    window.localStorage?.setItem(ACCORDION_STORAGE_KEY, JSON.stringify([...names]))
+  } catch {
+    // ignore — persistence is best-effort
+  }
+}
+
 export default function AdminTab() {
+  const [openAccordions, setOpenAccordions] = useState<Set<string>>(loadOpenAccordions)
+  const toggleAccordion = (name: string) => (_: unknown, expanded: boolean) => {
+    setOpenAccordions((prev) => {
+      const next = new Set(prev)
+      if (expanded) next.add(name)
+      else next.delete(name)
+      storeOpenAccordions(next)
+      return next
+    })
+  }
+
   const [events, setEvents] = useState<Event[]>([])
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
@@ -366,7 +399,7 @@ export default function AdminTab() {
         </Alert>
       )}
 
-      <Accordion>
+      <Accordion expanded={openAccordions.has('setup')} onChange={toggleAccordion('setup')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Setup</Typography>
         </AccordionSummary>
@@ -1050,7 +1083,7 @@ export default function AdminTab() {
         </AccordionDetails>
       </Accordion>
 
-      <Accordion>
+      <Accordion expanded={openAccordions.has('runners')} onChange={toggleAccordion('runners')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Edit Runners</Typography>
         </AccordionSummary>

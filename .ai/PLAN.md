@@ -329,6 +329,10 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Winlink import header validation: `WinlinkService.Preview` now also fetches the target checkpoint and compares the pasted text's header line (when present) against the checkpoint's expected header (`ColumnName`, falling back to `DisplayName`) via new `checkpointHeader`/`pastedHeaderLine` helpers; `WinlinkPreviewResult` gained `HeaderMismatch`/`PastedHeader`/`ExpectedHeader`; frontend now shows the confirm modal (with a warning `Alert`) whenever there's a header mismatch, even on an otherwise-clean parse that would normally auto-import
 - Correct a mis-logged bib (Admin → Edit Runners): migration 000007 adds `CORRECTION` to the `log_source` enum; `CheckpointLogRepository.Delete(runnerID, checkpointID)` (new); `CheckpointLogService.CorrectLog` (parses `HH:MM`/`HH:MM:SS` via shared `parseWallClockTime`, upserts with `Source: CORRECTION`, wakes `UNKNOWN` runners to `ACTIVE`) and `.DeleteLog` (looks up the runner by bib within the race, deletes the log); new `POST /api/log/correction` and `DELETE /api/log/correction` endpoints (JSON body: `race_id`, `checkpoint_id`, `bib_number`, and `time` for the POST); `CheckpointLogService` now takes a `*time.Location` constructor param (same timezone source as `WinlinkService`); Admin panel "Edit Runners" accordion gained "Manually Log a Bib" and "Remove a Checkpoint Log" (with delete confirmation dialog) sections; `del()` API client helper gained an optional JSON body for the DELETE-with-body call
 
+**v1.2 — 2026-08-23**
+
+- Admin accordion open/closed state now persists across page visits via `localStorage`, independently for "Setup" and "Edit Runners" (`Accordion` made controlled with `expanded`/`onChange`, `openAccordions: Set<string>` state seeded from storage on mount)
+
 ## Backlog
 
 Ordered by priority (2026-08-23):
@@ -348,9 +352,8 @@ Ordered by priority (2026-08-23):
 - Add a cutoff time column to aid station / checkpoint configuration — optional, since not all aid stations have a cutoff
 - Not yet implemented — captured here for future work
 
-### 0. Persist last-opened admin accordion across navigation
-- On the Admin page, persist which accordion was last opened so it stays open if the user clicks off the page and returns
-- Not yet implemented — captured here for future work
+### ~~0. Persist last-opened admin accordion across navigation~~ ✅ DONE
+- Admin page's "Setup" and "Edit Runners" accordions now persist their open/closed state independently to `localStorage` (`ares-bib-logger:admin-accordions-open`, JSON array of open accordion names), fails open (defaults to collapsed) if storage is unavailable — same pattern as dark/light mode persistence
 
 ### 1. Add single runner to roster (late race addition)
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
