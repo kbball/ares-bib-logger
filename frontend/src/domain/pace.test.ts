@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeRunnerPace, projectArrival, formatPace } from './pace'
+import { computeRunnerPace, computeSplitPaces, projectArrival, formatPace } from './pace'
 import type { Checkpoint, CheckpointLog, Runner } from './types'
 
 const makeRunner = (overrides: Partial<Runner> = {}): Runner => ({
@@ -125,6 +125,76 @@ describe('computeRunnerPace', () => {
     ]
     const result = computeRunnerPace(makeRunner({ ID: 1 }), cps, logs)
     expect(result.paceMinPerMile).toBeNull()
+  })
+})
+
+describe('computeSplitPaces', () => {
+  it('returns an empty map for DNS/DNF/MOVED/FINISHED runners', () => {
+    const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 20.0)]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z'), makeLog(1, 2, '2026-06-14T11:00:00Z')]
+    for (const status of ['DNS', 'DNF', 'MOVED', 'FINISHED'] as const) {
+      const result = computeSplitPaces(makeRunner({ Status: status }), cps, logs)
+      expect(result.size).toBe(0)
+    }
+  })
+
+  it('returns an empty map when fewer than two distance-tagged checkpoints are logged', () => {
+    const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 20.0)]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z')]
+    const result = computeSplitPaces(makeRunner(), cps, logs)
+    expect(result.size).toBe(0)
+  })
+
+  it('has no entry for the first logged checkpoint', () => {
+    const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 20.0)]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z'), makeLog(1, 2, '2026-06-14T11:00:00Z')]
+    const result = computeSplitPaces(makeRunner(), cps, logs)
+    expect(result.has(1)).toBe(false)
+  })
+
+  it('computes a split pace per checkpoint after the first', () => {
+    const cps = [makeCheckpoint(1, 1, 5.0), makeCheckpoint(2, 2, 15.0), makeCheckpoint(3, 3, 25.0)]
+    const logs = [
+      // cp1→cp2: 10 miles in 60 min → 6 min/mi
+      makeLog(1, 1, '2026-06-14T09:00:00Z'),
+      makeLog(1, 2, '2026-06-14T10:00:00Z'),
+      // cp2→cp3: 10 miles in 90 min → 9 min/mi
+      makeLog(1, 3, '2026-06-14T11:30:00Z'),
+    ]
+    const result = computeSplitPaces(makeRunner(), cps, logs)
+    expect(result.get(2)).toBeCloseTo(6.0)
+    expect(result.get(3)).toBeCloseTo(9.0)
+  })
+
+  it('has no entry for a checkpoint lacking a distance, and does not break the chain', () => {
+    const cps = [
+      makeCheckpoint(1, 1, 10.0),
+      makeCheckpoint(2, 2, null), // no distance
+      makeCheckpoint(3, 3, 20.0),
+    ]
+    const logs = [
+      makeLog(1, 1, '2026-06-14T10:00:00Z'),
+      makeLog(1, 2, '2026-06-14T10:30:00Z'),
+      makeLog(1, 3, '2026-06-14T11:00:00Z'),
+    ]
+    const result = computeSplitPaces(makeRunner(), cps, logs)
+    expect(result.has(2)).toBe(false)
+    // cp1→cp3 (skipping the distanceless cp2): 10 miles in 60 min → 6 min/mi
+    expect(result.get(3)).toBeCloseTo(6.0)
+  })
+
+  it('returns null for a checkpoint pair with zero distance delta', () => {
+    const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 10.0)]
+    const logs = [makeLog(1, 1, '2026-06-14T10:00:00Z'), makeLog(1, 2, '2026-06-14T11:00:00Z')]
+    const result = computeSplitPaces(makeRunner(), cps, logs)
+    expect(result.get(2)).toBeNull()
+  })
+
+  it('ignores logs for other runners', () => {
+    const cps = [makeCheckpoint(1, 1, 10.0), makeCheckpoint(2, 2, 20.0)]
+    const logs = [makeLog(99, 1, '2026-06-14T10:00:00Z'), makeLog(99, 2, '2026-06-14T11:00:00Z')]
+    const result = computeSplitPaces(makeRunner({ ID: 1 }), cps, logs)
+    expect(result.size).toBe(0)
   })
 })
 

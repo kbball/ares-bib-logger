@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
@@ -135,6 +135,55 @@ describe('RunnersTab', () => {
 
     await waitFor(() => screen.getByRole('dialog'))
     await waitFor(() => expect(screen.getByText(/proj\. arrival at/i)).toBeInTheDocument())
+  })
+
+  it('modal shows split pace between consecutive logged checkpoints', async () => {
+    const user = userEvent.setup()
+
+    server.use(
+      http.get('/api/races/:raceID/logs', () =>
+        HttpResponse.json([
+          {
+            ID: 1,
+            RunnerID: 1,
+            CheckpointID: 1,
+            RecordedAt: '2026-06-14T10:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '10:00',
+            CreatedAt: '',
+          },
+          {
+            ID: 2,
+            RunnerID: 1,
+            CheckpointID: 2,
+            RecordedAt: '2026-06-14T11:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '11:00',
+            CreatedAt: '',
+          },
+        ]),
+      ),
+    )
+
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByText(/alice smith/i).closest('tr')!)
+
+    await waitFor(() => screen.getByRole('dialog'))
+    await waitFor(() => expect(screen.getByText(/checkpoint log/i)).toBeInTheDocument())
+    const table = screen.getByRole('table')
+
+    // mockCheckpoint (dist 10.5) → mockCheckpoint2 (dist 21.0): 10.5 mi in 60 min ≈ 5:43 /mi
+    const secondRow = within(table)
+      .getByText(/aid station 2/i)
+      .closest('tr')!
+    expect(within(secondRow).getByText(/5:43 \/mi/i)).toBeInTheDocument()
+    // No prior split for the first logged checkpoint — its Split pace cell is blank
+    const firstRow = within(table)
+      .getByText(/aid station 1/i)
+      .closest('tr')!
+    expect(within(firstRow).getByText('—')).toBeInTheDocument()
   })
 
   it('closing modal by Escape dismisses it', async () => {
