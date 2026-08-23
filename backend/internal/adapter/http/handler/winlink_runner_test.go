@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
@@ -158,6 +159,51 @@ func TestHandler_ImportRoster_EmptyRows(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_AddRunner_Success(t *testing.T) {
+	runners := &mockRunnerService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"bib_number": 200, "first_name": "Dana", "last_name": "Ortiz"})
+	req := httptest.NewRequest(http.MethodPost, "/api/races/1/runners", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, []any{1, 200, "Dana", "Ortiz"}, runners.addArgs)
+}
+
+func TestHandler_AddRunner_MissingFields(t *testing.T) {
+	body, _ := json.Marshal(map[string]any{"bib_number": 0})
+	req := httptest.NewRequest(http.MethodPost, "/api/races/1/runners", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	defaultHandler().Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_AddRunner_ServiceError(t *testing.T) {
+	runners := &mockRunnerService{err: domain.ErrNotFound}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"bib_number": 200, "first_name": "Dana"})
+	req := httptest.NewRequest(http.MethodPost, "/api/races/1/runners", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandler_TransferRunner(t *testing.T) {

@@ -88,4 +88,24 @@ func (s *RunnerService) ListByRace(ctx context.Context, raceID int) ([]entity.Ru
 	return s.runners.List(ctx, raceID)
 }
 
+func (s *RunnerService) AddRunner(ctx context.Context, raceID, bibNumber int, firstName, lastName string) error {
+	max, err := s.runners.MaxSortOrder(ctx, raceID)
+	if err != nil {
+		return fmt.Errorf("getting max sort order: %w", err)
+	}
+
+	if err := s.runners.BulkCreate(ctx, []entity.Runner{{
+		RaceID:    raceID,
+		BibNumber: bibNumber,
+		FirstName: firstName,
+		LastName:  lastName,
+		SortOrder: max + 1,
+		Status:    entity.StatusUnknown,
+	}}); err != nil {
+		return fmt.Errorf("creating runner: %w", err)
+	}
+
+	return nil
+}
+
 var errRosterLocked = fmt.Errorf("roster is already locked")

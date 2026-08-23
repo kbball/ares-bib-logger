@@ -79,6 +79,13 @@ export default function AdminTab() {
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
+  // Add single runner (late registration)
+  const [addRunnerRaceID, setAddRunnerRaceID] = useState<number | ''>('')
+  const [addRunnerBib, setAddRunnerBib] = useState('')
+  const [addRunnerFirstName, setAddRunnerFirstName] = useState('')
+  const [addRunnerLastName, setAddRunnerLastName] = useState('')
+  const [addRunnerMsg, setAddRunnerMsg] = useState('')
+  const [addRunnerErr, setAddRunnerErr] = useState('')
   // Bulk checkpoint import
   const [bulkCpRaceID, setBulkCpRaceID] = useState<number | ''>('')
   const [bulkCpTsv, setBulkCpTsv] = useState('')
@@ -163,6 +170,7 @@ export default function AdminTab() {
 
   useEffect(() => {
     if (races.length) loadCheckpoints(races.map((r) => r.ID))
+    else setCheckpointsByRace({})
   }, [races])
 
   useStream({
@@ -233,6 +241,26 @@ export default function AdminTab() {
         return loadRaces(session!.EventID!)
       }),
     )
+  }
+
+  const submitAddRunner = async () => {
+    if (!addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()) return
+    setAddRunnerMsg('')
+    setAddRunnerErr('')
+    try {
+      await api.addRunner(
+        Number(addRunnerRaceID),
+        Number(addRunnerBib),
+        addRunnerFirstName.trim(),
+        addRunnerLastName.trim(),
+      )
+      setAddRunnerMsg(`Added bib ${addRunnerBib} to the roster.`)
+      setAddRunnerBib('')
+      setAddRunnerFirstName('')
+      setAddRunnerLastName('')
+    } catch (e: unknown) {
+      setAddRunnerErr((e as Error).message)
+    }
   }
 
   const searchRunner = async () => {
@@ -963,15 +991,83 @@ export default function AdminTab() {
 
           <Divider sx={{ my: 2 }} />
 
+          {/* ── Add Runner to Roster (late registration) ── */}
+          <Typography variant="h6" gutterBottom>
+            Add Runner to Roster
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Add a single late registration directly to a race's roster — appended to the bottom
+            (works even after the roster has been imported and locked).
+          </Typography>
+          <Stack spacing={1} data-testid="add-runner-section">
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="add-runner-race-label">Race</InputLabel>
+                <Select
+                  value={addRunnerRaceID}
+                  label="Race"
+                  labelId="add-runner-race-label"
+                  onChange={(e) => setAddRunnerRaceID(Number(e.target.value))}
+                >
+                  {races.map((r) => (
+                    <MenuItem key={r.ID} value={r.ID}>
+                      {r.Name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                size="small"
+                label="Bib number"
+                type="number"
+                value={addRunnerBib}
+                onChange={(e) => setAddRunnerBib(e.target.value)}
+                sx={{ width: 120 }}
+              />
+              <TextField
+                size="small"
+                label="First name"
+                value={addRunnerFirstName}
+                onChange={(e) => setAddRunnerFirstName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <TextField
+                size="small"
+                label="Last name"
+                value={addRunnerLastName}
+                onChange={(e) => setAddRunnerLastName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <Tooltip title="Add this runner to the bottom of the race's roster">
+                <span>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={
+                      !addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()
+                    }
+                    onClick={submitAddRunner}
+                  >
+                    Add Runner
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+            {addRunnerErr && <Alert severity="error">{addRunnerErr}</Alert>}
+            {addRunnerMsg && <Alert severity="success">{addRunnerMsg}</Alert>}
+          </Stack>
+
+          <Divider sx={{ my: 2 }} />
+
           {/* ── Bulk Checkpoint Import ── */}
           <Typography variant="h6" gutterBottom>
             Bulk Checkpoint Import
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Paste TSV with columns: Code, DisplayName, DistFromStart (distance optional, no header
-            row).
+            Paste TSV with columns: Code, DisplayName, DistFromStart, ColumnName (distance and
+            column name optional, no header row).
           </Typography>
-          <Stack spacing={1}>
+          <Stack spacing={1} data-testid="bulk-cp-section">
             <FormControl size="small" sx={{ maxWidth: 220 }}>
               <InputLabel id="bulk-cp-race-label">Race</InputLabel>
               <Select
@@ -996,7 +1092,7 @@ export default function AdminTab() {
               multiline
               rows={6}
               size="small"
-              placeholder={'AS1\tAid Station 1\t10.5\nAS2\tAid Station 2\t21.0'}
+              placeholder={'AS1\tAid Station 1\t10.5\tAS #1\nAS2\tAid Station 2\t21.0\tAS #2'}
               value={bulkCpTsv}
               onChange={(e) => setBulkCpTsv(e.target.value)}
               sx={{ fontFamily: 'monospace', maxWidth: 500 }}
@@ -1014,18 +1110,20 @@ export default function AdminTab() {
                         .map((l) => l.split('\t'))
                       let created = 0
                       const errs: string[] = []
-                      for (const [code, name, dist] of rows) {
+                      for (const [code, name, dist, columnName] of rows) {
                         if (!code?.trim() || !name?.trim()) {
                           errs.push(`Skipped: "${code ?? ''}" — code and name required`)
                           continue
                         }
                         const distVal = dist?.trim() ? parseFloat(dist.trim()) : null
+                        const columnNameVal = columnName?.trim() ? columnName.trim() : null
                         try {
                           await api.createCheckpoint(
                             Number(bulkCpRaceID),
                             code.trim(),
                             name.trim(),
                             distVal,
+                            columnNameVal,
                           )
                           created++
                         } catch (e: unknown) {

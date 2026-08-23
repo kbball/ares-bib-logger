@@ -67,6 +67,12 @@ export const listCheckpointLogs = (raceID: number) =>
 export const listRunners = (raceID: number) => get<Runner[]>(`/api/races/${raceID}/runners`)
 export const importRoster = (raceID: number, tsv: string) =>
   post<{ imported: number }>(`/api/races/${raceID}/roster`, { tsv })
+export const addRunner = (raceID: number, bibNumber: number, firstName: string, lastName: string) =>
+  post<void>(`/api/races/${raceID}/runners`, {
+    bib_number: bibNumber,
+    first_name: firstName,
+    last_name: lastName,
+  })
 export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: number) =>
   post<void>('/api/runners/transfer', {
     bib_number: bibNumber,
