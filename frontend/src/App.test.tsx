@@ -82,4 +82,28 @@ describe('App', () => {
       expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument(),
     )
   })
+
+  it('persists color mode across remounts', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /switch to dark mode/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument(),
+    )
+
+    unmount()
+    render(<App />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument(),
+    )
+  })
+
+  it('defaults to light mode when nothing is stored', async () => {
+    render(<App />)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /switch to dark mode/i })).toBeInTheDocument(),
+    )
+  })
 })

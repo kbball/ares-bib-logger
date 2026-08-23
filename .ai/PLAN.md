@@ -221,7 +221,7 @@ ActiveSession  (one row, updated in place — survives restarts)
 - Useful when Meshtastic infrastructure is unavailable or being tested without a gateway
 
 ### 2. Admin Panel (UI)
-Three sections:
+Three sections, grouped into two collapsed-by-default accordions: **Setup** (Active Event, Roster Import, Bulk Checkpoint Import, Races) and **Edit Runners** (Change Runner Status) — keeps the page short on load; operators expand only what they need.
 
 **Event & checkpoint configuration**
 - Select active event (GDR or GA Jewel)
@@ -323,8 +323,24 @@ Three sections:
 - Winlink import preview/confirm step: `WinlinkService.Preview` (read-only, shares row classification with `Import` via new `parseImportRows`), `POST /api/winlink/import/preview`, frontend auto-imports on a clean parse and otherwise shows a confirm modal with the full per-row breakdown before committing
 - Mesh `query <bib>` command: new `backend/internal/domain/pace` package (Go port of `frontend/src/domain/pace.ts`); `CheckpointLogService.QueryRunner` assembles a compact status/last-station/pace reply; both MQTT/Meshtastic and MeshCore adapters detect the command ahead of bib parsing and reply over the mesh via a shared `publishText` helper
 - Winlink blank-line-after-header, event-configurable: migration 000005 adds `Event.WinlinkBlankLineAfterHeader`; `WinlinkService` resolves it per-race via race→event lookup and both `Export` and `parseImportRows` (shared by `Import`/`Preview`) respect it; new `PUT /api/events/{id}/winlink-format` endpoint; Admin panel toggle on the active event
+- Admin panel restructured into two collapsed-by-default accordions ("Setup", "Edit Runners")
+- Dark/light mode now persists across refreshes (`localStorage`, fails open if storage is unavailable); added a `window.localStorage` stub to the frontend test setup since this project's jsdom test environment doesn't implement it
 
 ## Backlog
+
+### Correct a mis-logged bib (Admin → Edit Runners)
+- Scenario: a logger fat-fingers a bib — e.g. bib 11 gets logged as 111 — and the mistake needs correcting after the fact, likely at a different checkpoint than the one currently active at this station
+- Two controls, both under the "Edit Runners" accordion (`AdminTab.tsx`) alongside the existing Change Runner Status section:
+  1. **Remove a checkpoint log**: pick race + checkpoint + bib, delete that runner's `CheckpointLog` for that checkpoint. Requires a new `CheckpointLogRepository.Delete`/service method + `DELETE` endpoint — no delete-by-log capability exists today (only `Upsert`/`Create`/`ExistsByRunnerAndCheckpoint`/list methods).
+  2. **Manually log a bib with an explicit time**: pick race + checkpoint + bib + a time (24-hour `HH:MM` input), create/overwrite that runner's `CheckpointLog` at the chosen time. `LogBib`/`CheckpointLogService.LogBib` (`backend/internal/application/service/checkpoint_log.go`) always stamps `RecordedAt: time.Now()` today — this needs a variant (or an optional time param) that accepts an explicit timestamp, parsed the same way `parseTimeOfDay` does for Winlink import (today's date + the given wall-clock time, in the configured timezone)
+- Source for the manual entry should probably be `MANUAL` (or a new `CORRECTION` source) so it's distinguishable in the audit trail (`RawMessage`) from a genuine mesh-logged bib
+- Not yet implemented — captured here for future work
+
+### Split pace between aid stations on runner detail modal
+- The runner detail modal (`RunnersTab.tsx`, Checkpoint Log table) currently shows Checkpoint + Time columns only
+- Add a "Split pace" column: pace between each pair of consecutive logged checkpoints that both have a known `DistanceFromStart`, mirroring the distance/time-delta math already in `computeRunnerPace`/`formatPace` (`frontend/src/domain/pace.ts`) but computed for every consecutive pair in the table (a full splits view), not just the last two checkpoints used for the live "Pace" stat elsewhere
+- Blank/— for the first logged checkpoint (no prior split) and for any pair where either checkpoint lacks a distance
+- Not yet implemented — captured here for future work
 
 ### Add single runner to roster (late race addition)
 - Admin action: add one runner directly to a race's roster, appended to the bottom (sort_order = max existing + 1)
@@ -391,3 +407,4 @@ Three sections:
 | 2026-08-23 | `query <bib>` checked before bib-list parsing, not after | Both mesh adapters previously treated every non-numeric token as noise to skip; without an explicit early check, `"query 101"` would silently log bib 101 as a real checkpoint hit instead of being recognized as a command |
 | 2026-08-23 | Winlink blank-line-after-header is a per-event setting, resolved via race→event | Not tied to any one race/checkpoint — it's a formatting convention for the whole event's Winlink traffic; `Import`/`Preview` look it up from `raceID` rather than `ActiveSession` so they stay self-contained (no new session dependency) |
 | 2026-08-23 | Blank line only consumed when actually present, even if the event flag is on | A mismatched setting (flag enabled, but this particular paste has no blank line) must never eat a real data row — `parseImportRows` checks the line content, not just the flag, before advancing past it |
+| 2026-08-23 | Color mode persistence fails open (try/catch + fallback to light) instead of assuming `localStorage` exists | Private browsing and disabled storage can make `localStorage` unavailable or throw; the app must still boot and toggle themes in that case, just without persistence |

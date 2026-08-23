@@ -154,13 +154,39 @@ const HELP: { title: string; items: HelpItem[] }[] = [
   },
 ]
 
+const COLOR_MODE_STORAGE_KEY = 'ares-bib-logger:color-mode'
+
+// localStorage can be unavailable (private browsing, disabled storage, some
+// test environments) — fail open rather than crash the app.
+function loadStoredColorMode(): ColorMode {
+  try {
+    const stored = window.localStorage?.getItem(COLOR_MODE_STORAGE_KEY)
+    return stored === 'dark' || stored === 'light' ? stored : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+function storeColorMode(mode: ColorMode) {
+  try {
+    window.localStorage?.setItem(COLOR_MODE_STORAGE_KEY, mode)
+  } catch {
+    // ignore — persistence is best-effort
+  }
+}
+
 function AppInner() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const [colorMode, setColorMode] = useState<ColorMode>('light')
+  const [colorMode, setColorMode] = useState<ColorMode>(loadStoredColorMode)
   const [helpOpen, setHelpOpen] = useState(false)
   const theme = useMemo(() => createAppTheme(colorMode), [colorMode])
-  const toggleMode = () => setColorMode((m) => (m === 'dark' ? 'light' : 'dark'))
+  const toggleMode = () =>
+    setColorMode((m) => {
+      const next = m === 'dark' ? 'light' : 'dark'
+      storeColorMode(next)
+      return next
+    })
 
   // Redirect bare / to the default tab.
   useEffect(() => {
