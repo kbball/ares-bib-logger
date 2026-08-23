@@ -16,6 +16,7 @@ import (
 
 	meshtastic "buf.build/gen/go/meshtastic/protobufs/protocolbuffers/go/meshtastic"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/meshutil"
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
@@ -158,7 +159,7 @@ func (a *Adapter) processMessage(ctx context.Context, raw []byte) {
 	slog.Debug("mqtt: text message received", "text", text)
 
 	var loggedBibs, duplicateBibs []int
-	for _, bib := range parseBibs(text) {
+	for _, bib := range meshutil.ParseBibs(text) {
 		result, err := a.svc.LogBib(ctx, portsvc.LogBibInput{
 			BibNumber:  bib,
 			Source:     entity.SourceMeshtastic,
@@ -338,21 +339,4 @@ func pbBytesField(dst []byte, field int, data []byte) []byte {
 	dst = append(dst, pbVarint(uint64(field<<3|2))...) // wire type 2
 	dst = append(dst, pbVarint(uint64(len(data)))...)
 	return append(dst, data...)
-}
-
-// parseBibs splits text on newlines, commas, and spaces, returning all integer values found.
-// Non-numeric and empty tokens are silently skipped.
-func parseBibs(text string) []int {
-	var bibs []int
-	for _, tok := range strings.FieldsFunc(text, func(r rune) bool {
-		return r == '\n' || r == ',' || r == ' '
-	}) {
-		n, err := strconv.Atoi(tok)
-		if err != nil {
-			slog.Debug("mqtt: skipping non-numeric token", "token", tok)
-			continue
-		}
-		bibs = append(bibs, n)
-	}
-	return bibs
 }

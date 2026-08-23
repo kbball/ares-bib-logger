@@ -435,34 +435,6 @@ func TestPublishAck_Mixed(t *testing.T) {
 	assert.Equal(t, "LOGGED: 101\nDUPLICATE BIB: 42", string(env.GetPacket().GetDecoded().GetPayload()))
 }
 
-// --- parseBibs ---
-
-func TestParseBibs_Newlines(t *testing.T) {
-	bibs := parseBibs("101\n\nabc\n202\n  303  \n")
-	assert.Equal(t, []int{101, 202, 303}, bibs)
-}
-
-func TestParseBibs_Commas(t *testing.T) {
-	assert.Equal(t, []int{101, 202, 303}, parseBibs("101,202,303"))
-}
-
-func TestParseBibs_Spaces(t *testing.T) {
-	assert.Equal(t, []int{101, 202, 303}, parseBibs("101 202 303"))
-}
-
-func TestParseBibs_Mixed(t *testing.T) {
-	assert.Equal(t, []int{101, 202, 303}, parseBibs("101, 202,303"))
-}
-
-func TestParseBibs_Empty(t *testing.T) {
-	assert.Empty(t, parseBibs(""))
-	assert.Empty(t, parseBibs("\n\n\n"))
-}
-
-func TestParseBibs_SingleBib(t *testing.T) {
-	assert.Equal(t, []int{42}, parseBibs("42"))
-}
-
 // --- publishNodeInfo ---
 
 func TestPublishNodeInfo_PublishError(t *testing.T) {

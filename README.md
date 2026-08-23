@@ -1,6 +1,6 @@
 # Ares Bib Logger
 
-A radio-tent web app for ARES groups supporting ultramarathon events. Replaces the manual Excel + Winlink workflow with automated bib capture via Meshtastic/MQTT, structured runner tracking, and one-click Winlink export.
+A radio-tent web app for ARES groups supporting ultramarathon events. Replaces the manual Excel + Winlink workflow with automated bib capture via Meshtastic or MeshCore over MQTT, structured runner tracking, and one-click Winlink export.
 
 ## Background
 
@@ -8,9 +8,9 @@ Built for the NW-GA ARES team supporting the **GA Death Race (GDR)** and **GA Je
 
 ## Features
 
-- **Auto-capture** — subscribes to a local Mosquitto MQTT broker and parses incoming Meshtastic messages; bib numbers extracted and logged with a timestamp automatically
-- **Manual entry** — fallback bib entry, DNS, and DNF logging from the UI; `MQTT_ENABLED=false` boots the app in manual-only mode with no MQTT dependency
-- **Mesh acks** — after logging, sends a `LOGGED: N` or `DUPLICATE BIB: N` reply back to the Meshtastic mesh via MQTT; the logger node appears as "Auto Logger" on connected devices
+- **Auto-capture** — subscribes to a local Mosquitto MQTT broker and parses incoming mesh messages; supports both Meshtastic and MeshCore radio networks; bib numbers extracted and logged with a timestamp automatically
+- **Manual entry** — fallback bib entry, DNS, and DNF logging from the UI; `MQTT_ENABLED=false` boots the app in manual-only mode with no mesh dependency
+- **Mesh acks** — after logging, sends a `LOGGED: N` or `DUPLICATE BIB: N` reply back to the mesh via MQTT; works with both Meshtastic and MeshCore
 - **Winlink export** — generates a ready-to-copy time column (`HH:MM` / `DNS` / `DNF` / `MOVED <raceName>` / blank) plus a pre-built email subject line for the active race checkpoint
 - **Winlink import** — paste a column received from another station; same column can be re-imported any number of times (upsert); shows a per-line summary of skipped rows; active checkpoint excluded from source selector to prevent self-import
 - **Pace & projected arrival** — once checkpoint distances (miles from start) are configured, displays each runner's current pace and projected arrival time at the next checkpoint; race-stats cards show the earliest expected arrival at the active checkpoint
@@ -68,7 +68,7 @@ curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.
 # Create your local config
 curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
 cp .env.example .env
-# Open .env and set MQTT_GATEWAY_NODE_ID and MQTT_CHANNEL_NAME; see MQTT Setup below
+# Open .env and configure mesh settings; see Mesh Radio Setup below
 
 # Pull the latest image and start everything
 docker compose -f docker-compose.operator.yml up -d
@@ -87,7 +87,7 @@ curl.exe -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosqui
 # Create your local config
 curl.exe -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
 Copy-Item .env.example .env
-# Open .env in Notepad and set MQTT_GATEWAY_NODE_ID and MQTT_CHANNEL_NAME; see MQTT Setup below
+# Open .env in Notepad and configure mesh settings; see Mesh Radio Setup below
 notepad .env
 
 # Pull the latest image and start everything
@@ -107,7 +107,7 @@ curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/mosquitto.
 :: Create your local config
 curl -O https://raw.githubusercontent.com/kbball/ares-bib-logger/main/.env.example
 copy .env.example .env
-:: Open .env in Notepad and set MQTT_GATEWAY_NODE_ID and MQTT_CHANNEL_NAME; see MQTT Setup below
+:: Open .env in Notepad and configure mesh settings; see Mesh Radio Setup below
 notepad .env
 
 :: Pull the latest image and start everything
@@ -222,37 +222,56 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `DB_USER` | `postgres` | Database user |
 | `DB_PASSWORD` | *(required)* | Database password |
 | `DB_SSL_MODE` | `disable` | SSL mode (`disable` / `require` / `verify-full`) |
-| `MQTT_ENABLED` | `false` | Set to `true` to enable Meshtastic MQTT integration |
-| `MQTT_HOST` | `localhost` | Mosquitto broker host |
-| `MQTT_PORT` | `1883` | Mosquitto broker port |
+| `MQTT_ENABLED` | `false` | Set to `true` to enable mesh radio integration |
+| `MESH_TECHNOLOGY` | `meshtastic` | Which mesh radio to use: `meshtastic` or `meshcore` |
+| `MQTT_HOST` | `localhost` | Mosquitto broker host (shared by both technologies) |
+| `MQTT_PORT` | `1883` | Mosquitto broker port (shared by both technologies) |
+| **Meshtastic-specific** | | *(only used when `MESH_TECHNOLOGY=meshtastic`)* |
 | `MQTT_REGION` | `US` | Meshtastic region prefix used in the MQTT topic (e.g. `US`, `EU`) |
 | `MQTT_CHANNEL_NUM` | `2` | Channel number in the MQTT topic path |
 | `MQTT_CHANNEL_NAME` | `LongFast` | Channel name in the MQTT topic path — must match the channel name configured on the Meshtastic gateway |
 | `MQTT_CHANNEL_INDEX` | `0` | Index (0–7) of the bridged channel in the gateway's channel list; primary channel is `0`, secondary channels are 1+. Check with `meshtastic --info` or the Meshtastic app. |
-| `MQTT_GATEWAY_NODE_ID` | *(required when enabled)* | Gateway node ID in hex without `!` (e.g. `a3b4c5d6`). Used to drop echoes of our own messages. |
+| `MQTT_GATEWAY_NODE_ID` | *(required)* | Gateway node ID in hex without `!` (e.g. `a3b4c5d6`). Used to drop echoes of our own messages. |
 | `MQTT_NODE_LONG_NAME` | `Auto Logger` | Name the logger node advertises to the mesh (max ~20 chars); shown in Meshtastic app node lists |
 | `MQTT_NODE_SHORT_NAME` | `Log` | Short name shown on Meshtastic device screens (max 4 chars) |
+| **MeshCore-specific** | | *(only used when `MESH_TECHNOLOGY=meshcore`)* |
+| `MESHCORE_ADDRESS` | *(required)* | IP address of the MeshCore node (consumed by the `meshcore-mqtt` bridge service) |
+| `MESHCORE_PORT` | `5000` | TCP port of the MeshCore node (consumed by the `meshcore-mqtt` bridge service) |
+| `MESHCORE_CHANNEL_INDEX` | `0` | Channel index to subscribe to on the MeshCore node |
 
-**Topic structure:**
+**Meshtastic topic structure:**
 
 ```
 Subscribe: msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/#
 Publish:   msh/{MQTT_REGION}/{MQTT_CHANNEL_NUM}/e/{MQTT_CHANNEL_NAME}/!ffffffff
 ```
 
+**MeshCore topic structure** (via `meshcore-mqtt` bridge):
+
+```
+Subscribe: meshcore/message/channel/{MESHCORE_CHANNEL_INDEX}
+Publish:   meshcore/command/send_chan_msg
+```
+
 ---
 
-## MQTT / Meshtastic Setup
+## Mesh Radio Setup
 
-The MQTT integration uses a local [Mosquitto](https://mosquitto.org/) broker (included in Docker compose) as the bridge between the Meshtastic mesh and the bib logger. A Meshtastic node at the race station acts as the MQTT gateway — it uplinks mesh traffic to the broker and downlinks ack messages back out to the mesh.
+The bib logger supports two mesh radio technologies. Both use a local [Mosquitto](https://mosquitto.org/) broker (included in Docker compose) as the intermediary. Set `MESH_TECHNOLOGY` in your `.env` to choose which one to use.
 
-### 1. Identify your gateway node ID
+---
+
+### Meshtastic Setup
+
+A Meshtastic node at the race station acts as the MQTT gateway — it uplinks mesh traffic to the broker and downlinks ack messages back out to the mesh.
+
+#### 1. Identify your gateway node ID
 
 In the Meshtastic app, go to **Settings → Device** or look at the node list. The node ID is the 8-character hex value shown as `!a3b4c5d6` — copy it without the `!`.
 
 Set `MQTT_GATEWAY_NODE_ID=a3b4c5d6` in your `.env`.
 
-### 2. Configure MQTT on the gateway node
+#### 2. Configure MQTT on the gateway node
 
 In the Meshtastic app (or via `meshtastic --configure`), under **Settings → MQTT**:
 
@@ -266,7 +285,7 @@ In the Meshtastic app (or via `meshtastic --configure`), under **Settings → MQ
 | JSON enabled | Off |
 | TLS enabled | Off |
 
-### 3. Configure channel uplink/downlink
+#### 3. Configure channel uplink/downlink
 
 In the Meshtastic app, under **Settings → Channels**, for the channel you want to bridge:
 
@@ -278,21 +297,68 @@ In the Meshtastic app, under **Settings → Channels**, for the channel you want
 > The channel name in the Meshtastic app must match `MQTT_CHANNEL_NAME` in your `.env`.
 > If you are using a non-primary channel (index > 0), also set `MQTT_CHANNEL_INDEX` accordingly.
 
-### 4. Enable MQTT in the bib logger
+#### 4. Enable mesh integration in the bib logger
 
 In your `.env`:
 
 ```env
 MQTT_ENABLED=true
+MESH_TECHNOLOGY=meshtastic
 MQTT_GATEWAY_NODE_ID=a3b4c5d6   # your gateway's node ID
 MQTT_CHANNEL_NAME=LongFast      # must match the channel name in the Meshtastic app
 ```
 
 Restart the stack (`docker compose -f docker-compose.operator.yml up -d`) and the logger will subscribe to the broker. When the adapter connects it broadcasts a `NODEINFO_APP` packet so the mesh displays the logger as "Auto Logger" / "Log".
 
-### 5. Verify
+#### 5. Verify
 
 Send a text message on the configured channel from any Meshtastic device containing a bib number (e.g. `101`). You should see the bib appear in the UI, and a `LOGGED: 101` reply on the mesh from "Auto Logger".
+
+Set `LOG_LEVEL=debug` for verbose MQTT logs during setup.
+
+---
+
+### MeshCore Setup
+
+MeshCore uses a sidecar bridge service (`meshcore-mqtt`) that connects to the MeshCore node over TCP and relays messages to/from the Mosquitto broker. The bridge is built from the [kbball/meshcore-mqtt](https://github.com/kbball/meshcore-mqtt) fork and is included in Docker compose under the `meshcore` profile.
+
+#### 1. Configure your `.env`
+
+```env
+MQTT_ENABLED=true
+MESH_TECHNOLOGY=meshcore
+MESHCORE_ADDRESS=192.168.1.50   # IP address of your MeshCore node
+MESHCORE_PORT=5000              # TCP port of your MeshCore node (default 5000)
+MESHCORE_CHANNEL_INDEX=0        # Channel index to subscribe to (0-based)
+```
+
+#### 2. Start the stack with the `meshcore` profile
+
+The `meshcore-mqtt` bridge service is gated behind a Docker compose profile and does not start by default.
+
+```bash
+# Operator setup
+COMPOSE_PROFILES=meshcore docker compose -f docker-compose.operator.yml up -d
+
+# Developer setup
+COMPOSE_PROFILES=meshcore docker compose up -d
+```
+
+Or set `COMPOSE_PROFILES=meshcore` in your `.env` to make it permanent.
+
+#### 3. Message format
+
+The logger expects MeshCore messages in the format sent by the `meshcore-mqtt` bridge:
+
+```
+<node_name>: <bib>[,<bib>,...]
+```
+
+For example: `KD4XYZ: 101` or `KD4XYZ: 101,202`. The app parses everything after the last `: `.
+
+#### 4. Verify
+
+Send a message on the configured channel from any MeshCore device containing a bib number (e.g. `KD4XYZ: 101`). You should see the bib appear in the UI and a `LOGGED: 101` reply on the mesh.
 
 Set `LOG_LEVEL=debug` for verbose MQTT logs during setup.
 

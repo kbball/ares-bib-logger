@@ -8,11 +8,13 @@ import (
 )
 
 type Config struct {
-	ServerPort int
-	LogLevel   string
-	Timezone   string
-	DB         DBConfig
-	MQTT       MQTTConfig
+	ServerPort     int
+	LogLevel       string
+	Timezone       string
+	MeshTechnology string // "meshtastic" or "meshcore"
+	DB             DBConfig
+	MQTT           MQTTConfig
+	Meshcore       MeshcoreConfig
 }
 
 type DBConfig struct {
@@ -43,6 +45,23 @@ type MQTTConfig struct {
 	GatewayNodeID string
 	NodeLongName  string // displayed name for the logger node on the mesh (max ~20 chars)
 	NodeShortName string // short name for the logger node on the mesh (max 4 chars)
+}
+
+type MeshcoreConfig struct {
+	ChannelIndex int    // numeric channel index to subscribe to (MESHCORE_CHANNEL_INDEX)
+	MQTTHost     string // MQTT broker hostname (shared with Meshtastic)
+	MQTTPort     int    // MQTT broker port (shared with Meshtastic)
+}
+
+// SubscribeTopic returns the MQTT topic for incoming MeshCore channel messages.
+// ipnet-mesh/meshcore-mqtt publishes to meshcore/message/{channel_idx}.
+func (c MeshcoreConfig) SubscribeTopic() string {
+	return fmt.Sprintf("meshcore/message/channel/%d", c.ChannelIndex)
+}
+
+// PublishTopic returns the MQTT command topic for sending messages back through meshcore-mqtt.
+func (c MeshcoreConfig) PublishTopic() string {
+	return "meshcore/command/send_chan_msg"
 }
 
 // SubscribeTopic returns the wildcard topic to receive all mesh traffic on the channel.
@@ -89,10 +108,16 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("MQTT_CHANNEL_INDEX: %w", err)
 	}
 
+	meshcoreChannelIndex, err := envInt("MESHCORE_CHANNEL_INDEX", 0)
+	if err != nil {
+		return nil, fmt.Errorf("MESHCORE_CHANNEL_INDEX: %w", err)
+	}
+
 	cfg := &Config{
-		ServerPort: serverPort,
-		LogLevel:   envStr("LOG_LEVEL", "info"),
-		Timezone:   envStr("TIMEZONE", "Local"),
+		ServerPort:     serverPort,
+		LogLevel:       envStr("LOG_LEVEL", "info"),
+		Timezone:       envStr("TIMEZONE", "Local"),
+		MeshTechnology: envStr("MESH_TECHNOLOGY", "meshtastic"),
 		DB: DBConfig{
 			Host:     envStr("DB_HOST", "localhost"),
 			Port:     dbPort,
@@ -113,6 +138,11 @@ func Load() (*Config, error) {
 			NodeLongName:  envStr("MQTT_NODE_LONG_NAME", "Auto Logger"),
 			NodeShortName: envStr("MQTT_NODE_SHORT_NAME", "Log"),
 		},
+		Meshcore: MeshcoreConfig{
+			ChannelIndex: meshcoreChannelIndex,
+			MQTTHost:     envStr("MQTT_HOST", "localhost"),
+			MQTTPort:     mqttPort,
+		},
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -128,8 +158,15 @@ func (c *Config) validate() error {
 	if c.DB.Password == "" {
 		missing = append(missing, "DB_PASSWORD")
 	}
-	if c.MQTT.Enabled && c.MQTT.GatewayNodeID == "" {
-		missing = append(missing, "MQTT_GATEWAY_NODE_ID (required when MQTT_ENABLED=true)")
+	if c.MQTT.Enabled {
+		switch c.MeshTechnology {
+		case "meshcore":
+			// no additional required vars — meshcore-mqtt bridge handles the node connection
+		default: // meshtastic
+			if c.MQTT.GatewayNodeID == "" {
+				missing = append(missing, "MQTT_GATEWAY_NODE_ID (required when MQTT_ENABLED=true and MESH_TECHNOLOGY=meshtastic)")
+			}
+		}
 	}
 
 	if len(missing) > 0 {
