@@ -79,6 +79,13 @@ export default function AdminTab() {
   const [rosterRaceID, setRosterRaceID] = useState<number | ''>('')
   const [rosterTsv, setRosterTsv] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
+  // Add single runner (late registration)
+  const [addRunnerRaceID, setAddRunnerRaceID] = useState<number | ''>('')
+  const [addRunnerBib, setAddRunnerBib] = useState('')
+  const [addRunnerFirstName, setAddRunnerFirstName] = useState('')
+  const [addRunnerLastName, setAddRunnerLastName] = useState('')
+  const [addRunnerMsg, setAddRunnerMsg] = useState('')
+  const [addRunnerErr, setAddRunnerErr] = useState('')
   // Bulk checkpoint import
   const [bulkCpRaceID, setBulkCpRaceID] = useState<number | ''>('')
   const [bulkCpTsv, setBulkCpTsv] = useState('')
@@ -232,6 +239,26 @@ export default function AdminTab() {
         return loadRaces(session!.EventID!)
       }),
     )
+  }
+
+  const submitAddRunner = async () => {
+    if (!addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()) return
+    setAddRunnerMsg('')
+    setAddRunnerErr('')
+    try {
+      await api.addRunner(
+        Number(addRunnerRaceID),
+        Number(addRunnerBib),
+        addRunnerFirstName.trim(),
+        addRunnerLastName.trim(),
+      )
+      setAddRunnerMsg(`Added bib ${addRunnerBib} to the roster.`)
+      setAddRunnerBib('')
+      setAddRunnerFirstName('')
+      setAddRunnerLastName('')
+    } catch (e: unknown) {
+      setAddRunnerErr((e as Error).message)
+    }
   }
 
   const searchRunner = async () => {
@@ -954,6 +981,74 @@ export default function AdminTab() {
                 </Typography>
               )}
             </Box>
+          </Stack>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* ── Add Runner to Roster (late registration) ── */}
+          <Typography variant="h6" gutterBottom>
+            Add Runner to Roster
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Add a single late registration directly to a race's roster — appended to the bottom
+            (works even after the roster has been imported and locked).
+          </Typography>
+          <Stack spacing={1} data-testid="add-runner-section">
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="add-runner-race-label">Race</InputLabel>
+                <Select
+                  value={addRunnerRaceID}
+                  label="Race"
+                  labelId="add-runner-race-label"
+                  onChange={(e) => setAddRunnerRaceID(Number(e.target.value))}
+                >
+                  {races.map((r) => (
+                    <MenuItem key={r.ID} value={r.ID}>
+                      {r.Name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                size="small"
+                label="Bib number"
+                type="number"
+                value={addRunnerBib}
+                onChange={(e) => setAddRunnerBib(e.target.value)}
+                sx={{ width: 120 }}
+              />
+              <TextField
+                size="small"
+                label="First name"
+                value={addRunnerFirstName}
+                onChange={(e) => setAddRunnerFirstName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <TextField
+                size="small"
+                label="Last name"
+                value={addRunnerLastName}
+                onChange={(e) => setAddRunnerLastName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <Tooltip title="Add this runner to the bottom of the race's roster">
+                <span>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={
+                      !addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()
+                    }
+                    onClick={submitAddRunner}
+                  >
+                    Add Runner
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+            {addRunnerErr && <Alert severity="error">{addRunnerErr}</Alert>}
+            {addRunnerMsg && <Alert severity="success">{addRunnerMsg}</Alert>}
           </Stack>
 
           <Divider sx={{ my: 2 }} />
