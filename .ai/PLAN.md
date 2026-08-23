@@ -329,6 +329,10 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Winlink import header validation: `WinlinkService.Preview` now also fetches the target checkpoint and compares the pasted text's header line (when present) against the checkpoint's expected header (`ColumnName`, falling back to `DisplayName`) via new `checkpointHeader`/`pastedHeaderLine` helpers; `WinlinkPreviewResult` gained `HeaderMismatch`/`PastedHeader`/`ExpectedHeader`; frontend now shows the confirm modal (with a warning `Alert`) whenever there's a header mismatch, even on an otherwise-clean parse that would normally auto-import
 - Correct a mis-logged bib (Admin → Edit Runners): migration 000007 adds `CORRECTION` to the `log_source` enum; `CheckpointLogRepository.Delete(runnerID, checkpointID)` (new); `CheckpointLogService.CorrectLog` (parses `HH:MM`/`HH:MM:SS` via shared `parseWallClockTime`, upserts with `Source: CORRECTION`, wakes `UNKNOWN` runners to `ACTIVE`) and `.DeleteLog` (looks up the runner by bib within the race, deletes the log); new `POST /api/log/correction` and `DELETE /api/log/correction` endpoints (JSON body: `race_id`, `checkpoint_id`, `bib_number`, and `time` for the POST); `CheckpointLogService` now takes a `*time.Location` constructor param (same timezone source as `WinlinkService`); Admin panel "Edit Runners" accordion gained "Manually Log a Bib" and "Remove a Checkpoint Log" (with delete confirmation dialog) sections; `del()` API client helper gained an optional JSON body for the DELETE-with-body call
 
+**v1.2 — 2026-08-23**
+
+- Optional checkpoint cutoff time: migration 000008 adds `checkpoints.cutoff_time` (nullable text); `Checkpoint.CutoffTime *string` threaded through repo/service/handler `Create`/`Update` and the event export/import DTO; Admin panel checkpoint create/edit forms gained a Cutoff (`type="time"`) input (table column + inline edit); bulk checkpoint import TSV gained it as an optional 5th column
+
 ## Backlog
 
 Ordered by priority (2026-08-23):
@@ -344,9 +348,8 @@ Ordered by priority (2026-08-23):
 - When logging using the timestamp on "Manually Log a Bib" (admin page), determine whether a date is/should be associated with the entered time, and add it to the form if needed
 - Not yet implemented — captured here for future work
 
-### 0. Optional cutoff time on checkpoint configuration
-- Add a cutoff time column to aid station / checkpoint configuration — optional, since not all aid stations have a cutoff
-- Not yet implemented — captured here for future work
+### ~~0. Optional cutoff time on checkpoint configuration~~ ✅ DONE
+- Added `Checkpoint.CutoffTime *string` (migration 000008, nullable `cutoff_time TEXT`), threaded through repo/service/handler `Create`/`Update`, the event export/import DTO, and the Admin panel's checkpoint create/edit forms (MUI `type="time"` input) and table (new "Cutoff" column). Bulk checkpoint import also gained it as an optional 5th TSV column (`Code, DisplayName, DistFromStart, ColumnName, CutoffTime`)
 
 ### 0. Persist last-opened admin accordion across navigation
 - On the Admin page, persist which accordion was last opened so it stays open if the user clicks off the page and returns

@@ -685,6 +685,21 @@ describe('AdminTab — Checkpoint Management', () => {
     await waitFor(() => expect(screen.getByLabelText(/^column name$/i)).toHaveValue(''))
   })
 
+  it('creates a new checkpoint with a cutoff time', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByLabelText(/^code$/i))
+    await user.type(screen.getByLabelText(/^code$/i), 'FIN')
+    await user.type(screen.getByLabelText(/display name/i), 'Finish Line')
+    await user.type(screen.getByLabelText(/^cutoff$/i), '18:00')
+
+    await user.click(screen.getByRole('button', { name: /add checkpoint/i }))
+
+    await waitFor(() => expect(screen.getByLabelText(/^code$/i)).toHaveValue(''))
+  })
+
   it('edits a checkpoint inline, types new values, and saves', async () => {
     const user = userEvent.setup()
     render(<AdminTab />)
@@ -727,6 +742,26 @@ describe('AdminTab — Checkpoint Management', () => {
       ?.querySelectorAll('input')[2]
     expect(columnNameInput).toBeDefined()
     await user.type(columnNameInput as HTMLInputElement, 'AS #1')
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.queryByDisplayValue('AS1')).not.toBeInTheDocument())
+  })
+
+  it('edits a checkpoint cutoff time inline and saves', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(
+      () => screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0],
+    )
+    await user.click(screen.getAllByRole('button', { name: /edit checkpoint code and name/i })[0])
+
+    await waitFor(() => screen.getByDisplayValue('AS1'))
+    const cutoffInput = screen.getByDisplayValue('AS1').closest('tr')?.querySelectorAll('input')[4]
+    expect(cutoffInput).toBeDefined()
+    await user.type(cutoffInput as HTMLInputElement, '1800')
 
     await user.click(screen.getByRole('button', { name: /^save$/i }))
 
@@ -809,7 +844,7 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
     await user.click(screen.getAllByRole('option')[0])
 
     const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
-    await user.type(textarea, 'AS1\tAid Station 1\t10.5\tAS #1')
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5\tAS #1\t18:00')
 
     await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
 
@@ -819,6 +854,7 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
       display_name: 'Aid Station 1',
       distance_from_start: 10.5,
       column_name: 'AS #1',
+      cutoff_time: '18:00',
     })
   })
 
@@ -852,6 +888,41 @@ describe('AdminTab — Bulk Checkpoint Import', () => {
       display_name: 'Aid Station 1',
       distance_from_start: 10.5,
       column_name: null,
+      cutoff_time: null,
+    })
+  })
+
+  it('imports checkpoints from pasted TSV with cutoff time but no column name', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/races/:raceID/checkpoints', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(mockCheckpoint)
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('bulk-cp-section'))
+    const bulkCp = screen.getByTestId('bulk-cp-section')
+    await user.click(within(bulkCp).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getAllByRole('option').length > 0)
+    await user.click(screen.getAllByRole('option')[0])
+
+    const textarea = within(bulkCp).getByPlaceholderText(/AS1/i)
+    await user.type(textarea, 'AS1\tAid Station 1\t10.5\t\t18:00')
+
+    await user.click(screen.getByRole('button', { name: /import checkpoints/i }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      code: 'AS1',
+      display_name: 'Aid Station 1',
+      distance_from_start: 10.5,
+      column_name: null,
+      cutoff_time: '18:00',
     })
   })
 })

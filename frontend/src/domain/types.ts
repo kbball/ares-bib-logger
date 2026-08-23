@@ -23,6 +23,7 @@ export interface Checkpoint {
   ColumnName: string | null
   DisplayOrder: number
   DistanceFromStart: number | null
+  CutoffTime: string | null
   CreatedAt: string
 }
 

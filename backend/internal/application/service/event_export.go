@@ -61,6 +61,7 @@ func (s *EventExportImportService) Export(ctx context.Context, eventID int) (por
 				ColumnName:        cp.ColumnName,
 				DisplayOrder:      cp.DisplayOrder,
 				DistanceFromStart: cp.DistanceFromStart,
+				CutoffTime:        cp.CutoffTime,
 			}
 		}
 
@@ -115,6 +116,7 @@ func (s *EventExportImportService) Import(ctx context.Context, payload portsvc.E
 				ColumnName:        cpData.ColumnName,
 				DisplayOrder:      cpData.DisplayOrder,
 				DistanceFromStart: cpData.DistanceFromStart,
+				CutoffTime:        cpData.CutoffTime,
 			})
 			if err != nil {
 				return 0, fmt.Errorf("creating checkpoint %q: %w", cpData.Code, err)

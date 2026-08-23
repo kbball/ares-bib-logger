@@ -35,12 +35,14 @@ export const createCheckpoint = (
   displayName: string,
   distance?: number | null,
   columnName?: string | null,
+  cutoffTime?: string | null,
 ) =>
   post<Checkpoint>(`/api/races/${raceID}/checkpoints`, {
     code,
     display_name: displayName,
     distance_from_start: distance ?? null,
     column_name: columnName ?? null,
+    cutoff_time: cutoffTime ?? null,
   })
 export const updateCheckpoint = (
   id: number,
@@ -48,12 +50,14 @@ export const updateCheckpoint = (
   displayName: string,
   distance?: number | null,
   columnName?: string | null,
+  cutoffTime?: string | null,
 ) =>
   put<Checkpoint>(`/api/checkpoints/${id}`, {
     code,
     display_name: displayName,
     distance_from_start: distance ?? null,
     column_name: columnName ?? null,
+    cutoff_time: cutoffTime ?? null,
   })
 export const deleteCheckpoint = (id: number) => del<void>(`/api/checkpoints/${id}`)
 export const reorderCheckpoints = (raceID: number, ids: number[]) =>

@@ -10,5 +10,6 @@ type Checkpoint struct {
 	ColumnName        *string
 	DisplayOrder      int
 	DistanceFromStart *float64
+	CutoffTime        *string
 	CreatedAt         time.Time
 }

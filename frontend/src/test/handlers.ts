@@ -28,6 +28,7 @@ export const mockCheckpoint: Checkpoint = {
   ColumnName: null,
   DisplayOrder: 1,
   DistanceFromStart: 10.5,
+  CutoffTime: null,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
@@ -39,6 +40,7 @@ export const mockCheckpoint2: Checkpoint = {
   ColumnName: null,
   DisplayOrder: 2,
   DistanceFromStart: 21.0,
+  CutoffTime: null,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
