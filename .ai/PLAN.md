@@ -314,11 +314,11 @@ Three sections:
 
 ## Backlog
 
-### User Testing — MQTT Gateway and Meshtastic Messaging (Priority: Medium) 🚧 BLOCKED
-- [ ] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
-- [ ] Verify duplicate-bib detection and outbound alert publish back to the mesh
-- [ ] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
-- **Blocked:** test hardware (Meshtastic nodes + gateway) not yet configured
+### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
+- [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
+- [x] End-to-end user test of the full MeshCore path: MeshCore node → meshcore-mqtt bridge → Mosquitto broker → backend subscriber → bib logging
+- [x] Verify duplicate-bib detection and outbound ack back to the mesh (both technologies)
+- [x] Confirm MQTT_ENABLED=true startup, topic subscription, and graceful handling of malformed payloads
 
 ---
 
