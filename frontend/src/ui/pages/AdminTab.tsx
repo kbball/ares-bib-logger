@@ -1061,74 +1061,6 @@ export default function AdminTab() {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* ── Add Runner to Roster (late registration) ── */}
-          <Typography variant="h6" gutterBottom>
-            Add Runner to Roster
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Add a single late registration directly to a race's roster — appended to the bottom
-            (works even after the roster has been imported and locked).
-          </Typography>
-          <Stack spacing={1} data-testid="add-runner-section">
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel id="add-runner-race-label">Race</InputLabel>
-                <Select
-                  value={addRunnerRaceID}
-                  label="Race"
-                  labelId="add-runner-race-label"
-                  onChange={(e) => setAddRunnerRaceID(Number(e.target.value))}
-                >
-                  {races.map((r) => (
-                    <MenuItem key={r.ID} value={r.ID}>
-                      {r.Name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                size="small"
-                label="Bib number"
-                type="number"
-                value={addRunnerBib}
-                onChange={(e) => setAddRunnerBib(e.target.value)}
-                sx={{ width: 120 }}
-              />
-              <TextField
-                size="small"
-                label="First name"
-                value={addRunnerFirstName}
-                onChange={(e) => setAddRunnerFirstName(e.target.value)}
-                sx={{ width: 140 }}
-              />
-              <TextField
-                size="small"
-                label="Last name"
-                value={addRunnerLastName}
-                onChange={(e) => setAddRunnerLastName(e.target.value)}
-                sx={{ width: 140 }}
-              />
-              <Tooltip title="Add this runner to the bottom of the race's roster">
-                <span>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={
-                      !addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()
-                    }
-                    onClick={submitAddRunner}
-                  >
-                    Add Runner
-                  </Button>
-                </span>
-              </Tooltip>
-            </Stack>
-            {addRunnerErr && <Alert severity="error">{addRunnerErr}</Alert>}
-            {addRunnerMsg && <Alert severity="success">{addRunnerMsg}</Alert>}
-          </Stack>
-
-          <Divider sx={{ my: 2 }} />
-
           {/* ── Bulk Checkpoint Import ── */}
           <Typography variant="h6" gutterBottom>
             Bulk Checkpoint Import
@@ -1230,6 +1162,74 @@ export default function AdminTab() {
           <Typography variant="h6">Edit Runners</Typography>
         </AccordionSummary>
         <AccordionDetails>
+          {/* ── Add Runner to Roster (late registration) ── */}
+          <Typography variant="h6" gutterBottom>
+            Add Runner to Roster
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Add a single late registration directly to a race's roster — appended to the bottom
+            (works even after the roster has been imported and locked).
+          </Typography>
+          <Stack spacing={1} data-testid="add-runner-section">
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="add-runner-race-label">Race</InputLabel>
+                <Select
+                  value={addRunnerRaceID}
+                  label="Race"
+                  labelId="add-runner-race-label"
+                  onChange={(e) => setAddRunnerRaceID(Number(e.target.value))}
+                >
+                  {races.map((r) => (
+                    <MenuItem key={r.ID} value={r.ID}>
+                      {r.Name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                size="small"
+                label="Bib number"
+                type="number"
+                value={addRunnerBib}
+                onChange={(e) => setAddRunnerBib(e.target.value)}
+                sx={{ width: 120 }}
+              />
+              <TextField
+                size="small"
+                label="First name"
+                value={addRunnerFirstName}
+                onChange={(e) => setAddRunnerFirstName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <TextField
+                size="small"
+                label="Last name"
+                value={addRunnerLastName}
+                onChange={(e) => setAddRunnerLastName(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <Tooltip title="Add this runner to the bottom of the race's roster">
+                <span>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={
+                      !addRunnerRaceID || !addRunnerBib.trim() || !addRunnerFirstName.trim()
+                    }
+                    onClick={submitAddRunner}
+                  >
+                    Add Runner
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+            {addRunnerErr && <Alert severity="error">{addRunnerErr}</Alert>}
+            {addRunnerMsg && <Alert severity="success">{addRunnerMsg}</Alert>}
+          </Stack>
+
+          <Divider sx={{ my: 2 }} />
+
           {/* ── Runner Status ── */}
           <Typography variant="h6" gutterBottom>
             Change Runner Status
