@@ -198,4 +198,47 @@ describe('WinlinkExportTab', () => {
 
     await waitFor(() => expect(screen.getByText(/copied!/i)).toBeInTheDocument())
   })
+
+  it('falls back to execCommand when the Clipboard API is unavailable (plain HTTP)', async () => {
+    // navigator.clipboard.writeText is undefined outside a secure context — simulate that.
+    Object.assign(navigator.clipboard, { writeText: undefined })
+    const execCommand = vi.fn().mockReturnValue(true)
+    document.execCommand = execCommand
+
+    const user = userEvent.setup()
+    render(<WinlinkExportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy column data/i }))
+
+    await user.click(screen.getByRole('button', { name: /copy column data/i }))
+
+    await waitFor(() => expect(execCommand).toHaveBeenCalledWith('copy'))
+    await waitFor(() => expect(screen.getByText(/copied!/i)).toBeInTheDocument())
+  })
+
+  it('shows an error when both the Clipboard API and execCommand fail', async () => {
+    Object.assign(navigator.clipboard, { writeText: undefined })
+    document.execCommand = vi.fn().mockReturnValue(false)
+
+    const user = userEvent.setup()
+    render(<WinlinkExportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    await waitFor(() => screen.getByRole('button', { name: /copy column data/i }))
+
+    await user.click(screen.getByRole('button', { name: /copy column data/i }))
+
+    await waitFor(() => expect(screen.getByText(/copy failed/i)).toBeInTheDocument())
+  })
 })

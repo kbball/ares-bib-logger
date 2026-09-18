@@ -85,8 +85,14 @@ export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: 
   })
 
 // Bib logging
-export const logBib = (bibNumber: number) =>
-  post<LogBibResult>('/api/log/bib', { bib_number: bibNumber })
+// requestID (when provided) is echoed on the SSE broadcast of this log, so the
+// submitting client can recognize and skip its own echo — see DataEntryTab.
+export const logBib = (bibNumber: number, requestID?: string) =>
+  post<LogBibResult>(
+    '/api/log/bib',
+    { bib_number: bibNumber },
+    requestID ? { 'X-Request-Id': requestID } : undefined,
+  )
 export const logStatus = (bibNumber: number, status: RunnerStatus) =>
   post<void>('/api/log/status', { bib_number: bibNumber, status })
 export const correctLog = (

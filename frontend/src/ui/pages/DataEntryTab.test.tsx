@@ -3,7 +3,7 @@ import { render, screen, waitFor, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession, mockRunner, mockRunner2, mockRace } from '../../test/handlers'
+import { noSession, mockRunner, mockRunner2, mockRace, mockLog } from '../../test/handlers'
 import DataEntryTab from './DataEntryTab'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -310,7 +310,12 @@ describe('DataEntryTab', () => {
     const statusSection = screen.getByText(/dns \/ dnf/i).closest('div')!
 
     await user.type(within(statusSection).getAllByLabelText(/bib #/i)[0], '100')
-    await user.click(within(statusSection).getByRole('button', { name: /submit/i }))
+    // Submit is also gated on the session's active-checkpoint state, which
+    // loads asynchronously — wait for it to actually enable before clicking,
+    // rather than racing the session fetch.
+    const submitButton = within(statusSection).getByRole('button', { name: /submit/i })
+    await waitFor(() => expect(submitButton).toBeEnabled())
+    await user.click(submitButton)
 
     await waitFor(() => expect(screen.getByText(/status update failed/i)).toBeInTheDocument())
   })
@@ -334,6 +339,56 @@ describe('DataEntryTab', () => {
     await user.click(within(section).getByRole('button', { name: /transfer/i }))
 
     await waitFor(() => expect(screen.getByText(/transfer failed/i)).toBeInTheDocument())
+  })
+
+  it('does not duplicate a manually-logged bib when its SSE broadcast echoes back', async () => {
+    let capturedCbs: Parameters<typeof useStream>[0] | null = null
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(
+      '11111111-1111-1111-1111-111111111111' as ReturnType<typeof crypto.randomUUID>,
+    )
+
+    const user = userEvent.setup()
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText('GDR'))
+    await user.type(screen.getAllByLabelText(/bib #/i)[0], '100')
+    await user.click(screen.getByRole('button', { name: /^log$/i }))
+
+    await waitFor(() => expect(screen.getByText(/alice/i)).toBeInTheDocument())
+
+    // The backend broadcasts the same log over SSE, echoing the request ID we
+    // sent — this must not add a second row for the same log.
+    act(() => {
+      capturedCbs?.onBibLogged?.({
+        runner: mockRunner,
+        log: mockLog,
+        is_duplicate: false,
+        request_id: '11111111-1111-1111-1111-111111111111',
+      })
+    })
+
+    await waitFor(() => expect(screen.getAllByText(/alice/i)).toHaveLength(1))
+
+    vi.mocked(crypto.randomUUID).mockRestore()
+  })
+
+  it('still shows an SSE-broadcast bib log from another source (no matching request id)', async () => {
+    let capturedCbs: Parameters<typeof useStream>[0] | null = null
+    vi.mocked(useStream).mockImplementation((cbs) => {
+      capturedCbs = cbs
+    })
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText(/log bib/i))
+
+    act(() => {
+      capturedCbs?.onBibLogged?.({ runner: mockRunner2, log: mockLog, is_duplicate: false })
+    })
+
+    await waitFor(() => expect(screen.getByText(/bob jones/i)).toBeInTheDocument())
   })
 
   it('handles SSE bib logged callback', async () => {

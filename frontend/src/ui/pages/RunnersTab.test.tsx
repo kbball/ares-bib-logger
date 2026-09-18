@@ -3,7 +3,13 @@ import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/server'
-import { noSession } from '../../test/handlers'
+import {
+  noSession,
+  mockRunner,
+  mockRunner2,
+  mockCheckpoint,
+  mockCheckpoint2,
+} from '../../test/handlers'
 import RunnersTab from './RunnersTab'
 import { useStream } from '../../adapters/sse/useStream'
 
@@ -97,10 +103,103 @@ describe('RunnersTab', () => {
     expect(screen.getAllByText(/aid station 1/i).length).toBeGreaterThan(0)
   })
 
-  it('modal shows projected arrival at active checkpoint', async () => {
+  it('shows DNF status in checkpoint columns for a runner with no checkpoint log', async () => {
+    server.use(
+      http.get('/api/races/:raceID/runners', () =>
+        HttpResponse.json([mockRunner, { ...mockRunner2, Status: 'DNF' }]),
+      ),
+      http.get('/api/races/:raceID/logs', () => HttpResponse.json([])),
+    )
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/bob jones/i))
+    const row = screen.getByText(/bob jones/i).closest('tr')!
+    expect(within(row).getAllByText('DNF').length).toBeGreaterThan(0)
+  })
+
+  it("shows a runner's DNF status in the modal's checkpoint log table", async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/races/:raceID/runners', () =>
+        HttpResponse.json([mockRunner, { ...mockRunner2, Status: 'DNF' }]),
+      ),
+      http.get('/api/races/:raceID/logs', () => HttpResponse.json([])),
+    )
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/bob jones/i))
+    await user.click(screen.getByText(/bob jones/i).closest('tr')!)
+
+    await waitFor(() => screen.getByRole('dialog'))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getAllByText('DNF').length).toBeGreaterThan(0)
+  })
+
+  it('modal shows projected arrival at the active checkpoint', async () => {
     const user = userEvent.setup()
 
+    // Runner logged only at checkpoint 1; checkpoint 2 is the active (unlogged, ahead) one.
     server.use(
+      http.get('/api/races/:raceID/logs', () =>
+        HttpResponse.json([
+          {
+            ID: 1,
+            RunnerID: 1,
+            CheckpointID: 1,
+            RecordedAt: '2026-06-14T10:00:00Z',
+            Source: 'MANUAL',
+            RawMessage: '10:00',
+            CreatedAt: '',
+          },
+        ]),
+      ),
+      http.get('/api/session', () =>
+        HttpResponse.json({ EventID: 1, Checkpoints: [{ RaceID: 1, CheckpointID: 2 }] }),
+      ),
+    )
+
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByText(/alice smith/i).closest('tr')!)
+
+    await waitFor(() => screen.getByRole('dialog'))
+    await waitFor(() =>
+      expect(screen.getByText(/proj\. arrival at aid station 2 \(active\)/i)).toBeInTheDocument(),
+    )
+  })
+
+  it('modal shows projected arrival at only the next unreached checkpoint, not every upcoming one', async () => {
+    const user = userEvent.setup()
+
+    const mockCheckpoint3 = {
+      ID: 3,
+      RaceID: 1,
+      Code: 'AS3',
+      DisplayName: 'Aid Station 3',
+      ColumnName: null,
+      DisplayOrder: 3,
+      DistanceFromStart: 30.0,
+      CutoffTime: null,
+      CreatedAt: '2026-06-14T00:00:00Z',
+    }
+    const mockCheckpoint4 = {
+      ID: 4,
+      RaceID: 1,
+      Code: 'AS4',
+      DisplayName: 'Aid Station 4',
+      ColumnName: null,
+      DisplayOrder: 4,
+      DistanceFromStart: 40.0,
+      CutoffTime: null,
+      CreatedAt: '2026-06-14T00:00:00Z',
+    }
+
+    server.use(
+      http.get('/api/races/:raceID/checkpoints', () =>
+        HttpResponse.json([mockCheckpoint, mockCheckpoint2, mockCheckpoint3, mockCheckpoint4]),
+      ),
+      // Runner logged at checkpoints 1 and 2 (establishing a pace); 3 and 4 are ahead.
       http.get('/api/races/:raceID/logs', () =>
         HttpResponse.json([
           {
@@ -123,8 +222,9 @@ describe('RunnersTab', () => {
           },
         ]),
       ),
+      // Active checkpoint is 4, further ahead than the runner's next unlogged stop (3).
       http.get('/api/session', () =>
-        HttpResponse.json({ EventID: 1, Checkpoints: [{ RaceID: 1, CheckpointID: 1 }] }),
+        HttpResponse.json({ EventID: 1, Checkpoints: [{ RaceID: 1, CheckpointID: 4 }] }),
       ),
     )
 
@@ -134,7 +234,13 @@ describe('RunnersTab', () => {
     await user.click(screen.getByText(/alice smith/i).closest('tr')!)
 
     await waitFor(() => screen.getByRole('dialog'))
-    await waitFor(() => expect(screen.getByText(/proj\. arrival at/i)).toBeInTheDocument())
+    // Only the next unreached checkpoint (3) gets a projection, unlabeled since it isn't active.
+    await waitFor(() =>
+      expect(screen.getByText(/proj\. arrival at aid station 3:/i)).toBeInTheDocument(),
+    )
+    expect(screen.queryByText(/proj\. arrival at aid station 1/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/proj\. arrival at aid station 2/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/proj\. arrival at aid station 4/i)).not.toBeInTheDocument()
   })
 
   it('modal shows split pace between consecutive logged checkpoints', async () => {
@@ -344,6 +450,37 @@ describe('RunnersTab', () => {
 
     await waitFor(() => expect(screen.getByText(/bob jones/i)).toBeInTheDocument())
     expect(screen.getByText(/alice smith/i)).toBeInTheDocument()
+  })
+
+  it('filters to runners not yet logged at the active checkpoint', async () => {
+    const user = userEvent.setup()
+    render(<RunnersTab />)
+
+    // Default fixtures: Alice (ID 1) has a real time log at checkpoint 1 (the
+    // active checkpoint); Bob (ID 2) has none.
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByRole('button', { name: 'Not Arrived' }))
+
+    await waitFor(() => expect(screen.getByText(/bob jones/i)).toBeInTheDocument())
+    expect(screen.queryByText(/alice smith/i)).not.toBeInTheDocument()
+  })
+
+  it('excludes DNS/DNF runners from the Not Arrived filter', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.get('/api/races/:raceID/runners', () =>
+        HttpResponse.json([mockRunner, { ...mockRunner2, Status: 'DNF' }]),
+      ),
+      http.get('/api/races/:raceID/logs', () => HttpResponse.json([])),
+    )
+    render(<RunnersTab />)
+
+    await waitFor(() => screen.getByText(/bob jones/i))
+    await user.click(screen.getByRole('button', { name: 'Not Arrived' }))
+
+    // Bob is DNF (won't arrive) and Alice has no log but is ACTIVE, so only Alice remains.
+    await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
+    expect(screen.queryByText(/bob jones/i)).not.toBeInTheDocument()
   })
 
   it('combines status filter with an active race tab', async () => {

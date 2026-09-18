@@ -169,8 +169,8 @@ func TestWinlinkService_Export_MovedRunner(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	require.Len(t, lines, 3) // header + 2 runners
 	assert.Equal(t, "Aid Station 6", lines[0])
-	assert.Equal(t, "", lines[1])               // runner 100 not yet seen
-	assert.Equal(t, "MOVED Marathon", lines[2]) // runner 101 moved to Marathon
+	assert.Equal(t, "", lines[1])             // runner 100 not yet seen
+	assert.Equal(t, "CHG Marathon", lines[2]) // runner 101 moved to Marathon
 }
 
 func TestWinlinkService_Export_NoActiveCheckpoint(t *testing.T) {
@@ -241,6 +241,25 @@ func TestWinlinkService_Import_HandlesDNSDNF(t *testing.T) {
 	assert.Equal(t, entity.StatusDNF, runners.runners[1].Status)
 }
 
+func TestWinlinkService_Import_HandlesDropAsDNF(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	sess := &mockActiveSessionRepository{}
+
+	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{10: {ID: 10}}}, logs, sess)
+
+	column := "AS6\ndrop\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Updated)
+	assert.Equal(t, entity.StatusDNF, runners.runners[0].Status)
+}
+
 func TestWinlinkService_Import_OverwritesDuplicates(t *testing.T) {
 	runners := &mockRunnerRepository{
 		runners: []entity.Runner{
@@ -309,6 +328,27 @@ func TestWinlinkService_Import_MovedAtPositionOne(t *testing.T) {
 	// The log must be for runner 2 (bib 101), not runner 1.
 	require.Len(t, logs.created, 1)
 	assert.Equal(t, 2, logs.created[0].RunnerID)
+}
+
+func TestWinlinkService_Import_HandlesChgAsMoved(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusMoved},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2, Status: entity.StatusActive},
+		},
+	}
+	logs := &mockCheckpointLogRepository{}
+	sess := &mockActiveSessionRepository{}
+	svc := newWinlinkSvc(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{10: {ID: 10}}}, logs, sess)
+
+	column := "AS6\nCHG Marathon\n17:45\n"
+	result, err := svc.Import(context.Background(), 1, 10, column)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Created) // bib 101 created
+	assert.Equal(t, 1, result.Skipped) // bib 100 skipped (moved)
+	require.Len(t, result.SkippedDetails, 1)
+	assert.Equal(t, "moved", result.SkippedDetails[0].Reason)
 }
 
 // Blank at sort_order 1 (no header) must NOT be stripped as a header; position 2 must map to sort_order 2.
@@ -654,6 +694,9 @@ func TestLooksLikeTimeOrStatus(t *testing.T) {
 	}{
 		{"DNS", true},
 		{"DNF", true},
+		{"DROP", true},
+		{"MOVED Marathon", true},
+		{"CHG Marathon", true},
 		{"", true},
 		{"17:45:00", true},
 		{"08:00", true},

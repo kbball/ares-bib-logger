@@ -154,9 +154,9 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 				sb.WriteString("DNF")
 			case entity.StatusMoved:
 				if raceName, ok := movedToRace[r.BibNumber]; ok {
-					sb.WriteString("MOVED " + raceName)
+					sb.WriteString("CHG " + raceName)
 				} else {
-					sb.WriteString("MOVED")
+					sb.WriteString("CHG")
 				}
 			default:
 				// blank — runner not yet seen at this checkpoint
@@ -234,7 +234,7 @@ func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Run
 		}
 
 		upper := strings.ToUpper(line)
-		if strings.HasPrefix(upper, "MOVED") {
+		if strings.HasPrefix(upper, "MOVED") || strings.HasPrefix(upper, "CHG") {
 			rows = append(rows, parsedRow{
 				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowMoved, raw: line,
 			})
@@ -245,7 +245,7 @@ func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Run
 			rows = append(rows, parsedRow{
 				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowDNS, raw: upper,
 			})
-		case "DNF":
+		case "DNF", "DROP":
 			rows = append(rows, parsedRow{
 				position: pos, sortOrder: sortOrder, runner: runner, hasRunner: true, kind: rowDNF, raw: upper,
 			})
@@ -462,14 +462,15 @@ func pastedHeaderLine(text string) (string, bool) {
 }
 
 // looksLikeTimeOrStatus returns true if the line appears to be a data row:
-// a time (HH:MM or HH:MM:SS), DNS, DNF, blank, or MOVED (with optional race name).
+// a time (HH:MM or HH:MM:SS), DNS, DNF (or its aid-station synonym DROP),
+// blank, or MOVED/CHG (with optional race name).
 // Returns false for a station-name header such as "AS #6".
 func looksLikeTimeOrStatus(s string) bool {
 	s = strings.TrimSpace(strings.ToUpper(s))
-	if s == "" || s == "DNS" || s == "DNF" {
+	if s == "" || s == "DNS" || s == "DNF" || s == "DROP" {
 		return true
 	}
-	if strings.HasPrefix(s, "MOVED") {
+	if strings.HasPrefix(s, "MOVED") || strings.HasPrefix(s, "CHG") {
 		return true
 	}
 	// HH:MM or HH:MM:SS
