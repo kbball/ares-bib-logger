@@ -310,7 +310,12 @@ describe('DataEntryTab', () => {
     const statusSection = screen.getByText(/dns \/ dnf/i).closest('div')!
 
     await user.type(within(statusSection).getAllByLabelText(/bib #/i)[0], '100')
-    await user.click(within(statusSection).getByRole('button', { name: /submit/i }))
+    // Submit is also gated on the session's active-checkpoint state, which
+    // loads asynchronously — wait for it to actually enable before clicking,
+    // rather than racing the session fetch.
+    const submitButton = within(statusSection).getByRole('button', { name: /submit/i })
+    await waitFor(() => expect(submitButton).toBeEnabled())
+    await user.click(submitButton)
 
     await waitFor(() => expect(screen.getByText(/status update failed/i)).toBeInTheDocument())
   })
