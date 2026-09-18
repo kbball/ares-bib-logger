@@ -22,6 +22,37 @@ function currentHHMM(): string {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
+// navigator.clipboard is only defined in a secure context (HTTPS or
+// localhost) — this app is commonly run over plain HTTP on a local field
+// network, where it's undefined and writeText would throw. Fall back to the
+// legacy execCommand('copy') approach via a hidden textarea in that case.
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // fall through to the legacy fallback below
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  let ok = false
+  try {
+    ok = document.execCommand('copy')
+  } catch {
+    ok = false
+  }
+  document.body.removeChild(textarea)
+  return ok
+}
+
 export default function WinlinkExportTab() {
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
@@ -93,20 +124,26 @@ export default function WinlinkExportTab() {
     }
   }
 
-  const copySubject = () => {
+  const copySubject = async () => {
     const fresh = buildSubject()
-    navigator.clipboard.writeText(fresh).then(() => {
+    if (await copyToClipboard(fresh)) {
       setSubject(fresh)
       setSubjectCopied(true)
+      setError('')
       setTimeout(() => setSubjectCopied(false), 2000)
-    })
+    } else {
+      setError('Copy failed — select and copy the text manually.')
+    }
   }
 
-  const copy = () => {
-    navigator.clipboard.writeText(column).then(() => {
+  const copy = async () => {
+    if (await copyToClipboard(column)) {
       setCopied(true)
+      setError('')
       setTimeout(() => setCopied(false), 2000)
-    })
+    } else {
+      setError('Copy failed — select and copy the text manually.')
+    }
   }
 
   return (

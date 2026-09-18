@@ -55,6 +55,7 @@ export default function RunnersTab() {
   const [filterRaceID, setFilterRaceID] = useState<number | ''>('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<Set<RunnerStatus>>(new Set())
+  const [notArrivedOnly, setNotArrivedOnly] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('BibNumber')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [selectedRunner, setSelectedRunner] = useState<Runner | null>(null)
@@ -116,6 +117,31 @@ export default function RunnersTab() {
     }
   }
 
+  // A runner counts as "arrived" at their race's active checkpoint once a real
+  // time log exists there (a DNS/DNF raw message doesn't count, mirroring the
+  // Data Entry tab's "through" definition). DNS/DNF/MOVED/FINISHED runners are
+  // never "not arrived" — they're no longer expected to reach it.
+  const notArrivedAtActiveCP = useCallback(
+    (r: Runner) => {
+      if (
+        r.Status === 'DNS' ||
+        r.Status === 'DNF' ||
+        r.Status === 'MOVED' ||
+        r.Status === 'FINISHED'
+      )
+        return false
+      const cpID = session?.Checkpoints?.find((c) => c.RaceID === r.RaceID)?.CheckpointID
+      if (cpID == null) return false
+      const hasArrived = (logsByRace[r.RaceID] ?? []).some((l) => {
+        if (l.RunnerID !== r.ID || l.CheckpointID !== cpID) return false
+        const raw = l.RawMessage?.toUpperCase()
+        return raw !== 'DNS' && raw !== 'DNF'
+      })
+      return !hasArrived
+    },
+    [session, logsByRace],
+  )
+
   const matchesSearchAndStatus = useCallback(
     (r: Runner, q: string) => {
       const matchesSearch =
@@ -124,9 +150,10 @@ export default function RunnersTab() {
         r.FirstName.toLowerCase().includes(q) ||
         r.LastName.toLowerCase().includes(q)
       const matchesStatus = statusFilter.size === 0 || statusFilter.has(r.Status)
-      return matchesSearch && matchesStatus
+      const matchesArrival = !notArrivedOnly || notArrivedAtActiveCP(r)
+      return matchesSearch && matchesStatus && matchesArrival
     },
-    [statusFilter],
+    [statusFilter, notArrivedOnly, notArrivedAtActiveCP],
   )
 
   const toggleStatus = (status: RunnerStatus) => {
@@ -144,9 +171,9 @@ export default function RunnersTab() {
   // Which race IDs have at least one runner matching the current search query and status filter
   const racesWithMatches = useMemo(() => {
     const q = search.toLowerCase().trim()
-    if (!q && statusFilter.size === 0) return new Set(races.map((r) => r.ID))
+    if (!q && statusFilter.size === 0 && !notArrivedOnly) return new Set(races.map((r) => r.ID))
     return new Set(allRunners.filter((r) => matchesSearchAndStatus(r, q)).map((r) => r.RaceID))
-  }, [races, allRunners, search, statusFilter, matchesSearchAndStatus])
+  }, [races, allRunners, search, statusFilter, notArrivedOnly, matchesSearchAndStatus])
 
   // If the selected tab's race has no matches, fall back to All
   useEffect(() => {
@@ -227,15 +254,22 @@ export default function RunnersTab() {
 
   const raceForRunner = (r: Runner) => races.find((rc) => rc.ID === r.RaceID)
 
-  const formatLogCell = (log: CheckpointLog | undefined) => {
-    if (!log) return '—'
-    const raw = log.RawMessage?.toUpperCase()
-    if (raw === 'DNS' || raw === 'DNF') return raw
-    return new Date(log.RecordedAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
+  // Mirrors the Winlink export fallback: a checkpoint with no log entry for
+  // this runner shows the runner's overall status (DNS/DNF/MOVED) instead of
+  // a blank dash, so a status set from the Data Entry tab (which doesn't
+  // create a checkpoint log) is still visible across the table.
+  const formatLogCell = (log: CheckpointLog | undefined, status: RunnerStatus) => {
+    if (log) {
+      const raw = log.RawMessage?.toUpperCase()
+      if (raw === 'DNS' || raw === 'DNF') return raw
+      return new Date(log.RecordedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    }
+    if (status === 'DNS' || status === 'DNF' || status === 'MOVED') return status
+    return '—'
   }
 
   const col = (label: string, key: SortKey) => (
@@ -256,7 +290,7 @@ export default function RunnersTab() {
   // Count matching runners per race (only used when a search or status filter is active)
   const matchCountFor = (raceID: number | '') => {
     const q = search.toLowerCase().trim()
-    if (!q && statusFilter.size === 0) return null
+    if (!q && statusFilter.size === 0 && !notArrivedOnly) return null
     const pool = raceID === '' ? allRunners : allRunners.filter((r) => r.RaceID === raceID)
     return pool.filter((r) => matchesSearchAndStatus(r, q)).length
   }
@@ -296,6 +330,19 @@ export default function RunnersTab() {
               />
             )
           })}
+          <Tooltip
+            title="Runners with no real time log at their race's active checkpoint (excludes DNS/DNF/MOVED/FINISHED)"
+            describeChild
+          >
+            <Chip
+              label="Not Arrived"
+              size="small"
+              clickable
+              variant={notArrivedOnly ? 'filled' : 'outlined'}
+              color={notArrivedOnly ? 'primary' : 'default'}
+              onClick={() => setNotArrivedOnly((v) => !v)}
+            />
+          </Tooltip>
         </Stack>
       </Stack>
 
@@ -393,7 +440,7 @@ export default function RunnersTab() {
                       key={cp.ID}
                       sx={{ border: 1, borderColor: 'divider', fontFamily: 'monospace' }}
                     >
-                      {formatLogCell(log)}
+                      {formatLogCell(log, runner.Status)}
                     </TableCell>
                   )
                 })}
@@ -452,10 +499,9 @@ export default function RunnersTab() {
               : null
           const pace = computeRunnerPace(selectedRunner, cps, runnerLogs)
           const splitPaces = computeSplitPaces(selectedRunner, cps, runnerLogs)
-          const projectedArrival =
-            activeCP?.DistanceFromStart != null && !logByCp.has(activeCP.ID)
-              ? projectArrival(pace, activeCP.DistanceFromStart)
-              : null
+          // The next checkpoint this runner hasn't reached yet (unlogged, with a
+          // known distance), in course order.
+          const nextCP = cps.find((cp) => cp.DistanceFromStart != null && !logByCp.has(cp.ID))
           return (
             <Dialog open onClose={() => setSelectedRunner(null)} maxWidth="xs" fullWidth>
               <DialogTitle>
@@ -486,20 +532,25 @@ export default function RunnersTab() {
                       <strong>Current pace:</strong> {formatPace(pace.paceMinPerMile)}
                     </Typography>
                   )}
-                  {activeCP && (
-                    <Typography variant="body2">
-                      <strong>Proj. arrival at {activeCP.DisplayName}:</strong>{' '}
-                      {projectedArrival
-                        ? projectedArrival.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false,
-                          })
-                        : logByCp.has(activeCP.ID)
-                          ? 'Already logged'
-                          : 'Insufficient data'}
-                    </Typography>
-                  )}
+                  {nextCP &&
+                    (() => {
+                      const projected = projectArrival(pace, nextCP.DistanceFromStart!)
+                      return (
+                        <Typography variant="body2">
+                          <strong>
+                            Proj. arrival at {nextCP.DisplayName}
+                            {nextCP.ID === activeCP?.ID ? ' (active)' : ''}:
+                          </strong>{' '}
+                          {projected
+                            ? projected.toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                              })
+                            : 'Insufficient data'}
+                        </Typography>
+                      )
+                    })()}
                 </Stack>
                 {cps.length > 0 && (
                   <>
@@ -531,7 +582,7 @@ export default function RunnersTab() {
                                 {cp.Code} – {cp.DisplayName}
                               </TableCell>
                               <TableCell sx={{ fontFamily: 'monospace' }}>
-                                {formatLogCell(log)}
+                                {formatLogCell(log, selectedRunner.Status)}
                               </TableCell>
                               <TableCell sx={{ fontFamily: 'monospace' }}>
                                 {splitPace != null ? formatPace(splitPace) : '—'}

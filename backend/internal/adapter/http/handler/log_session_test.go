@@ -42,9 +42,19 @@ func defaultHandler() *handler.Handler {
 
 func postJSON(t *testing.T, h *handler.Handler, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
+	return postJSONWithHeaders(t, h, path, body, nil)
+}
+
+func postJSONWithHeaders(
+	t *testing.T, h *handler.Handler, path string, body any, headers map[string]string,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	w := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -106,6 +116,43 @@ func TestHandler_LogBib_Duplicate(t *testing.T) {
 	var resp map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	assert.True(t, resp["is_duplicate"].(bool))
+}
+
+func TestHandler_LogBib_EchoesRequestIDOnBroadcast(t *testing.T) {
+	runner := entity.Runner{ID: 10, BibNumber: 42}
+	logs := &mockCheckpointLogService{
+		result: portsvc.LogBibResult{Runner: runner, IsDuplicate: false},
+	}
+	pub := &recordingPublisher{}
+	h := handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, logs, &mockSessionService{}, &mockWinlinkService{}, nil, pub)
+
+	w := postJSONWithHeaders(t, h, "/api/log/bib", map[string]int{"bib_number": 42},
+		map[string]string{"X-Request-Id": "req-123"})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "bib_logged", pub.eventType)
+	payload, ok := pub.payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "req-123", payload["request_id"])
+}
+
+func TestHandler_LogBib_NoRequestIDMeansNoEchoOnBroadcast(t *testing.T) {
+	runner := entity.Runner{ID: 10, BibNumber: 42}
+	logs := &mockCheckpointLogService{
+		result: portsvc.LogBibResult{Runner: runner, IsDuplicate: false},
+	}
+	pub := &recordingPublisher{}
+	h := handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, logs, &mockSessionService{}, &mockWinlinkService{}, nil, pub)
+
+	w := postJSON(t, h, "/api/log/bib", map[string]int{"bib_number": 42})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	payload, ok := pub.payload.(map[string]any)
+	require.True(t, ok)
+	_, hasRequestID := payload["request_id"]
+	assert.False(t, hasRequestID)
 }
 
 func TestHandler_LogBib_NoSession(t *testing.T) {

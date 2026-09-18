@@ -29,6 +29,12 @@ func (h *Handler) logBib(w http.ResponseWriter, r *http.Request) {
 		"log":          result.Log,
 		"is_duplicate": result.IsDuplicate,
 	}
+	// Echoed back on the SSE broadcast so the submitting client can recognize
+	// its own log (already shown from this HTTP response) and skip re-adding
+	// it when the broadcast arrives — see DataEntryTab's onBibLogged handler.
+	if reqID := r.Header.Get("X-Request-Id"); reqID != "" {
+		payload["request_id"] = reqID
+	}
 	h.stream.Publish("bib_logged", payload)
 	writeJSON(w, http.StatusOK, payload)
 }

@@ -12,6 +12,18 @@ type noopPublisher struct{}
 
 func (noopPublisher) Publish(_ string, _ any) {}
 
+// recordingPublisher captures the last published event for tests that assert
+// on SSE broadcast content.
+type recordingPublisher struct {
+	eventType string
+	payload   any
+}
+
+func (p *recordingPublisher) Publish(eventType string, payload any) {
+	p.eventType = eventType
+	p.payload = payload
+}
+
 // --- mock services ---
 
 type mockEventService struct {

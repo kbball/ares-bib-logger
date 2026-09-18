@@ -128,7 +128,7 @@ const SECTIONS = [
             {
               primary: 'Copy Column Data → paste as the email body',
               secondary:
-                'Format: header line (checkpoint name), then one row per runner in roster order — HH:MM, DNS, DNF, MOVED <race>, or blank.',
+                'Format: header line (checkpoint name), then one row per runner in roster order — HH:MM, DNS, DNF (or DROP), CHG <race> (or MOVED <race>), or blank.',
             },
             { primary: 'Send the Winlink message to all other stations' },
           ]}

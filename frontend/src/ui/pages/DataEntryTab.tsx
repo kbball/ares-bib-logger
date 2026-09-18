@@ -46,6 +46,10 @@ export default function DataEntryTab() {
   const [logsByRace, setLogsByRace] = useState<Record<number, CheckpointLog[]>>({})
   const [recentLogs, setRecentLogs] = useState<LogBibResult[]>([])
   const [dupAlert, setDupAlert] = useState<string | null>(null)
+  // Request IDs for bib logs submitted from this tab, already added to
+  // recentLogs from the direct API response — used to skip the SSE broadcast
+  // echo of the same log so it isn't shown twice.
+  const ownRequestIDs = useRef<Set<string>>(new Set())
 
   // Manual bib entry
   const [bib, setBib] = useState('')
@@ -128,7 +132,14 @@ export default function DataEntryTab() {
 
   useStream({
     onBibLogged: (payload) => {
-      pushLog(payload as LogBibResult)
+      const result = payload as LogBibResult & { request_id?: string }
+      // Our own submission already pushed this log from the direct API
+      // response below — skip the broadcast echo to avoid a duplicate row.
+      if (result.request_id && ownRequestIDs.current.has(result.request_id)) {
+        ownRequestIDs.current.delete(result.request_id)
+      } else {
+        pushLog(result)
+      }
       const ids = races.map((r) => r.ID)
       loadRunners(ids)
       loadLogs(ids)
@@ -144,8 +155,10 @@ export default function DataEntryTab() {
       setBibError('Enter a valid bib number')
       return
     }
+    const requestID = crypto.randomUUID()
     try {
-      const result = await api.logBib(n)
+      ownRequestIDs.current.add(requestID)
+      const result = await api.logBib(n, requestID)
       pushLog(result)
       setBib('')
       setBibError('')
@@ -155,6 +168,7 @@ export default function DataEntryTab() {
       loadRunners(ids)
       loadLogs(ids)
     } catch (e: unknown) {
+      ownRequestIDs.current.delete(requestID)
       setBibError((e as Error).message)
     }
   }
