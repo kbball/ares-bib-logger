@@ -53,6 +53,16 @@ func (m *mockEventRepository) SetWinlinkBlankLineAfterHeader(_ context.Context, 
 	return domain.ErrNotFound
 }
 
+func (m *mockEventRepository) SetWinlinkReminderMinutes(_ context.Context, id, minutes int) error {
+	for i, e := range m.events {
+		if e.ID == id {
+			m.events[i].WinlinkReminderMinutes = minutes
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
 // --- EventService tests ---
 
 func TestEventService_CreateAndList(t *testing.T) {

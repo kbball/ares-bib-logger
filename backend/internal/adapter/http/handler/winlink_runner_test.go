@@ -3,13 +3,16 @@ package handler_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/http/handler"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
@@ -115,6 +118,92 @@ func TestHandler_PreviewWinlink(t *testing.T) {
 	rows, ok := resp["Rows"].([]any)
 	require.True(t, ok)
 	assert.Len(t, rows, 2)
+}
+
+func TestHandler_ExportWinlink_PublishesReminderChanged(t *testing.T) {
+	wl := &mockWinlinkService{exportText: "AS6\n17:45:00\n"}
+	pub := &recordingPublisher{}
+	h := handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl, nil, pub)
+
+	w := getReq(t, h, "/api/winlink/export/1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "winlink_reminder_changed", pub.eventType)
+}
+
+func TestHandler_ListWinlinkReminders(t *testing.T) {
+	dueAt := time.Now().Add(15 * time.Minute)
+	wl := &mockWinlinkService{reminders: []portsvc.WinlinkReminderStatus{
+		{RaceID: 1, RaceName: "GDR", CheckpointName: "Aid Station 6", DueAt: dueAt},
+	}}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	w := getReq(t, h, "/api/winlink/reminders")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp []map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp, 1)
+	assert.Equal(t, "GDR", resp[0]["RaceName"])
+}
+
+func TestHandler_ListWinlinkReminders_Empty(t *testing.T) {
+	h := defaultHandler()
+	w := getReq(t, h, "/api/winlink/reminders")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "[]\n", w.Body.String())
+}
+
+func TestHandler_ListWinlinkReminders_Error(t *testing.T) {
+	wl := &mockWinlinkService{err: errors.New("boom")}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	w := getReq(t, h, "/api/winlink/reminders")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_DismissWinlinkReminder(t *testing.T) {
+	wl := &mockWinlinkService{}
+	pub := &recordingPublisher{}
+	h := handler.New(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl, nil, pub)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/winlink/reminders/1/dismiss", nil)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, "winlink_reminder_changed", pub.eventType)
+}
+
+func TestHandler_DismissWinlinkReminder_InvalidID(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/winlink/reminders/abc/dismiss", nil)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	defaultHandler().Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_DismissWinlinkReminder_Error(t *testing.T) {
+	wl := &mockWinlinkService{err: errors.New("boom")}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/winlink/reminders/1/dismiss", nil)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestHandler_PreviewWinlink_MissingFields(t *testing.T) {

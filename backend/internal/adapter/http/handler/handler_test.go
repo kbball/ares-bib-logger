@@ -48,6 +48,9 @@ func (m *mockEventService) Archive(_ context.Context, id int) error { return m.e
 func (m *mockEventService) SetWinlinkBlankLineAfterHeader(_ context.Context, id int, enabled bool) error {
 	return m.err
 }
+func (m *mockEventService) SetWinlinkReminderMinutes(_ context.Context, id, minutes int) error {
+	return m.err
+}
 
 type mockRaceService struct {
 	races []entity.Race
@@ -181,6 +184,7 @@ type mockWinlinkService struct {
 	footerOverflow int
 	importRes      portsvc.WinlinkImportResult
 	previewRes     portsvc.WinlinkPreviewResult
+	reminders      []portsvc.WinlinkReminderStatus
 	err            error
 }
 
@@ -192,6 +196,12 @@ func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int,
 }
 func (m *mockWinlinkService) Preview(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkPreviewResult, error) {
 	return m.previewRes, m.err
+}
+func (m *mockWinlinkService) Reminders(_ context.Context) ([]portsvc.WinlinkReminderStatus, error) {
+	return m.reminders, m.err
+}
+func (m *mockWinlinkService) DismissReminder(_ context.Context, raceID int) error {
+	return m.err
 }
 
 type mockEventExportService struct {

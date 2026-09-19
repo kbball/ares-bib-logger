@@ -481,4 +481,35 @@ describe('DataEntryTab', () => {
 
     await waitFor(() => expect(screen.getByText(/bib 999 not found/i)).toBeInTheDocument())
   })
+
+  it('shows runner status and last checkpoint when querying an existing bib', async () => {
+    const user = userEvent.setup()
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText(/^query runner$/i))
+    const section = screen.getByText(/^query runner$/i).closest('div')!
+
+    await user.type(within(section).getByLabelText(/bib #/i), String(mockRunner.BibNumber))
+    await user.click(within(section).getByRole('button', { name: /query/i }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(`${mockRunner.BibNumber} ${mockRunner.FirstName} ${mockRunner.LastName}`),
+      ).toBeInTheDocument(),
+    )
+    expect(within(section).getByText(/aid station 1/i)).toBeInTheDocument()
+  })
+
+  it('shows bib not found when querying a bib not in the roster', async () => {
+    const user = userEvent.setup()
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText(/^query runner$/i))
+    const section = screen.getByText(/^query runner$/i).closest('div')!
+
+    await user.type(within(section).getByLabelText(/bib #/i), '999')
+    await user.click(within(section).getByRole('button', { name: /query/i }))
+
+    await waitFor(() => expect(screen.getByText(/bib 999 not found/i)).toBeInTheDocument())
+  })
 })

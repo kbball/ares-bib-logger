@@ -97,6 +97,7 @@ export default function AdminTab() {
   // Create-race form
   const [newRaceName, setNewRaceName] = useState('')
   const [footerRowsDraft, setFooterRowsDraft] = useState<Record<number, string>>({})
+  const [reminderMinutesDraft, setReminderMinutesDraft] = useState<string | null>(null)
   // Checkpoint create form
   const [cpRaceID, setCpRaceID] = useState<number | ''>('')
   const [cpCode, setCpCode] = useState('')
@@ -588,6 +589,25 @@ export default function AdminTab() {
                         />
                       }
                       label="Blank line between header and first row (Winlink)"
+                    />
+                  </Tooltip>
+                  <Tooltip title="After a Winlink export, remind the operator to send another update if this many minutes pass with no further export. 0 disables the reminder.">
+                    <TextField
+                      size="small"
+                      label="Winlink reminder (minutes)"
+                      type="number"
+                      value={reminderMinutesDraft ?? String(activeEvent.WinlinkReminderMinutes)}
+                      onChange={(e) => setReminderMinutesDraft(e.target.value)}
+                      onBlur={() => {
+                        if (reminderMinutesDraft === null) return
+                        const minutes = Math.max(0, Number(reminderMinutesDraft) || 0)
+                        wrap(
+                          () => api.setEventWinlinkReminderMinutes(activeEvent.ID, minutes),
+                          () => loadEvents().then(() => setReminderMinutesDraft(null)),
+                        )
+                      }}
+                      sx={{ width: 200 }}
+                      slotProps={{ htmlInput: { min: '0', step: '5' } }}
                     />
                   </Tooltip>
                 </Stack>

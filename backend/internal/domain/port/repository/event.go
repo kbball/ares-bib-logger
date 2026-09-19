@@ -12,4 +12,5 @@ type EventRepository interface {
 	Create(ctx context.Context, name string) (entity.Event, error)
 	Archive(ctx context.Context, id int) error
 	SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error
+	SetWinlinkReminderMinutes(ctx context.Context, id, minutes int) error
 }

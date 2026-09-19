@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"time"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
@@ -96,8 +97,9 @@ func (m *mockRunnerRepository) UpdateName(_ context.Context, id int, firstName, 
 // --- mockRaceRepository ---
 
 type mockRaceRepository struct {
-	races      map[int]entity.Race
-	lockedRace int
+	races           map[int]entity.Race
+	lockedRace      int
+	markExportedErr error
 }
 
 func (m *mockRaceRepository) List(_ context.Context, eventID int) ([]entity.Race, error) {
@@ -137,6 +139,27 @@ func (m *mockRaceRepository) Delete(_ context.Context, id int) error    { return
 func (m *mockRaceRepository) SetWinlinkFooterRows(_ context.Context, id, rows int) error {
 	if r, ok := m.races[id]; ok {
 		r.WinlinkFooterRows = rows
+		m.races[id] = r
+	}
+	return nil
+}
+
+func (m *mockRaceRepository) MarkWinlinkExported(_ context.Context, id int) error {
+	if m.markExportedErr != nil {
+		return m.markExportedErr
+	}
+	if r, ok := m.races[id]; ok {
+		now := time.Now()
+		r.WinlinkLastExportAt = &now
+		r.WinlinkReminderDismissed = false
+		m.races[id] = r
+	}
+	return nil
+}
+
+func (m *mockRaceRepository) DismissWinlinkReminder(_ context.Context, id int) error {
+	if r, ok := m.races[id]; ok {
+		r.WinlinkReminderDismissed = true
 		m.races[id] = r
 	}
 	return nil

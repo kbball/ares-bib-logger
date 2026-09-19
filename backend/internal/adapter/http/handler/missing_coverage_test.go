@@ -148,6 +148,31 @@ func TestHandler_UpdateEventWinlinkFormat_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// --- updateEventWinlinkReminder ---
+
+func TestHandler_UpdateEventWinlinkReminder_BadID(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/abc/winlink-reminder", map[string]any{"reminder_minutes": 30})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkReminder_Negative(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/1/winlink-reminder", map[string]any{"reminder_minutes": -5})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkReminder_Success(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/events/1/winlink-reminder", map[string]any{"reminder_minutes": 30})
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestHandler_UpdateEventWinlinkReminder_ServiceError(t *testing.T) {
+	events := &mockEventService{err: domain.ErrNotFound}
+	h := newHandler(events, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/events/1/winlink-reminder", map[string]any{"reminder_minutes": 30})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 // --- listCheckpointLogs ---
 
 func TestHandler_ListCheckpointLogs_BadRaceID(t *testing.T) {

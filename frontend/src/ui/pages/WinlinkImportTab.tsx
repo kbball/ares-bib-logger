@@ -50,6 +50,51 @@ const KIND_LABEL: Record<string, string> = {
   skip: 'Skip',
 }
 
+function checkpointHeader(cp: Checkpoint): string {
+  return (cp.ColumnName?.trim() || cp.DisplayName.trim()).toLowerCase()
+}
+
+// pastedHeaderLine mirrors the backend's header detection: the first line of
+// a Winlink paste, when it isn't itself a time/status/blank data row.
+function pastedHeaderLine(text: string): string | null {
+  const first = text.split('\n')[0]?.trim() ?? ''
+  if (!first) return null
+  const upper = first.toUpperCase()
+  if (upper === 'DNS' || upper === 'DNF' || upper === 'DROP') return null
+  if (upper.startsWith('MOVED') || upper.startsWith('CHG')) return null
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(upper)) return null
+  return first
+}
+
+interface DetectedTarget {
+  raceID: number
+  checkpointID: number
+}
+
+// detectTargets finds every checkpoint (across all races in the event) whose
+// header matches the pasted text's first line, excluding whichever
+// checkpoint is currently active per race — those aren't valid import
+// targets. A single match means the paste can be auto-routed; more than one
+// means the header is ambiguous and the operator must pick manually.
+function detectTargets(
+  headerLine: string,
+  races: Race[],
+  checkpointsByRace: Record<number, Checkpoint[]>,
+  activeCheckpointByRace: Record<number, number | undefined>,
+): DetectedTarget[] {
+  const wanted = headerLine.trim().toLowerCase()
+  const matches: DetectedTarget[] = []
+  for (const race of races) {
+    for (const cp of checkpointsByRace[race.ID] ?? []) {
+      if (cp.ID === activeCheckpointByRace[race.ID]) continue
+      if (checkpointHeader(cp) === wanted) {
+        matches.push({ raceID: race.ID, checkpointID: cp.ID })
+      }
+    }
+  }
+  return matches
+}
+
 export default function WinlinkImportTab() {
   const [session, setSession] = useState<ActiveSession | null>(null)
   const [races, setRaces] = useState<Race[]>([])
@@ -61,6 +106,8 @@ export default function WinlinkImportTab() {
   const [result, setResult] = useState<WinlinkImportResult | null>(null)
   const [error, setError] = useState('')
   const [pendingPreview, setPendingPreview] = useState<WinlinkPreviewResult | null>(null)
+  const [autoDetected, setAutoDetected] = useState(false)
+  const [ambiguousHeader, setAmbiguousHeader] = useState('')
 
   useEffect(() => {
     api
@@ -89,12 +136,37 @@ export default function WinlinkImportTab() {
 
   useStream({ onSessionChanged: (p) => setSession(p as ActiveSession) })
 
-  const activeCheckpointID = session?.Checkpoints?.find(
-    (c) => c.RaceID === Number(raceID),
-  )?.CheckpointID
+  const activeCheckpointByRace: Record<number, number | undefined> = {}
+  session?.Checkpoints?.forEach((c) => {
+    activeCheckpointByRace[c.RaceID] = c.CheckpointID
+  })
+  const activeCheckpointID = activeCheckpointByRace[Number(raceID)]
   const checkpoints = raceID
     ? (checkpointsByRace[raceID] ?? []).filter((cp) => cp.ID !== activeCheckpointID)
     : []
+
+  // Auto-detect the race/checkpoint from the pasted column's header line, so
+  // operators don't have to hunt through the dropdowns for a match they can
+  // already see at the top of what they pasted. Only takes over a selection
+  // that's empty or was itself auto-detected — a manual choice is never
+  // silently overwritten.
+  useEffect(() => {
+    setAmbiguousHeader('')
+    const headerLine = pastedHeaderLine(text)
+    if (!headerLine || !races.length) return
+    const matches = detectTargets(headerLine, races, checkpointsByRace, activeCheckpointByRace)
+    if (matches.length === 1) {
+      const [match] = matches
+      if ((!raceID || !checkpointID || autoDetected) && match.checkpointID !== checkpointID) {
+        setRaceID(match.raceID)
+        setCheckpointID(match.checkpointID)
+        setAutoDetected(true)
+      }
+    } else if (matches.length > 1 && (!raceID || !checkpointID || autoDetected)) {
+      setAmbiguousHeader(headerLine)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, races, checkpointsByRace])
 
   const doImport = async () => {
     const r = await api.importWinlink(Number(raceID), Number(checkpointID), text)
@@ -160,6 +232,7 @@ export default function WinlinkImportTab() {
               onChange={(e) => {
                 setRaceID(Number(e.target.value))
                 setCheckpointID('')
+                setAutoDetected(false)
               }}
             >
               {races.map((r) => (
@@ -177,7 +250,10 @@ export default function WinlinkImportTab() {
               label="Checkpoint"
               labelId="import-cp-label"
               disabled={!raceID}
-              onChange={(e) => setCheckpointID(Number(e.target.value))}
+              onChange={(e) => {
+                setCheckpointID(Number(e.target.value))
+                setAutoDetected(false)
+              }}
             >
               {checkpoints
                 .sort((a, b) => a.DisplayOrder - b.DisplayOrder)
@@ -200,6 +276,18 @@ export default function WinlinkImportTab() {
           onChange={(e) => setText(e.target.value)}
           sx={{ fontFamily: 'monospace' }}
         />
+
+        {autoDetected && raceID && checkpointID && (
+          <Alert severity="success" sx={{ py: 0 }}>
+            Race and checkpoint auto-detected from the pasted header.
+          </Alert>
+        )}
+        {ambiguousHeader && (
+          <Alert severity="warning" sx={{ py: 0 }}>
+            Header &quot;{ambiguousHeader}&quot; matches more than one checkpoint — select the race
+            and checkpoint manually.
+          </Alert>
+        )}
 
         <Box>
           <Tooltip title="Parse column by row position and import checkpoint times">
@@ -281,6 +369,12 @@ export default function WinlinkImportTab() {
       >
         <DialogTitle>Confirm Winlink Import</DialogTitle>
         <DialogContent>
+          {autoDetected && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Auto-detected from the pasted header: {races.find((r) => r.ID === raceID)?.Name} –{' '}
+              {checkpointsByRace[Number(raceID)]?.find((cp) => cp.ID === checkpointID)?.DisplayName}
+            </Alert>
+          )}
           {pendingPreview?.HeaderMismatch && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               Pasted header &quot;{pendingPreview.PastedHeader}&quot; doesn&apos;t match the

@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 	"strconv"
+
+	portsvc "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/service"
 )
 
 func (h *Handler) exportWinlink(w http.ResponseWriter, r *http.Request) {
@@ -17,6 +19,7 @@ func (h *Handler) exportWinlink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
+	h.stream.Publish("winlink_reminder_changed", map[string]any{"race_id": raceID})
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if result.FooterOverflowCount > 0 {
@@ -62,4 +65,31 @@ func (h *Handler) previewWinlink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) listWinlinkReminders(w http.ResponseWriter, r *http.Request) {
+	reminders, err := h.winlink.Reminders(r.Context())
+	if err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	if reminders == nil {
+		reminders = []portsvc.WinlinkReminderStatus{}
+	}
+	writeJSON(w, http.StatusOK, reminders)
+}
+
+func (h *Handler) dismissWinlinkReminder(w http.ResponseWriter, r *http.Request) {
+	raceID, ok := pathInt(r, "raceID")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid race id")
+		return
+	}
+
+	if err := h.winlink.DismissReminder(r.Context(), raceID); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	h.stream.Publish("winlink_reminder_changed", map[string]any{"race_id": raceID})
+	w.WriteHeader(http.StatusNoContent)
 }

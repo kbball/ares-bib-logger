@@ -1,6 +1,9 @@
 package service
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type WinlinkSkipDetail struct {
 	Position  int    // 1-based position in the data rows (after the optional header)
@@ -63,6 +66,22 @@ type WinlinkExportResult struct {
 	FooterOverflowCount int
 }
 
+// WinlinkReminderStatus is one race's export-reminder state: a nudge to send
+// another Winlink update after a configured quiet period, so an aid station
+// doesn't go unreported for too long.
+type WinlinkReminderStatus struct {
+	RaceID         int
+	RaceName       string
+	CheckpointName string
+	LastExportAt   time.Time
+	// DueAt is when the reminder becomes active: LastExportAt plus the
+	// event's configured WinlinkReminderMinutes.
+	DueAt time.Time
+	// Dismissed is whether the operator has silenced this reminder since the
+	// last export. Cleared automatically on the next export.
+	Dismissed bool
+}
+
 type WinlinkService interface {
 	// Export generates a Winlink-format column for the active checkpoint of the given race.
 	Export(ctx context.Context, raceID int) (WinlinkExportResult, error)
@@ -70,4 +89,10 @@ type WinlinkService interface {
 	Import(ctx context.Context, raceID, checkpointID int, text string) (WinlinkImportResult, error)
 	// Preview classifies each row the same way Import would, without writing anything.
 	Preview(ctx context.Context, raceID, checkpointID int, text string) (WinlinkPreviewResult, error)
+	// Reminders lists export-reminder status for every race in the active
+	// event that has exported at least once, when the event has reminders
+	// enabled (WinlinkReminderMinutes > 0). Empty otherwise.
+	Reminders(ctx context.Context) ([]WinlinkReminderStatus, error)
+	// DismissReminder silences a race's reminder until its next export.
+	DismissReminder(ctx context.Context, raceID int) error
 }

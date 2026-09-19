@@ -14,20 +14,20 @@ import (
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain"
 )
 
-var raceCols = []string{"id", "event_id", "name", "roster_locked", "order_locked", "roster_count", "winlink_footer_rows", "created_at"}
+var raceCols = []string{"id", "event_id", "name", "roster_locked", "order_locked", "roster_count", "winlink_footer_rows", "winlink_last_export_at", "winlink_reminder_dismissed", "created_at"}
 
 func raceRow(id, eventID int, name string, rosterLocked, orderLocked bool) *sqlmock.Rows {
-	return sqlmock.NewRows(raceCols).AddRow(id, eventID, name, rosterLocked, orderLocked, 0, 0, time.Now())
+	return sqlmock.NewRows(raceCols).AddRow(id, eventID, name, rosterLocked, orderLocked, 0, 0, nil, false, time.Now())
 }
 
 func TestRaceRepo_List_ReturnsRows(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
+	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows(raceCols).
-			AddRow(1, 1, "GDR", false, false, 0, 0, time.Now()).
-			AddRow(2, 1, "50M", false, false, 0, 0, time.Now()))
+			AddRow(1, 1, "GDR", false, false, 0, 0, nil, false, time.Now()).
+			AddRow(2, 1, "50M", false, false, 0, 0, nil, false, time.Now()))
 
 	races, err := repository.NewRaceRepo(db).List(context.Background(), 1)
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestRaceRepo_List_ReturnsRows(t *testing.T) {
 func TestRaceRepo_List_Empty(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
+	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows(raceCols))
 
@@ -52,7 +52,7 @@ func TestRaceRepo_List_Empty(t *testing.T) {
 func TestRaceRepo_List_QueryError(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
+	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at FROM races WHERE event_id = $1 ORDER BY created_at`)).
 		WithArgs(1).
 		WillReturnError(errors.New("db error"))
 
@@ -64,7 +64,7 @@ func TestRaceRepo_List_QueryError(t *testing.T) {
 func TestRaceRepo_Get_Found(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at FROM races WHERE id = $1`)).
+	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at FROM races WHERE id = $1`)).
 		WithArgs(7).
 		WillReturnRows(raceRow(7, 1, "GDR", false, true))
 
@@ -78,7 +78,7 @@ func TestRaceRepo_Get_Found(t *testing.T) {
 func TestRaceRepo_Get_NotFound(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at FROM races WHERE id = $1`)).
+	mock.ExpectQuery(qe(`SELECT id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at FROM races WHERE id = $1`)).
 		WithArgs(999).
 		WillReturnRows(sqlmock.NewRows(raceCols))
 
@@ -90,7 +90,7 @@ func TestRaceRepo_Get_NotFound(t *testing.T) {
 func TestRaceRepo_Create_Success(t *testing.T) {
 	db, mock := newMock(t)
 
-	mock.ExpectQuery(qe("INSERT INTO races (event_id, name) VALUES ($1, $2)\n\t\t\t RETURNING id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at")).
+	mock.ExpectQuery(qe("INSERT INTO races (event_id, name) VALUES ($1, $2)\n\t\t\t RETURNING id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at")).
 		WithArgs(1, "50M").
 		WillReturnRows(raceRow(3, 1, "50M", false, false))
 
@@ -132,6 +132,30 @@ func TestRaceRepo_SetWinlinkFooterRows_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repository.NewRaceRepo(db).SetWinlinkFooterRows(context.Background(), 4, 3)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRaceRepo_MarkWinlinkExported_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE races SET winlink_last_export_at = now(), winlink_reminder_dismissed = false WHERE id = $1`)).
+		WithArgs(4).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewRaceRepo(db).MarkWinlinkExported(context.Background(), 4)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRaceRepo_DismissWinlinkReminder_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE races SET winlink_reminder_dismissed = true WHERE id = $1`)).
+		WithArgs(4).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewRaceRepo(db).DismissWinlinkReminder(context.Background(), 4)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

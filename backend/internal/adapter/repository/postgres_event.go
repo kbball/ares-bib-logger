@@ -17,9 +17,17 @@ func NewEventRepo(db *sql.DB) *EventRepo { return &EventRepo{db: db} }
 
 var _ portrepo.EventRepository = (*EventRepo)(nil)
 
+const eventCols = `id, name, archived, winlink_blank_line_after_header, winlink_reminder_minutes, created_at`
+
+func scanEvent(s interface{ Scan(...any) error }) (entity.Event, error) {
+	var e entity.Event
+	err := s.Scan(&e.ID, &e.Name, &e.Archived, &e.WinlinkBlankLineAfterHeader, &e.WinlinkReminderMinutes, &e.CreatedAt)
+	return e, err
+}
+
 func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, archived, winlink_blank_line_after_header, created_at FROM events WHERE NOT archived ORDER BY created_at DESC`)
+		`SELECT `+eventCols+` FROM events WHERE NOT archived ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("listing events: %w", err)
 	}
@@ -27,8 +35,8 @@ func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 
 	var events []entity.Event
 	for rows.Next() {
-		var e entity.Event
-		if err := rows.Scan(&e.ID, &e.Name, &e.Archived, &e.WinlinkBlankLineAfterHeader, &e.CreatedAt); err != nil {
+		e, err := scanEvent(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scanning event: %w", err)
 		}
 		events = append(events, e)
@@ -37,10 +45,8 @@ func (r *EventRepo) List(ctx context.Context) ([]entity.Event, error) {
 }
 
 func (r *EventRepo) Get(ctx context.Context, id int) (entity.Event, error) {
-	var e entity.Event
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, archived, winlink_blank_line_after_header, created_at FROM events WHERE id = $1`, id).
-		Scan(&e.ID, &e.Name, &e.Archived, &e.WinlinkBlankLineAfterHeader, &e.CreatedAt)
+	e, err := scanEvent(r.db.QueryRowContext(ctx,
+		`SELECT `+eventCols+` FROM events WHERE id = $1`, id))
 	if err != nil {
 		return entity.Event{}, mapNotFound(err)
 	}
@@ -48,10 +54,8 @@ func (r *EventRepo) Get(ctx context.Context, id int) (entity.Event, error) {
 }
 
 func (r *EventRepo) Create(ctx context.Context, name string) (entity.Event, error) {
-	var e entity.Event
-	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO events (name) VALUES ($1) RETURNING id, name, archived, winlink_blank_line_after_header, created_at`, name).
-		Scan(&e.ID, &e.Name, &e.Archived, &e.WinlinkBlankLineAfterHeader, &e.CreatedAt)
+	e, err := scanEvent(r.db.QueryRowContext(ctx,
+		`INSERT INTO events (name) VALUES ($1) RETURNING `+eventCols, name))
 	if err != nil {
 		return entity.Event{}, fmt.Errorf("creating event: %w", err)
 	}
@@ -66,5 +70,11 @@ func (r *EventRepo) Archive(ctx context.Context, id int) error {
 func (r *EventRepo) SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE events SET winlink_blank_line_after_header = $1 WHERE id = $2`, enabled, id)
+	return err
+}
+
+func (r *EventRepo) SetWinlinkReminderMinutes(ctx context.Context, id, minutes int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE events SET winlink_reminder_minutes = $1 WHERE id = $2`, minutes, id)
 	return err
 }
