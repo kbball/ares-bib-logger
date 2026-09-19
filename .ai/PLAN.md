@@ -352,6 +352,10 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Winlink blank-line-after-header import fix: the slot was previously only discarded when it was actually empty, so stray pasted text there (e.g. a mis-click) silently shifted every subsequent row's runner mapping by one — including DNS/DNF status writes, which persist directly with no self-correction. Now the line is always discarded by position when the event's convention calls for one, regardless of content. `WinlinkPreviewResult` also gained `BlankLineStrayText` (the discarded content when it wasn't actually blank) and each `WinlinkRowOutcome` gained `PriorStatus` (the runner's status before this import, when it isn't ACTIVE/UNKNOWN) — both surfaced as warning alerts (plus a new Status column) in the Confirm Winlink Import dialog so a misaligned or unexpected paste gets a second look before committing
 - Edit a runner's name for an existing bib number (Admin → Edit Runners): `RunnerRepository.UpdateName`/`RunnerService.UpdateName` (new port methods), `PUT /api/runners/{id}` endpoint; Admin panel gained an "Edit Runner Name" section that searches a runner by race + bib (mirroring the existing Change Runner Status flow) and lets the operator correct first/last name in place — for roster typos caught mid-race. Bib number, sort order, and checkpoint history are untouched
 
+**v1.4 — 2026-09-19**
+
+- Data Entry: DNS/DNF bib field now submits on Enter, matching the existing Log Bib field — previously only Log Bib supported it, so marking a runner DNS/DNF required reaching for the mouse to click Submit
+
 ## Backlog
 
 Ordered by priority (2026-08-23):

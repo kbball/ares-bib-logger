@@ -129,6 +129,29 @@ describe('DataEntryTab', () => {
     await waitFor(() => expect(screen.getByText(/bib 100 marked dns/i)).toBeInTheDocument())
   })
 
+  it('submits a bib on Enter without clicking Log', async () => {
+    const user = userEvent.setup()
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText('GDR'))
+    await user.type(screen.getAllByLabelText(/bib #/i)[0], '100{Enter}')
+
+    await waitFor(() => expect(screen.getByText(/alice/i)).toBeInTheDocument())
+  })
+
+  it('submits DNS/DNF on Enter without clicking Submit', async () => {
+    const user = userEvent.setup()
+    render(<DataEntryTab />)
+
+    await waitFor(() => screen.getByText('GDR'))
+    const statusSection = screen.getByText(/dns \/ dnf/i).closest('div')!
+    const statusBibInput = within(statusSection).getAllByLabelText(/bib #/i)[0]
+
+    await user.type(statusBibInput, '100{Enter}')
+
+    await waitFor(() => expect(screen.getByText(/bib 100 marked dns/i)).toBeInTheDocument())
+  })
+
   it('shows Transfer Runner form', async () => {
     render(<DataEntryTab />)
     await waitFor(() => expect(screen.getByText(/transfer runner/i)).toBeInTheDocument())
