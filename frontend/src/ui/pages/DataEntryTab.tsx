@@ -30,7 +30,7 @@ import type {
 } from '../../domain/types'
 import * as api from '../../adapters/api'
 import { useStream } from '../../adapters/sse/useStream'
-import { computeRunnerPace, projectArrival } from '../../domain/pace'
+import { computeRunnerPace, formatPace, projectArrival } from '../../domain/pace'
 
 const SOURCE_LABEL: Record<string, string> = {
   MANUAL: 'Manual',
@@ -65,6 +65,11 @@ export default function DataEntryTab() {
   const [transferBib, setTransferBib] = useState('')
   const [transferRace, setTransferRace] = useState<number | ''>('')
   const [transferMsg, setTransferMsg] = useState('')
+
+  // Query runner
+  const [queryBib, setQueryBib] = useState('')
+  const [queryResult, setQueryResult] = useState<Runner | null>(null)
+  const [queryNotFound, setQueryNotFound] = useState(false)
 
   const [error, setError] = useState('')
 
@@ -210,6 +215,14 @@ export default function DataEntryTab() {
     } catch (e: unknown) {
       setError((e as Error).message)
     }
+  }
+
+  const runQuery = () => {
+    const n = parseInt(queryBib, 10)
+    if (isNaN(n)) return
+    const runner = runners.find((r) => r.BibNumber === n) ?? null
+    setQueryResult(runner)
+    setQueryNotFound(!runner)
   }
 
   const activeCheckpointFor = (raceID: number) => {
@@ -539,6 +552,73 @@ export default function DataEntryTab() {
               {transferMsg}
             </Typography>
           )}
+        </Paper>
+
+        {/* ── Query Runner ── */}
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Query Runner
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <TextField
+              label="Bib #"
+              value={queryBib}
+              size="small"
+              sx={{ width: 100 }}
+              onChange={(e) => {
+                setQueryBib(e.target.value)
+                setQueryResult(null)
+                setQueryNotFound(false)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && runQuery()}
+            />
+            <Tooltip title="Look up a runner's status, last checkpoint, and pace">
+              <span>
+                <Button variant="outlined" onClick={runQuery} disabled={!queryBib}>
+                  Query
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
+          {queryNotFound && (
+            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+              Bib {queryBib} not found
+            </Typography>
+          )}
+          {queryResult &&
+            (() => {
+              const race = races.find((r) => r.ID === queryResult.RaceID)
+              const cps = [...(checkpointsByRace[queryResult.RaceID] ?? [])].sort(
+                (a, b) => a.DisplayOrder - b.DisplayOrder,
+              )
+              const runnerLogs = (logsByRace[queryResult.RaceID] ?? []).filter(
+                (l) => l.RunnerID === queryResult.ID,
+              )
+              const logByCp = new Map(runnerLogs.map((l) => [l.CheckpointID, l]))
+              const lastCP = [...cps].reverse().find((cp) => logByCp.has(cp.ID))
+              const lastLog = lastCP ? logByCp.get(lastCP.ID) : undefined
+              const pace = computeRunnerPace(queryResult, cps, runnerLogs)
+              return (
+                <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {queryResult.BibNumber} {queryResult.FirstName} {queryResult.LastName}
+                  </Typography>
+                  <Typography variant="body2">
+                    {race?.Name ?? `Race ${queryResult.RaceID}`} — {queryResult.Status}
+                  </Typography>
+                  <Typography variant="body2">
+                    {lastCP && lastLog
+                      ? `Last ${lastCP.DisplayName} ${new Date(
+                          lastLog.RecordedAt,
+                        ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Not yet seen'}
+                  </Typography>
+                  {pace.paceMinPerMile != null && (
+                    <Typography variant="body2">Pace: {formatPace(pace.paceMinPerMile)}</Typography>
+                  )}
+                </Stack>
+              )
+            })()}
         </Paper>
       </Box>
 

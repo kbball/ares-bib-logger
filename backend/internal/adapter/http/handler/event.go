@@ -85,3 +85,25 @@ func (h *Handler) updateEventWinlinkFormat(w http.ResponseWriter, r *http.Reques
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) updateEventWinlinkReminder(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid event id")
+		return
+	}
+
+	var body struct {
+		ReminderMinutes int `json:"reminder_minutes"`
+	}
+	if err := decode(r, &body); err != nil || body.ReminderMinutes < 0 {
+		writeError(w, http.StatusBadRequest, "reminder_minutes must be zero or positive")
+		return
+	}
+
+	if err := h.events.SetWinlinkReminderMinutes(r.Context(), id, body.ReminderMinutes); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

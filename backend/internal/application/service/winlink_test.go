@@ -1062,3 +1062,103 @@ func TestWinlinkService_Preview_ListLogsError(t *testing.T) {
 	_, err := svc.Preview(context.Background(), 1, 10, "17:45:00\n")
 	assert.ErrorContains(t, err, "listing checkpoint logs")
 }
+
+func TestWinlinkService_Export_MarksWinlinkExported(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, DisplayName: "Aid Station 6"}},
+	}
+	runners := &mockRunnerRepository{}
+	logs := &mockCheckpointLogRepository{}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+
+	svc := newWinlinkSvc(runners, checkpoints, logs, sess, races)
+	_, err := svc.Export(context.Background(), 1)
+	require.NoError(t, err)
+
+	require.NotNil(t, races.races[1].WinlinkLastExportAt)
+	assert.WithinDuration(t, time.Now(), *races.races[1].WinlinkLastExportAt, time.Second)
+	assert.False(t, races.races[1].WinlinkReminderDismissed)
+}
+
+func TestWinlinkService_Export_MarkWinlinkExportedError(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, DisplayName: "Aid Station 6"}},
+	}
+	races := &mockRaceRepository{
+		races:           map[int]entity.Race{1: {ID: 1, EventID: 1}},
+		markExportedErr: errDB,
+	}
+
+	svc := newWinlinkSvc(&mockRunnerRepository{}, checkpoints, &mockCheckpointLogRepository{}, sess, races)
+	_, err := svc.Export(context.Background(), 1)
+	assert.ErrorContains(t, err, "marking winlink export")
+}
+
+func TestWinlinkService_Reminders_NoActiveEvent(t *testing.T) {
+	svc := newWinlinkSvc(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, &mockActiveSessionRepository{})
+	reminders, err := svc.Reminders(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, reminders)
+}
+
+func TestWinlinkService_Reminders_DisabledForEvent(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{EventID: &eventIDVal}}
+	exportedAt := time.Now().Add(-time.Hour)
+	races := &mockRaceRepository{races: map[int]entity.Race{
+		1: {ID: 1, EventID: 1, Name: "GDR", WinlinkLastExportAt: &exportedAt},
+	}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkReminderMinutes: 0}}}
+
+	svc := service.NewWinlinkService(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{}, sess, races, events, time.UTC)
+	reminders, err := svc.Reminders(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, reminders)
+}
+
+func TestWinlinkService_Reminders_ListsDueRaces(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	exportedAt := time.Now().Add(-45 * time.Minute)
+	races := &mockRaceRepository{races: map[int]entity.Race{
+		1: {ID: 1, EventID: 1, Name: "GDR", WinlinkLastExportAt: &exportedAt},
+		2: {ID: 2, EventID: 1, Name: "50M"}, // never exported — excluded
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, DisplayName: "Aid Station 6"}},
+	}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkReminderMinutes: 30}}}
+
+	svc := service.NewWinlinkService(&mockRunnerRepository{}, checkpoints, &mockCheckpointLogRepository{}, sess, races, events, time.UTC)
+	reminders, err := svc.Reminders(context.Background())
+	require.NoError(t, err)
+	require.Len(t, reminders, 1)
+	assert.Equal(t, 1, reminders[0].RaceID)
+	assert.Equal(t, "GDR", reminders[0].RaceName)
+	assert.Equal(t, "Aid Station 6", reminders[0].CheckpointName)
+	assert.Equal(t, exportedAt.Add(30*time.Minute), reminders[0].DueAt)
+	assert.False(t, reminders[0].Dismissed)
+}
+
+func TestWinlinkService_DismissReminder(t *testing.T) {
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	svc := service.NewWinlinkService(&mockRunnerRepository{}, &mockCheckpointRepository{}, &mockCheckpointLogRepository{},
+		&mockActiveSessionRepository{}, races, &mockEventRepository{}, time.UTC)
+
+	err := svc.DismissReminder(context.Background(), 1)
+	require.NoError(t, err)
+	assert.True(t, races.races[1].WinlinkReminderDismissed)
+}

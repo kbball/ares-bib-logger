@@ -281,6 +281,67 @@ describe('WinlinkImportTab', () => {
     expect(screen.queryByText(/import summary/i)).not.toBeInTheDocument()
   })
 
+  it('auto-detects race and checkpoint from the pasted header', async () => {
+    const user = userEvent.setup()
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByLabelText(/paste winlink column/i))
+    await user.type(screen.getByLabelText(/paste winlink column/i), 'Aid Station 2\n10:00')
+
+    await waitFor(() =>
+      expect(screen.getByText(/auto-detected from the pasted header/i)).toBeInTheDocument(),
+    )
+    expect(screen.getByRole('combobox', { name: /race/i })).toHaveTextContent('GDR')
+    expect(screen.getByRole('combobox', { name: /checkpoint/i })).toHaveTextContent('Aid Station 2')
+  })
+
+  it('does not auto-detect when the checkpoint header has no match', async () => {
+    const user = userEvent.setup()
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByLabelText(/paste winlink column/i))
+    await user.type(screen.getByLabelText(/paste winlink column/i), 'Not A Real Station\n10:00')
+
+    expect(screen.queryByText(/auto-detected from the pasted header/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /import/i })).toBeDisabled()
+  })
+
+  it('shows the auto-detected race/checkpoint in the confirm dialog', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/winlink/import/preview', () =>
+        HttpResponse.json({
+          Created: 1,
+          Updated: 0,
+          Skipped: 1,
+          Rows: [
+            { Position: 1, BibNumber: 100, Kind: 'create', Value: '10:00', Reason: '' },
+            { Position: 2, BibNumber: 0, Kind: 'skip', Value: '', Reason: 'blank' },
+          ],
+        }),
+      ),
+    )
+    render(<WinlinkImportTab />)
+
+    await waitFor(() => screen.getByRole('combobox', { name: /race/i }))
+    await user.click(screen.getByLabelText(/paste winlink column/i))
+    await user.type(screen.getByLabelText(/paste winlink column/i), 'Aid Station 2\n10:00\n\n')
+
+    await waitFor(() =>
+      expect(screen.getByText(/auto-detected from the pasted header/i)).toBeInTheDocument(),
+    )
+
+    await user.click(screen.getByRole('button', { name: /import/i }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent(/auto-detected from the pasted header/i)
+    expect(dialog).toHaveTextContent('GDR')
+    expect(dialog).toHaveTextContent('Aid Station 2')
+  })
+
   it('Confirm & Import commits and shows the summary', async () => {
     const user = userEvent.setup()
     server.use(

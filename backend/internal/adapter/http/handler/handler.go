@@ -52,6 +52,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/events/{id}", h.getEvent)
 	mux.HandleFunc("PUT /api/events/{id}/archive", h.archiveEvent)
 	mux.HandleFunc("PUT /api/events/{id}/winlink-format", h.updateEventWinlinkFormat)
+	mux.HandleFunc("PUT /api/events/{id}/winlink-reminder", h.updateEventWinlinkReminder)
 	mux.HandleFunc("GET /api/events/{id}/export", h.exportEventConfig)
 
 	// Races
@@ -92,6 +93,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/winlink/export/{raceID}", h.exportWinlink)
 	mux.HandleFunc("POST /api/winlink/import", h.importWinlink)
 	mux.HandleFunc("POST /api/winlink/import/preview", h.previewWinlink)
+	mux.HandleFunc("GET /api/winlink/reminders", h.listWinlinkReminders)
+	mux.HandleFunc("POST /api/winlink/reminders/{raceID}/dismiss", h.dismissWinlinkReminder)
 
 	// Event config export / import
 	mux.HandleFunc("POST /api/events/import", h.importEventConfig)

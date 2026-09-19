@@ -6,6 +6,7 @@ type Handler<T> = (payload: T) => void
 export interface StreamHandlers {
   onBibLogged?: Handler<SSEEvent<unknown>['payload']>
   onSessionChanged?: Handler<SSEEvent<unknown>['payload']>
+  onWinlinkReminderChanged?: Handler<SSEEvent<unknown>['payload']>
 }
 
 export function useStream(handlers: StreamHandlers) {
@@ -23,6 +24,8 @@ export function useStream(handlers: StreamHandlers) {
       const event = JSON.parse(e.data) as SSEEvent
       if (event.type === 'bib_logged') handlersRef.current.onBibLogged?.(event.payload)
       if (event.type === 'session_changed') handlersRef.current.onSessionChanged?.(event.payload)
+      if (event.type === 'winlink_reminder_changed')
+        handlersRef.current.onWinlinkReminderChanged?.(event.payload)
     }
 
     es.onerror = () => {

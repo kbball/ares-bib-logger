@@ -8,6 +8,7 @@ export const mockEvent: Event = {
   Name: 'GDR 2026',
   Archived: false,
   WinlinkBlankLineAfterHeader: false,
+  WinlinkReminderMinutes: 0,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
@@ -147,4 +148,10 @@ export const handlers = [
   http.post('/api/winlink/import/preview', () =>
     HttpResponse.json({ Created: 1, Updated: 0, Skipped: 0, Rows: [] }),
   ),
+  http.get('/api/winlink/reminders', () => HttpResponse.json([])),
+  http.post(
+    '/api/winlink/reminders/:raceID/dismiss',
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.put('/api/events/:id/winlink-reminder', () => new HttpResponse(null, { status: 204 })),
 ]

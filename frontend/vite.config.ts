@@ -23,6 +23,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // CI runners are noticeably slower than local dev machines under full-suite
+    // load; the 5s default has produced timeouts on individual tests that pass
+    // reliably (and quickly) locally. 15s gives headroom without meaningfully
+    // weakening the suite's ability to catch a genuine hang.
+    testTimeout: 15000,
     server: {
       deps: {
         // Force @mui/material and react-transition-group through Vite's bundler

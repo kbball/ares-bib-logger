@@ -7,5 +7,9 @@ type Event struct {
 	Name                        string
 	Archived                    bool
 	WinlinkBlankLineAfterHeader bool
-	CreatedAt                   time.Time
+	// WinlinkReminderMinutes is how long after a Winlink export before an
+	// operator is reminded to send another update from the aid station. 0
+	// disables the reminder.
+	WinlinkReminderMinutes int
+	CreatedAt              time.Time
 }

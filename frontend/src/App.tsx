@@ -28,6 +28,7 @@ import WinlinkExportTab from './ui/pages/WinlinkExportTab'
 import RunnersTab from './ui/pages/RunnersTab'
 import AdminTab from './ui/pages/AdminTab'
 import GuideTab from './ui/pages/GuideTab'
+import WinlinkReminderBanner from './ui/components/WinlinkReminderBanner'
 
 const TABS = [
   { label: 'Data Entry', path: '/data-entry' },
@@ -242,6 +243,8 @@ function AppInner() {
           ))}
         </Tabs>
       </AppBar>
+
+      <WinlinkReminderBanner />
 
       <Box sx={{ p: 2 }}>
         {tab === 0 && <DataEntryTab />}

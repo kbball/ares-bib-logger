@@ -3,6 +3,7 @@ export interface Event {
   Name: string
   Archived: boolean
   WinlinkBlankLineAfterHeader: boolean
+  WinlinkReminderMinutes: number
   CreatedAt: string
 }
 
@@ -104,8 +105,17 @@ export interface WinlinkPreviewResult {
   BlankLineStrayText: string // discarded blank-line-slot content when it wasn't actually blank
 }
 
+export interface WinlinkReminderStatus {
+  RaceID: number
+  RaceName: string
+  CheckpointName: string
+  LastExportAt: string
+  DueAt: string
+  Dismissed: boolean
+}
+
 // SSE event envelope
 export interface SSEEvent<T = unknown> {
-  type: 'connected' | 'bib_logged' | 'session_changed'
+  type: 'connected' | 'bib_logged' | 'session_changed' | 'winlink_reminder_changed'
   payload: T
 }

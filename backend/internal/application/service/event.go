@@ -49,3 +49,7 @@ func (s *EventService) Archive(ctx context.Context, id int) error {
 func (s *EventService) SetWinlinkBlankLineAfterHeader(ctx context.Context, id int, enabled bool) error {
 	return s.repo.SetWinlinkBlankLineAfterHeader(ctx, id, enabled)
 }
+
+func (s *EventService) SetWinlinkReminderMinutes(ctx context.Context, id, minutes int) error {
+	return s.repo.SetWinlinkReminderMinutes(ctx, id, minutes)
+}

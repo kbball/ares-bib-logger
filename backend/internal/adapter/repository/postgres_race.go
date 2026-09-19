@@ -17,11 +17,12 @@ func NewRaceRepo(db *sql.DB) *RaceRepo { return &RaceRepo{db: db} }
 
 var _ portrepo.RaceRepository = (*RaceRepo)(nil)
 
-const raceCols = `id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at`
+const raceCols = `id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, winlink_last_export_at, winlink_reminder_dismissed, created_at`
 
 func scanRace(s interface{ Scan(...any) error }) (entity.Race, error) {
 	var r entity.Race
-	err := s.Scan(&r.ID, &r.EventID, &r.Name, &r.RosterLocked, &r.OrderLocked, &r.RosterCount, &r.WinlinkFooterRows, &r.CreatedAt)
+	err := s.Scan(&r.ID, &r.EventID, &r.Name, &r.RosterLocked, &r.OrderLocked, &r.RosterCount, &r.WinlinkFooterRows,
+		&r.WinlinkLastExportAt, &r.WinlinkReminderDismissed, &r.CreatedAt)
 	return r, err
 }
 
@@ -76,6 +77,18 @@ func (r *RaceRepo) LockOrder(ctx context.Context, id int) error {
 
 func (r *RaceRepo) SetWinlinkFooterRows(ctx context.Context, id, rows int) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE races SET winlink_footer_rows = $2 WHERE id = $1`, id, rows)
+	return err
+}
+
+func (r *RaceRepo) MarkWinlinkExported(ctx context.Context, id int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE races SET winlink_last_export_at = now(), winlink_reminder_dismissed = false WHERE id = $1`, id)
+	return err
+}
+
+func (r *RaceRepo) DismissWinlinkReminder(ctx context.Context, id int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE races SET winlink_reminder_dismissed = true WHERE id = $1`, id)
 	return err
 }
 

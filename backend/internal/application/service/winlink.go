@@ -208,6 +208,10 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (portsvc.Winlin
 		sb.WriteByte('\n')
 	}
 
+	if err := s.races.MarkWinlinkExported(ctx, raceID); err != nil {
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("marking winlink export: %w", err)
+	}
+
 	return portsvc.WinlinkExportResult{Text: sb.String(), FooterOverflowCount: footerOverflow}, nil
 }
 
@@ -513,6 +517,60 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 	result.BlankLineStrayText = blankLineStrayContent(text, blankLine)
 
 	return result, nil
+}
+
+// Reminders lists export-reminder status for the active event's races that
+// have exported at least once, when the event has reminders enabled.
+func (s *WinlinkService) Reminders(ctx context.Context) ([]portsvc.WinlinkReminderStatus, error) {
+	sess, err := s.session.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting session: %w", err)
+	}
+	if sess.EventID == nil {
+		return nil, nil
+	}
+
+	event, err := s.events.Get(ctx, *sess.EventID)
+	if err != nil {
+		return nil, fmt.Errorf("getting event: %w", err)
+	}
+	if event.WinlinkReminderMinutes <= 0 {
+		return nil, nil
+	}
+
+	races, err := s.races.List(ctx, *sess.EventID)
+	if err != nil {
+		return nil, fmt.Errorf("listing races: %w", err)
+	}
+
+	var out []portsvc.WinlinkReminderStatus
+	for _, race := range races {
+		if race.WinlinkLastExportAt == nil {
+			continue
+		}
+
+		var checkpointName string
+		if checkpointID, ok := activeCheckpointForRace(sess, race.ID); ok {
+			if cp, err := s.checkpoints.Get(ctx, checkpointID); err == nil {
+				checkpointName = cp.DisplayName
+			}
+		}
+
+		out = append(out, portsvc.WinlinkReminderStatus{
+			RaceID:         race.ID,
+			RaceName:       race.Name,
+			CheckpointName: checkpointName,
+			LastExportAt:   *race.WinlinkLastExportAt,
+			DueAt:          race.WinlinkLastExportAt.Add(time.Duration(event.WinlinkReminderMinutes) * time.Minute),
+			Dismissed:      race.WinlinkReminderDismissed,
+		})
+	}
+	return out, nil
+}
+
+// DismissReminder silences a race's export reminder until its next export.
+func (s *WinlinkService) DismissReminder(ctx context.Context, raceID int) error {
+	return s.races.DismissWinlinkReminder(ctx, raceID)
 }
 
 // checkpointHeader returns the header text a Winlink paste for this checkpoint

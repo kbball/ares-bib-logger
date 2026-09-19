@@ -10,6 +10,7 @@ import type {
   RunnerStatus,
   WinlinkImportResult,
   WinlinkPreviewResult,
+  WinlinkReminderStatus,
 } from '../../domain/types'
 
 // Events
@@ -18,6 +19,8 @@ export const createEvent = (name: string) => post<Event>('/api/events', { name }
 export const archiveEvent = (id: number) => put<void>(`/api/events/${id}/archive`)
 export const setEventWinlinkFormat = (id: number, blankLineAfterHeader: boolean) =>
   put<void>(`/api/events/${id}/winlink-format`, { blank_line_after_header: blankLineAfterHeader })
+export const setEventWinlinkReminderMinutes = (id: number, minutes: number) =>
+  put<void>(`/api/events/${id}/winlink-reminder`, { reminder_minutes: minutes })
 
 // Races
 export const listRaces = (eventID: number) => get<Race[]>(`/api/events/${eventID}/races`)
@@ -151,6 +154,9 @@ export const previewWinlink = (raceID: number, checkpointID: number, text: strin
     checkpoint_id: checkpointID,
     text,
   })
+export const listWinlinkReminders = () => get<WinlinkReminderStatus[]>('/api/winlink/reminders')
+export const dismissWinlinkReminder = (raceID: number) =>
+  post<void>(`/api/winlink/reminders/${raceID}/dismiss`)
 
 // Event config export / import
 export const exportEventConfig = (eventID: number) =>
