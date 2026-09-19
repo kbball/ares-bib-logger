@@ -137,6 +137,15 @@ export default function AdminTab() {
   const [statusMsg, setStatusMsg] = useState('')
   const [statusSearchErr, setStatusSearchErr] = useState('')
 
+  // Runner name edit
+  const [nameRaceID, setNameRaceID] = useState<number | ''>('')
+  const [nameBib, setNameBib] = useState('')
+  const [nameRunner, setNameRunner] = useState<Runner | null>(null)
+  const [nameFirstName, setNameFirstName] = useState('')
+  const [nameLastName, setNameLastName] = useState('')
+  const [nameMsg, setNameMsg] = useState('')
+  const [nameSearchErr, setNameSearchErr] = useState('')
+
   // Correction: manually log a bib with an explicit time
   const [correctionRaceID, setCorrectionRaceID] = useState<number | ''>('')
   const [correctionCheckpointID, setCorrectionCheckpointID] = useState<number | ''>('')
@@ -328,6 +337,42 @@ export default function AdminTab() {
       setStatusSearchErr('')
     } catch (e: unknown) {
       setStatusSearchErr((e as Error).message)
+    }
+  }
+
+  const searchRunnerForName = async () => {
+    if (!nameRaceID || !nameBib.trim()) return
+    setNameRunner(null)
+    setNameMsg('')
+    setNameSearchErr('')
+    try {
+      const runners = await api.listRunners(Number(nameRaceID))
+      const found = runners.find((r) => r.BibNumber === Number(nameBib))
+      if (!found) {
+        setNameSearchErr(`Bib ${nameBib} not found in this race.`)
+      } else {
+        setNameRunner(found)
+        setNameFirstName(found.FirstName)
+        setNameLastName(found.LastName)
+      }
+    } catch (e: unknown) {
+      setNameSearchErr((e as Error).message)
+    }
+  }
+
+  const applyRunnerName = async () => {
+    if (!nameRunner || !nameFirstName.trim()) return
+    try {
+      await api.updateRunnerName(nameRunner.ID, nameFirstName.trim(), nameLastName.trim())
+      setNameRunner({
+        ...nameRunner,
+        FirstName: nameFirstName.trim(),
+        LastName: nameLastName.trim(),
+      })
+      setNameMsg('Name updated.')
+      setNameSearchErr('')
+    } catch (e: unknown) {
+      setNameSearchErr((e as Error).message)
     }
   }
 
@@ -1324,6 +1369,122 @@ export default function AdminTab() {
                   {statusMsg && (
                     <Alert severity="success" sx={{ mt: 1 }}>
                       {statusMsg}
+                    </Alert>
+                  )}
+                </Paper>
+              )}
+            </Stack>
+          )}
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* ── Runner Name ── */}
+          <Typography variant="h6" gutterBottom>
+            Edit Runner Name
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Correct a runner&apos;s name for an existing bib number — e.g. a roster typo caught
+            mid-race. Bib number and checkpoint history are unaffected.
+          </Typography>
+          {!session?.EventID && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Select an active event first.
+            </Alert>
+          )}
+          {session?.EventID && (
+            <Stack spacing={2} data-testid="runner-name-form">
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <InputLabel id="name-race-label">Race</InputLabel>
+                  <Select
+                    value={nameRaceID}
+                    label="Race"
+                    labelId="name-race-label"
+                    onChange={(e) => {
+                      setNameRaceID(Number(e.target.value))
+                      setNameRunner(null)
+                      setNameMsg('')
+                    }}
+                  >
+                    {races.map((r) => (
+                      <MenuItem key={r.ID} value={r.ID}>
+                        {r.Name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small"
+                  label="Bib number"
+                  type="number"
+                  value={nameBib}
+                  onChange={(e) => {
+                    setNameBib(e.target.value)
+                    setNameRunner(null)
+                    setNameMsg('')
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && searchRunnerForName()}
+                  sx={{ width: 120 }}
+                />
+                <Tooltip title="Find runner in this race">
+                  <span>
+                    <Button
+                      variant="outlined"
+                      disabled={!nameRaceID || !nameBib.trim()}
+                      onClick={searchRunnerForName}
+                    >
+                      Search
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Stack>
+
+              {nameSearchErr && <Alert severity="error">{nameSearchErr}</Alert>}
+
+              {nameRunner && (
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    Currently:{' '}
+                    <strong>
+                      {nameRunner.FirstName} {nameRunner.LastName}
+                    </strong>{' '}
+                    — Bib {nameRunner.BibNumber}
+                  </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+                  >
+                    <TextField
+                      size="small"
+                      label="First name"
+                      value={nameFirstName}
+                      onChange={(e) => setNameFirstName(e.target.value)}
+                      sx={{ width: 140 }}
+                    />
+                    <TextField
+                      size="small"
+                      label="Last name"
+                      value={nameLastName}
+                      onChange={(e) => setNameLastName(e.target.value)}
+                      sx={{ width: 140 }}
+                    />
+                    <Tooltip title="Save the corrected name" describeChild>
+                      <span>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          disabled={!nameFirstName.trim()}
+                          onClick={applyRunnerName}
+                        >
+                          Save
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                  {nameMsg && (
+                    <Alert severity="success" sx={{ mt: 1 }}>
+                      {nameMsg}
                     </Alert>
                   )}
                 </Paper>

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/kevinball/ares-bib-logger/backend/internal/domain/entity"
 	portrepo "github.com/kevinball/ares-bib-logger/backend/internal/domain/port/repository"
@@ -105,6 +106,16 @@ func (s *RunnerService) AddRunner(ctx context.Context, raceID, bibNumber int, fi
 		return fmt.Errorf("creating runner: %w", err)
 	}
 
+	return nil
+}
+
+func (s *RunnerService) UpdateName(ctx context.Context, id int, firstName, lastName string) error {
+	if strings.TrimSpace(firstName) == "" {
+		return fmt.Errorf("first name is required")
+	}
+	if err := s.runners.UpdateName(ctx, id, firstName, lastName); err != nil {
+		return fmt.Errorf("updating runner name: %w", err)
+	}
 	return nil
 }
 

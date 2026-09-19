@@ -13,5 +13,6 @@ type RunnerRepository interface {
 	GetByBibInEvent(ctx context.Context, eventID, bibNumber int) (entity.Runner, error)
 	BulkCreate(ctx context.Context, runners []entity.Runner) error
 	UpdateStatus(ctx context.Context, id int, status entity.RunnerStatus) error
+	UpdateName(ctx context.Context, id int, firstName, lastName string) error
 	MaxSortOrder(ctx context.Context, raceID int) (int, error)
 }

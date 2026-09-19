@@ -100,6 +100,13 @@ func (r *RunnerRepo) UpdateStatus(ctx context.Context, id int, status entity.Run
 	return err
 }
 
+func (r *RunnerRepo) UpdateName(ctx context.Context, id int, firstName, lastName string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE runners SET first_name = $1, last_name = $2, updated_at = NOW() WHERE id = $3`,
+		firstName, lastName, id)
+	return err
+}
+
 func (r *RunnerRepo) MaxSortOrder(ctx context.Context, raceID int) (int, error) {
 	var max int
 	err := r.db.QueryRowContext(ctx,

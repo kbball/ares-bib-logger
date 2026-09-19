@@ -83,6 +83,8 @@ export const transferRunner = (bibNumber: number, fromRaceID: number, toRaceID: 
     from_race_id: fromRaceID,
     to_race_id: toRaceID,
   })
+export const updateRunnerName = (id: number, firstName: string, lastName: string) =>
+  put<void>(`/api/runners/${id}`, { first_name: firstName, last_name: lastName })
 
 // Bib logging
 // requestID (when provided) is echoed on the SSE broadcast of this log, so the
