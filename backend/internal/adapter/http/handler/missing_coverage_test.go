@@ -191,6 +191,31 @@ func TestHandler_LockRaceOrder_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// --- setRaceWinlinkFooterRows ---
+
+func TestHandler_SetRaceWinlinkFooterRows_BadID(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/races/abc/winlink-footer-rows", map[string]int{"rows": 3})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_SetRaceWinlinkFooterRows_Negative(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/races/1/winlink-footer-rows", map[string]int{"rows": -1})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_SetRaceWinlinkFooterRows_Success(t *testing.T) {
+	w := putJSON(t, defaultHandler(), "/api/races/1/winlink-footer-rows", map[string]int{"rows": 3})
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestHandler_SetRaceWinlinkFooterRows_ServiceError(t *testing.T) {
+	races := &mockRaceService{err: domain.ErrNotFound}
+	h := newHandler(&mockEventService{}, races, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+	w := putJSON(t, h, "/api/races/1/winlink-footer-rows", map[string]int{"rows": 3})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 // --- LoggingMiddleware + statusWriter.WriteHeader ---
 
 func TestLoggingMiddleware(t *testing.T) {

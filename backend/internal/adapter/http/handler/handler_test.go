@@ -70,6 +70,9 @@ func (m *mockRaceService) Create(_ context.Context, eventID int, name string) (e
 }
 func (m *mockRaceService) Delete(_ context.Context, id int) error    { return m.err }
 func (m *mockRaceService) LockOrder(_ context.Context, id int) error { return m.err }
+func (m *mockRaceService) SetWinlinkFooterRows(_ context.Context, id, rows int) error {
+	return m.err
+}
 
 type mockCheckpointService struct {
 	checkpoints []entity.Checkpoint
@@ -174,14 +177,15 @@ func (m *mockSessionService) SetCheckpoint(_ context.Context, r, c int) error   
 func (m *mockSessionService) ClearCheckpoint(_ context.Context, raceID int) error { return m.err }
 
 type mockWinlinkService struct {
-	exportText string
-	importRes  portsvc.WinlinkImportResult
-	previewRes portsvc.WinlinkPreviewResult
-	err        error
+	exportText     string
+	footerOverflow int
+	importRes      portsvc.WinlinkImportResult
+	previewRes     portsvc.WinlinkPreviewResult
+	err            error
 }
 
-func (m *mockWinlinkService) Export(_ context.Context, raceID int) (string, error) {
-	return m.exportText, m.err
+func (m *mockWinlinkService) Export(_ context.Context, raceID int) (portsvc.WinlinkExportResult, error) {
+	return portsvc.WinlinkExportResult{Text: m.exportText, FooterOverflowCount: m.footerOverflow}, m.err
 }
 func (m *mockWinlinkService) Import(_ context.Context, raceID, checkpointID int, text string) (portsvc.WinlinkImportResult, error) {
 	return m.importRes, m.err

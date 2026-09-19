@@ -37,3 +37,7 @@ func (s *RaceService) Delete(ctx context.Context, id int) error {
 func (s *RaceService) LockOrder(ctx context.Context, id int) error {
 	return s.repo.LockOrder(ctx, id)
 }
+
+func (s *RaceService) SetWinlinkFooterRows(ctx context.Context, id, rows int) error {
+	return s.repo.SetWinlinkFooterRows(ctx, id, rows)
+}

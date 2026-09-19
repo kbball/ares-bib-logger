@@ -46,7 +46,7 @@ func (s *RunnerService) ImportRoster(ctx context.Context, raceID int, rows []por
 		return fmt.Errorf("creating runners: %w", err)
 	}
 
-	return s.races.LockRoster(ctx, raceID)
+	return s.races.LockRoster(ctx, raceID, len(rows))
 }
 
 func (s *RunnerService) TransferRace(ctx context.Context, bibNumber, fromRaceID, toRaceID int) error {

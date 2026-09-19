@@ -10,7 +10,8 @@ type RaceRepository interface {
 	List(ctx context.Context, eventID int) ([]entity.Race, error)
 	Get(ctx context.Context, id int) (entity.Race, error)
 	Create(ctx context.Context, eventID int, name string) (entity.Race, error)
-	LockRoster(ctx context.Context, id int) error
+	LockRoster(ctx context.Context, id, rosterCount int) error
 	LockOrder(ctx context.Context, id int) error
+	SetWinlinkFooterRows(ctx context.Context, id, rows int) error
 	Delete(ctx context.Context, id int) error
 }

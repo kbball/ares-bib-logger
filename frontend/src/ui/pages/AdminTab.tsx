@@ -96,6 +96,7 @@ export default function AdminTab() {
   const [newEventName, setNewEventName] = useState('')
   // Create-race form
   const [newRaceName, setNewRaceName] = useState('')
+  const [footerRowsDraft, setFooterRowsDraft] = useState<Record<number, string>>({})
   // Checkpoint create form
   const [cpRaceID, setCpRaceID] = useState<number | ''>('')
   const [cpCode, setCpCode] = useState('')
@@ -775,6 +776,35 @@ export default function AdminTab() {
                         ))}
                       </Select>
                     </FormControl>
+                    <Tooltip title="Reserved rows below the locked roster on this race's Winlink export, for runners transferred in or added after the roster locked, followed by a closing line repeating the header. Editable any time, including mid-race.">
+                      <TextField
+                        size="small"
+                        label="Winlink footer rows"
+                        type="number"
+                        value={footerRowsDraft[race.ID] ?? String(race.WinlinkFooterRows)}
+                        onChange={(e) =>
+                          setFooterRowsDraft((d) => ({ ...d, [race.ID]: e.target.value }))
+                        }
+                        onBlur={() => {
+                          const raw = footerRowsDraft[race.ID]
+                          if (raw === undefined) return
+                          const rows = Math.max(0, Number(raw) || 0)
+                          wrap(
+                            () => api.setRaceWinlinkFooterRows(race.ID, rows),
+                            () =>
+                              loadRaces(session.EventID!).then(() =>
+                                setFooterRowsDraft((d) => {
+                                  const rest = { ...d }
+                                  delete rest[race.ID]
+                                  return rest
+                                }),
+                              ),
+                          )
+                        }}
+                        sx={{ width: 160 }}
+                        slotProps={{ htmlInput: { min: '0', step: '1' } }}
+                      />
+                    </Tooltip>
                   </Stack>
 
                   {/* Checkpoint list + reorder + edit + delete */}

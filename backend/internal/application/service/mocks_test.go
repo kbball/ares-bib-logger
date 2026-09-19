@@ -121,10 +121,11 @@ func (m *mockRaceRepository) Create(_ context.Context, eventID int, name string)
 	return entity.Race{EventID: eventID, Name: name}, nil
 }
 
-func (m *mockRaceRepository) LockRoster(_ context.Context, id int) error {
+func (m *mockRaceRepository) LockRoster(_ context.Context, id, rosterCount int) error {
 	m.lockedRace = id
 	if r, ok := m.races[id]; ok {
 		r.RosterLocked = true
+		r.RosterCount = rosterCount
 		m.races[id] = r
 	}
 	return nil
@@ -132,6 +133,14 @@ func (m *mockRaceRepository) LockRoster(_ context.Context, id int) error {
 
 func (m *mockRaceRepository) LockOrder(_ context.Context, id int) error { return nil }
 func (m *mockRaceRepository) Delete(_ context.Context, id int) error    { return nil }
+
+func (m *mockRaceRepository) SetWinlinkFooterRows(_ context.Context, id, rows int) error {
+	if r, ok := m.races[id]; ok {
+		r.WinlinkFooterRows = rows
+		m.races[id] = r
+	}
+	return nil
+}
 
 // --- mockCheckpointLogRepository ---
 

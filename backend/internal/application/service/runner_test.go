@@ -39,6 +39,7 @@ func TestRunnerService_ImportRoster_Success(t *testing.T) {
 	assert.Equal(t, 3, runners.bulkCreated[2].SortOrder)
 	assert.Equal(t, "Alice", runners.bulkCreated[0].FirstName)
 	assert.Equal(t, 1, races.lockedRace)
+	assert.Equal(t, 3, races.races[1].RosterCount)
 }
 
 func TestRunnerService_ImportRoster_LockedReturnsError(t *testing.T) {

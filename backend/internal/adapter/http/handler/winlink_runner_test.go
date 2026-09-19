@@ -31,6 +31,22 @@ func TestHandler_ExportWinlink(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Body.String(), "AS6")
+	assert.Empty(t, w.Header().Get("X-Footer-Overflow-Count"))
+}
+
+func TestHandler_ExportWinlink_FooterOverflow(t *testing.T) {
+	wl := &mockWinlinkService{exportText: "AS6\n17:45:00\n", footerOverflow: 2}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		&mockRunnerService{}, &mockCheckpointLogService{}, &mockSessionService{}, wl)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/winlink/export/1", nil)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "2", w.Header().Get("X-Footer-Overflow-Count"))
 }
 
 func TestHandler_ImportWinlink(t *testing.T) {

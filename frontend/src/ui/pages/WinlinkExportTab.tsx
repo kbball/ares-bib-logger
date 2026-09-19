@@ -63,6 +63,7 @@ export default function WinlinkExportTab() {
   const [copied, setCopied] = useState(false)
   const [subjectCopied, setSubjectCopied] = useState(false)
   const [error, setError] = useState('')
+  const [footerOverflowCount, setFooterOverflowCount] = useState(0)
 
   useEffect(() => {
     api
@@ -115,9 +116,10 @@ export default function WinlinkExportTab() {
   const generate = async () => {
     if (!raceID) return
     try {
-      const text = await api.exportWinlink(Number(raceID))
+      const { text, footerOverflowCount } = await api.exportWinlink(Number(raceID))
       setColumn(text)
       setSubject(buildSubject())
+      setFooterOverflowCount(footerOverflowCount)
       setError('')
     } catch (e: unknown) {
       setError((e as Error).message)
@@ -175,6 +177,7 @@ export default function WinlinkExportTab() {
                 setRaceID(Number(e.target.value))
                 setColumn('')
                 setSubject('')
+                setFooterOverflowCount(0)
               }}
             >
               {races.map((r) => (
@@ -195,6 +198,14 @@ export default function WinlinkExportTab() {
 
         {column && (
           <>
+            {footerOverflowCount > 0 && (
+              <Alert severity="warning">
+                {footerOverflowCount} runner{footerOverflowCount === 1 ? '' : 's'} added since the
+                roster locked exceed{footerOverflowCount === 1 ? 's' : ''} the configured footer
+                rows for this race — they're still included below, but a pre-printed form won't have
+                room for them. Raise the footer row count in Admin if needed.
+              </Alert>
+            )}
             <Typography variant="subtitle2" color="text.secondary">
               Email Subject
             </Typography>
