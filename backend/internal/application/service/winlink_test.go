@@ -484,7 +484,7 @@ func TestWinlinkService_Import_ConsumesBlankLineAfterHeader_WhenEnabled(t *testi
 	assert.Equal(t, 2, logs.created[1].RunnerID)
 }
 
-func TestWinlinkService_Import_BlankLineFlagOn_NoActualBlankLine_DoesNotEatRealRow(t *testing.T) {
+func TestWinlinkService_Import_BlankLineFlagOn_StrayTextOnBlankLine_IsIgnored(t *testing.T) {
 	runners := &mockRunnerRepository{
 		runners: []entity.Runner{
 			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1},
@@ -498,13 +498,17 @@ func TestWinlinkService_Import_BlankLineFlagOn_NoActualBlankLine_DoesNotEatRealR
 	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{10: {ID: 10}}},
 		logs, &mockActiveSessionRepository{}, races, events, time.UTC)
 
-	// flag is on, but this paste has no blank line after the header -- must not
-	// skip the first real data row.
-	column := "AS6\n17:45:00\n08:00:00\n"
+	// flag is on and the line after the header holds stray pasted text
+	// ("purple") instead of being empty -- it's still the blank-line slot for
+	// this event's convention and must be discarded, not read as sort_order 1.
+	column := "AS6\npurple\n17:45:00\n08:00:00\n"
 	result, err := svc.Import(context.Background(), 1, 10, column)
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Created)
 	assert.Equal(t, 0, result.Skipped)
+	require.Len(t, logs.created, 2)
+	assert.Equal(t, 1, logs.created[0].RunnerID)
+	assert.Equal(t, 2, logs.created[1].RunnerID)
 }
 
 func TestWinlinkService_Preview_ConsumesBlankLineAfterHeader_WhenEnabled(t *testing.T) {
@@ -524,6 +528,40 @@ func TestWinlinkService_Preview_ConsumesBlankLineAfterHeader_WhenEnabled(t *test
 	assert.Equal(t, 0, result.Skipped)
 	require.Len(t, result.Rows, 1)
 	assert.Equal(t, 100, result.Rows[0].BibNumber)
+	assert.Empty(t, result.BlankLineStrayText)
+}
+
+func TestWinlinkService_Preview_FlagsStrayTextOnBlankLine(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1}},
+	}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{10: {ID: 10}}},
+		&mockCheckpointLogRepository{}, &mockActiveSessionRepository{}, races, events, time.UTC)
+
+	column := "AS6\npurple\n17:45:00\n"
+	result, err := svc.Preview(context.Background(), 1, 10, column)
+	require.NoError(t, err)
+	assert.Equal(t, "purple", result.BlankLineStrayText)
+}
+
+func TestWinlinkService_Preview_FlagsNonActiveRunnerStatus(t *testing.T) {
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusDNS}},
+	}
+	races := &mockRaceRepository{races: map[int]entity.Race{1: {ID: 1, EventID: 1}}}
+	events := &mockEventRepository{events: []entity.Event{{ID: 1}}}
+
+	svc := service.NewWinlinkService(runners, &mockCheckpointRepository{checkpoints: map[int]entity.Checkpoint{10: {ID: 10}}},
+		&mockCheckpointLogRepository{}, &mockActiveSessionRepository{}, races, events, time.UTC)
+
+	column := "AS6\n17:45:00\n"
+	result, err := svc.Preview(context.Background(), 1, 10, column)
+	require.NoError(t, err)
+	require.Len(t, result.Rows, 1)
+	assert.Equal(t, "DNS", result.Rows[0].PriorStatus)
 }
 
 func TestWinlinkService_Import_EventLookupError(t *testing.T) {

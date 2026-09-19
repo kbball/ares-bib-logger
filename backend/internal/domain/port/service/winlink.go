@@ -24,6 +24,11 @@ type WinlinkRowOutcome struct {
 	Kind      string // "create" | "update" | "skip"
 	Value     string // trimmed raw pasted line; empty for blank/no_runner skips
 	Reason    string // set only when Kind == "skip": "blank" | "no_runner" | "parse_error" | "moved"
+	// PriorStatus is the runner's status before this import, set only when
+	// it's neither ACTIVE nor UNKNOWN (e.g. "DNS", "DNF") — a signal that this
+	// row is about to record data against a runner who was previously pulled
+	// from the race, worth a second look before committing.
+	PriorStatus string
 }
 
 type WinlinkPreviewResult struct {
@@ -39,6 +44,12 @@ type WinlinkPreviewResult struct {
 	HeaderMismatch bool
 	PastedHeader   string
 	ExpectedHeader string
+	// BlankLineStrayText is the discarded content of the blank-line-after-header
+	// slot when the event's blank-line convention is enabled and that line
+	// wasn't actually empty — signals a likely misaligned paste (every row
+	// after it would shift by one position) before anything is committed.
+	// Empty when the convention is off or the line really was blank.
+	BlankLineStrayText string
 }
 
 type WinlinkService interface {

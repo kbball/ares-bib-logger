@@ -197,6 +197,34 @@ type parsedRow struct {
 // looking up the runner at that sort_order and inspecting the line's
 // content. It performs no I/O, so Import and Preview can share it and can
 // never disagree about what a row *is* — only about what to do with it.
+// blankLineStrayContent returns the trimmed content of the blank-line-after-
+// header slot when the event's convention calls for one and the pasted text
+// put something other than whitespace there. It mirrors the header/blank-line
+// detection in parseImportRows so the two never disagree about which line is
+// the blank-line slot. Returns "" when the convention is off, there's no
+// header line, or the slot really was blank.
+func blankLineStrayContent(text string, blankLineAfterHeader bool) string {
+	if !blankLineAfterHeader {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) < 2 || looksLikeTimeOrStatus(lines[0]) {
+		return ""
+	}
+	return strings.TrimSpace(lines[1])
+}
+
+// priorStatusWarning returns status as a string when it's worth flagging to
+// an operator reviewing a preview -- i.e. any status other than the two a
+// runner passes through in the ordinary course of a race (ACTIVE, and
+// UNKNOWN before their first checkpoint).
+func priorStatusWarning(status entity.RunnerStatus) string {
+	if status == entity.StatusActive || status == entity.StatusUnknown || status == "" {
+		return ""
+	}
+	return string(status)
+}
+
 func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Runner, blankLineAfterHeader bool) []parsedRow {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	if len(lines) == 0 {
@@ -208,9 +236,11 @@ func (s *WinlinkService) parseImportRows(text string, byOrder map[int]entity.Run
 	if len(lines) > 0 && !looksLikeTimeOrStatus(lines[0]) {
 		start = 1
 		// If this event's convention includes a blank line after the header,
-		// consume it too — but only when it's actually there, so a mismatched
-		// setting never eats a real data row.
-		if blankLineAfterHeader && len(lines) > 1 && strings.TrimSpace(lines[1]) == "" {
+		// consume it too — whatever it contains. The line's position, not its
+		// content, is what makes it the blank line; stray pasted text there
+		// (e.g. "purple") must still be discarded rather than misread as the
+		// first runner's row.
+		if blankLineAfterHeader && len(lines) > 1 {
 			start = 2
 		}
 	}
@@ -404,14 +434,17 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 		case rowMoved:
 			addRow(portsvc.WinlinkRowOutcome{
 				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "skip", Value: row.raw, Reason: "moved",
+				PriorStatus: priorStatusWarning(row.runner.Status),
 			})
 		case rowParseError:
 			addRow(portsvc.WinlinkRowOutcome{
 				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "skip", Value: row.raw, Reason: "parse_error",
+				PriorStatus: priorStatusWarning(row.runner.Status),
 			})
 		case rowDNS, rowDNF:
 			addRow(portsvc.WinlinkRowOutcome{
 				Position: row.position, BibNumber: row.runner.BibNumber, Kind: "update", Value: row.raw,
+				PriorStatus: priorStatusWarning(row.runner.Status),
 			})
 		case rowTime:
 			kind := "create"
@@ -420,6 +453,7 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 			}
 			addRow(portsvc.WinlinkRowOutcome{
 				Position: row.position, BibNumber: row.runner.BibNumber, Kind: kind, Value: row.raw,
+				PriorStatus: priorStatusWarning(row.runner.Status),
 			})
 		}
 	}
@@ -432,6 +466,8 @@ func (s *WinlinkService) Preview(ctx context.Context, raceID, checkpointID int, 
 			result.HeaderMismatch = true
 		}
 	}
+
+	result.BlankLineStrayText = blankLineStrayContent(text, blankLine)
 
 	return result, nil
 }
