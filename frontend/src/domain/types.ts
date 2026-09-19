@@ -88,6 +88,7 @@ export interface WinlinkRowOutcome {
   Kind: 'create' | 'update' | 'skip'
   Value: string
   Reason: string // set only when Kind === 'skip': "blank" | "no_runner" | "parse_error" | "moved"
+  PriorStatus: string // set only when the runner's current status isn't ACTIVE/UNKNOWN, e.g. "DNS" | "DNF"
 }
 
 export interface WinlinkPreviewResult {
@@ -98,6 +99,7 @@ export interface WinlinkPreviewResult {
   HeaderMismatch: boolean
   PastedHeader: string
   ExpectedHeader: string
+  BlankLineStrayText: string // discarded blank-line-slot content when it wasn't actually blank
 }
 
 // SSE event envelope

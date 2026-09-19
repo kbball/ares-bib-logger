@@ -107,7 +107,13 @@ export default function WinlinkImportTab() {
     if (!raceID || !checkpointID || !text.trim()) return
     try {
       const preview = await api.previewWinlink(Number(raceID), Number(checkpointID), text)
-      if (preview.Skipped === 0 && !preview.HeaderMismatch) {
+      const hasStatusWarning = preview.Rows.some((r) => r.PriorStatus)
+      if (
+        preview.Skipped === 0 &&
+        !preview.HeaderMismatch &&
+        !preview.BlankLineStrayText &&
+        !hasStatusWarning
+      ) {
         await doImport()
       } else {
         setPendingPreview(preview)
@@ -282,6 +288,19 @@ export default function WinlinkImportTab() {
               Double-check the race/checkpoint selection before importing.
             </Alert>
           )}
+          {pendingPreview?.BlankLineStrayText && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This event expects a blank line after the header, but the line after the header read
+              &quot;{pendingPreview.BlankLineStrayText}&quot; instead of being empty. It was
+              discarded — verify the paste lines up correctly before importing.
+            </Alert>
+          )}
+          {pendingPreview?.Rows.some((r) => r.PriorStatus) && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Some rows below apply to runners who aren&apos;t currently Active (see Status column).
+              Confirm that&apos;s intentional before importing.
+            </Alert>
+          )}
           <DialogContentText sx={{ mb: 2 }}>
             {pendingPreview?.Skipped} of {pendingPreview?.Rows.length} rows will be skipped. Review
             the full breakdown below before importing.
@@ -293,6 +312,7 @@ export default function WinlinkImportTab() {
                 <TableCell>Bib</TableCell>
                 <TableCell>Action</TableCell>
                 <TableCell>Value / Reason</TableCell>
+                <TableCell>Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -302,6 +322,13 @@ export default function WinlinkImportTab() {
                   <TableCell>{row.BibNumber || '—'}</TableCell>
                   <TableCell>{KIND_LABEL[row.Kind] ?? row.Kind}</TableCell>
                   <TableCell>{row.Kind === 'skip' ? skipLabel(row.Reason) : row.Value}</TableCell>
+                  <TableCell>
+                    {row.PriorStatus && (
+                      <Typography component="span" color="warning.main" variant="body2">
+                        {row.PriorStatus}
+                      </Typography>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
