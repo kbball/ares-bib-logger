@@ -353,8 +353,9 @@ describe('AdminTab — Change Runner Status', () => {
     const user = userEvent.setup()
     render(<AdminTab />)
     await openAdminAccordions(user)
-    await waitFor(() => screen.getByRole('button', { name: /search/i }))
-    expect(screen.getByRole('button', { name: /search/i })).toBeDisabled()
+    await waitFor(() => screen.getByTestId('runner-status-form'))
+    const form = screen.getByTestId('runner-status-form')
+    expect(within(form).getByRole('button', { name: /search/i })).toBeDisabled()
   })
 
   it('searches for a runner and shows their status', async () => {
@@ -469,6 +470,99 @@ describe('AdminTab — Change Runner Status', () => {
     await user.click(screen.getByRole('button', { name: /^set$/i }))
 
     await waitFor(() => expect(screen.getByText(/status updated to DNF/i)).toBeInTheDocument())
+  })
+})
+
+describe('AdminTab — Edit Runner Name', () => {
+  it('searches for a runner and shows editable name fields', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('runner-name-form'))
+    const form = screen.getByTestId('runner-name-form')
+
+    const raceCombobox = within(form).getByRole('combobox', { name: /race/i })
+    await user.click(raceCombobox)
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /search/i }))
+
+    await waitFor(() => expect(screen.getByText(/alice smith/i)).toBeInTheDocument())
+    expect(within(form).getByLabelText(/first name/i)).toHaveValue('Alice')
+    expect(within(form).getByLabelText(/last name/i)).toHaveValue('Smith')
+  })
+
+  it('shows error when bib not found', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/races/:raceID/runners', () => HttpResponse.json([])))
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('runner-name-form'))
+    const form = screen.getByTestId('runner-name-form')
+
+    const raceCombobox = within(form).getByRole('combobox', { name: /race/i })
+    await user.click(raceCombobox)
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '999')
+    await user.click(within(form).getByRole('button', { name: /search/i }))
+
+    await waitFor(() => expect(screen.getByText(/not found/i)).toBeInTheDocument())
+  })
+
+  it('shows error when saving the name fails', async () => {
+    server.use(
+      http.put('/api/runners/:id', () =>
+        HttpResponse.json({ error: 'first name is required' }, { status: 400 }),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('runner-name-form'))
+    const form = screen.getByTestId('runner-name-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /search/i }))
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.getByText(/first name is required/i)).toBeInTheDocument())
+  })
+
+  it('saves a corrected name after searching', async () => {
+    const user = userEvent.setup()
+    render(<AdminTab />)
+    await openAdminAccordions(user)
+
+    await waitFor(() => screen.getByTestId('runner-name-form'))
+    const form = screen.getByTestId('runner-name-form')
+
+    await user.click(within(form).getByRole('combobox', { name: /race/i }))
+    await waitFor(() => screen.getByRole('option', { name: /GDR/i }))
+    await user.click(screen.getByRole('option', { name: /GDR/i }))
+
+    await user.type(within(form).getByLabelText(/bib number/i), '100')
+    await user.click(within(form).getByRole('button', { name: /search/i }))
+
+    await waitFor(() => screen.getByText(/alice smith/i))
+    const lastNameField = within(form).getByLabelText(/last name/i)
+    await user.clear(lastNameField)
+    await user.type(lastNameField, 'Smithson')
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.getByText(/name updated/i)).toBeInTheDocument())
   })
 })
 

@@ -214,6 +214,40 @@ func TestRunnerService_AddRunner_BulkCreateError(t *testing.T) {
 	assert.ErrorContains(t, err, "creating runner")
 }
 
+func TestRunnerService_UpdateName_Success(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 7, BibNumber: 200, FirstName: "Dana", LastName: "Ortiz"}}}
+	races := &mockRaceRepository{}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.UpdateName(context.Background(), 7, "Dani", "Ortiz-Lee")
+
+	require.NoError(t, err)
+	require.Len(t, runners.runners, 1)
+	assert.Equal(t, "Dani", runners.runners[0].FirstName)
+	assert.Equal(t, "Ortiz-Lee", runners.runners[0].LastName)
+}
+
+func TestRunnerService_UpdateName_RequiresFirstName(t *testing.T) {
+	runners := &mockRunnerRepository{runners: []entity.Runner{{ID: 7}}}
+	races := &mockRaceRepository{}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.UpdateName(context.Background(), 7, "  ", "Ortiz")
+
+	assert.ErrorContains(t, err, "first name is required")
+}
+
+func TestRunnerService_UpdateName_RepoError(t *testing.T) {
+	dbErr := errors.New("db down")
+	runners := &mockRunnerRepository{updateNameErr: dbErr}
+	races := &mockRaceRepository{}
+
+	svc := newRunnerSvc(runners, races)
+	err := svc.UpdateName(context.Background(), 7, "Dani", "Ortiz")
+
+	assert.ErrorContains(t, err, "updating runner name")
+}
+
 func TestRunnerService_TransferRace_MaxSortOrderError(t *testing.T) {
 	dbErr := errors.New("db down")
 	runners := &mockRunnerRepository{

@@ -119,6 +119,7 @@ export const handlers = [
   http.get('/api/races/:raceID/runners', () => HttpResponse.json([mockRunner, mockRunner2])),
   http.post('/api/races/:raceID/roster', () => HttpResponse.json({ imported: 2 })),
   http.post('/api/runners/transfer', () => new HttpResponse(null, { status: 204 })),
+  http.put('/api/runners/:id', () => new HttpResponse(null, { status: 204 })),
   http.get('/api/races/:raceID/logs', () => HttpResponse.json([mockLog])),
 
   // Bib logging

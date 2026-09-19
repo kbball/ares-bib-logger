@@ -206,6 +206,51 @@ func TestHandler_AddRunner_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestHandler_UpdateRunnerName_Success(t *testing.T) {
+	runners := &mockRunnerService{}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"first_name": "Dani", "last_name": "Ortiz-Lee"})
+	req := httptest.NewRequest(http.MethodPut, "/api/runners/7", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, []any{7, "Dani", "Ortiz-Lee"}, runners.updateNameArgs)
+}
+
+func TestHandler_UpdateRunnerName_MissingFirstName(t *testing.T) {
+	body, _ := json.Marshal(map[string]any{"first_name": "  "})
+	req := httptest.NewRequest(http.MethodPut, "/api/runners/7", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	defaultHandler().Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateRunnerName_ServiceError(t *testing.T) {
+	runners := &mockRunnerService{err: domain.ErrNotFound}
+	h := newHandler(&mockEventService{}, &mockRaceService{}, &mockCheckpointService{},
+		runners, &mockCheckpointLogService{}, &mockSessionService{}, &mockWinlinkService{})
+
+	body, _ := json.Marshal(map[string]any{"first_name": "Dani"})
+	req := httptest.NewRequest(http.MethodPut, "/api/runners/7", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func TestHandler_TransferRunner(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"bib_number": 42, "from_race_id": 1, "to_race_id": 2,

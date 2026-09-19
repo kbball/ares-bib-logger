@@ -18,6 +18,7 @@ type mockRunnerRepository struct {
 	bulkCreateErr   error
 	updateStatusErr error
 	maxSortOrderErr error
+	updateNameErr   error
 }
 
 func (m *mockRunnerRepository) List(_ context.Context, raceID int) ([]entity.Runner, error) {
@@ -77,6 +78,19 @@ func (m *mockRunnerRepository) UpdateStatus(_ context.Context, id int, status en
 
 func (m *mockRunnerRepository) MaxSortOrder(_ context.Context, raceID int) (int, error) {
 	return m.maxSortOrder, m.maxSortOrderErr
+}
+
+func (m *mockRunnerRepository) UpdateName(_ context.Context, id int, firstName, lastName string) error {
+	if m.updateNameErr != nil {
+		return m.updateNameErr
+	}
+	for i := range m.runners {
+		if m.runners[i].ID == id {
+			m.runners[i].FirstName = firstName
+			m.runners[i].LastName = lastName
+		}
+	}
+	return nil
 }
 
 // --- mockRaceRepository ---

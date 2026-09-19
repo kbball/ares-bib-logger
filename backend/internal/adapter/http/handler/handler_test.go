@@ -95,10 +95,11 @@ func (m *mockCheckpointService) Reorder(_ context.Context, raceID int, ids []int
 }
 
 type mockRunnerService struct {
-	runners      []entity.Runner
-	importCalled bool
-	addArgs      []any
-	err          error
+	runners        []entity.Runner
+	importCalled   bool
+	addArgs        []any
+	updateNameArgs []any
+	err            error
 }
 
 func (m *mockRunnerService) ListByRace(_ context.Context, raceID int) ([]entity.Runner, error) {
@@ -111,6 +112,10 @@ func (m *mockRunnerService) ImportRoster(_ context.Context, raceID int, rows []p
 func (m *mockRunnerService) TransferRace(_ context.Context, bib, from, to int) error { return m.err }
 func (m *mockRunnerService) AddRunner(_ context.Context, raceID, bibNumber int, firstName, lastName string) error {
 	m.addArgs = []any{raceID, bibNumber, firstName, lastName}
+	return m.err
+}
+func (m *mockRunnerService) UpdateName(_ context.Context, id int, firstName, lastName string) error {
+	m.updateNameArgs = []any{id, firstName, lastName}
 	return m.err
 }
 

@@ -156,6 +156,18 @@ func TestRunnerRepo_UpdateStatus_Success(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRunnerRepo_UpdateName_Success(t *testing.T) {
+	db, mock := newMock(t)
+
+	mock.ExpectExec(qe(`UPDATE runners SET first_name = $1, last_name = $2, updated_at = NOW() WHERE id = $3`)).
+		WithArgs("Dani", "Ortiz-Lee", 5).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repository.NewRunnerRepo(db).UpdateName(context.Background(), 5, "Dani", "Ortiz-Lee")
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestRunnerRepo_MaxSortOrder_ReturnsValue(t *testing.T) {
 	db, mock := newMock(t)
 

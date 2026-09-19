@@ -118,6 +118,29 @@ func (h *Handler) addRunner(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) updateRunnerName(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid runner id")
+		return
+	}
+
+	var body struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	}
+	if err := decode(r, &body); err != nil || strings.TrimSpace(body.FirstName) == "" {
+		writeError(w, http.StatusBadRequest, "first_name is required")
+		return
+	}
+
+	if err := h.runners.UpdateName(r.Context(), id, body.FirstName, body.LastName); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) transferRunner(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		BibNumber  int `json:"bib_number"`

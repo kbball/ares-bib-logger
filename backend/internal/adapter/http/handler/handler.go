@@ -71,6 +71,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/races/{raceID}/runners", h.listRunners)
 	mux.HandleFunc("POST /api/races/{raceID}/roster", h.importRoster)
 	mux.HandleFunc("POST /api/races/{raceID}/runners", h.addRunner)
+	mux.HandleFunc("PUT /api/runners/{id}", h.updateRunnerName)
 	mux.HandleFunc("POST /api/runners/transfer", h.transferRunner)
 
 	// Bib logging

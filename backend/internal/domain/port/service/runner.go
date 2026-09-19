@@ -22,4 +22,7 @@ type RunnerService interface {
 	// by the initial roster import. Unlike ImportRoster, this is not gated
 	// by RosterLocked and never locks the roster.
 	AddRunner(ctx context.Context, raceID, bibNumber int, firstName, lastName string) error
+	// UpdateName corrects a runner's name (e.g. a roster typo caught mid-race).
+	// Bib number, sort order, and status are untouched.
+	UpdateName(ctx context.Context, id int, firstName, lastName string) error
 }
