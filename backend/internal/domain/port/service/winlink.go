@@ -52,9 +52,20 @@ type WinlinkPreviewResult struct {
 	BlankLineStrayText string
 }
 
+// WinlinkExportResult is the generated column plus whether the runners added
+// after roster lock (transfers, late adds) overflowed the race's configured
+// WinlinkFooterRows.
+type WinlinkExportResult struct {
+	Text string
+	// FooterOverflowCount is how many post-lock additions exceeded the
+	// configured footer row count; 0 when everything fit (or no footer rows
+	// are configured). All additions are still written to Text regardless.
+	FooterOverflowCount int
+}
+
 type WinlinkService interface {
 	// Export generates a Winlink-format column for the active checkpoint of the given race.
-	Export(ctx context.Context, raceID int) (string, error)
+	Export(ctx context.Context, raceID int) (WinlinkExportResult, error)
 	// Import parses a pasted Winlink column and records it against the given race+checkpoint.
 	Import(ctx context.Context, raceID, checkpointID int, text string) (WinlinkImportResult, error)
 	// Preview classifies each row the same way Import would, without writing anything.

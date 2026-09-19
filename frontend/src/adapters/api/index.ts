@@ -25,6 +25,8 @@ export const createRace = (eventID: number, name: string) =>
   post<Race>(`/api/events/${eventID}/races`, { name })
 export const deleteRace = (id: number) => del<void>(`/api/races/${id}`)
 export const lockRaceOrder = (id: number) => put<void>(`/api/races/${id}/lock-order`)
+export const setRaceWinlinkFooterRows = (id: number, rows: number) =>
+  put<void>(`/api/races/${id}/winlink-footer-rows`, { rows })
 
 // Checkpoints
 export const listCheckpoints = (raceID: number) =>
@@ -128,8 +130,15 @@ export const clearSessionCheckpoint = (raceID: number) =>
   del<void>(`/api/session/checkpoint/${raceID}`)
 
 // Winlink
-export const exportWinlink = (raceID: number) =>
-  fetch(`/api/winlink/export/${raceID}`).then((r) => r.text())
+export interface WinlinkExportResult {
+  text: string
+  footerOverflowCount: number
+}
+export const exportWinlink = (raceID: number): Promise<WinlinkExportResult> =>
+  fetch(`/api/winlink/export/${raceID}`).then(async (r) => ({
+    text: await r.text(),
+    footerOverflowCount: Number(r.headers.get('X-Footer-Overflow-Count') ?? '0'),
+  }))
 export const importWinlink = (raceID: number, checkpointID: number, text: string) =>
   post<WinlinkImportResult>('/api/winlink/import', {
     race_id: raceID,

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 )
 
 func (h *Handler) exportWinlink(w http.ResponseWriter, r *http.Request) {
@@ -11,15 +12,18 @@ func (h *Handler) exportWinlink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	column, err := h.winlink.Export(r.Context(), raceID)
+	result, err := h.winlink.Export(r.Context(), raceID)
 	if err != nil {
 		writeError(w, errStatus(err), err.Error())
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if result.FooterOverflowCount > 0 {
+		w.Header().Set("X-Footer-Overflow-Count", strconv.Itoa(result.FooterOverflowCount))
+	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(column))
+	_, _ = w.Write([]byte(result.Text))
 }
 
 func (h *Handler) importWinlink(w http.ResponseWriter, r *http.Request) {

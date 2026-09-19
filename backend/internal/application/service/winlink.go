@@ -61,30 +61,35 @@ func (s *WinlinkService) blankLineAfterHeader(ctx context.Context, raceID int) (
 
 var _ portsvc.WinlinkService = (*WinlinkService)(nil)
 
-func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error) {
+func (s *WinlinkService) Export(ctx context.Context, raceID int) (portsvc.WinlinkExportResult, error) {
 	sess, err := s.session.Get(ctx)
 	if err != nil {
-		return "", fmt.Errorf("getting session: %w", err)
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("getting session: %w", err)
 	}
 
 	checkpointID, ok := activeCheckpointForRace(sess, raceID)
 	if !ok {
-		return "", fmt.Errorf("no active checkpoint for race %d", raceID)
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("no active checkpoint for race %d", raceID)
 	}
 
 	cp, err := s.checkpoints.Get(ctx, checkpointID)
 	if err != nil {
-		return "", fmt.Errorf("getting checkpoint: %w", err)
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("getting checkpoint: %w", err)
+	}
+
+	race, err := s.races.Get(ctx, raceID)
+	if err != nil {
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("getting race: %w", err)
 	}
 
 	runners, err := s.runners.List(ctx, raceID)
 	if err != nil {
-		return "", fmt.Errorf("listing runners: %w", err)
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("listing runners: %w", err)
 	}
 
 	logs, err := s.checkpointLogs.ListByRaceAndCheckpoint(ctx, raceID, checkpointID)
 	if err != nil {
-		return "", fmt.Errorf("listing checkpoint logs: %w", err)
+		return portsvc.WinlinkExportResult{}, fmt.Errorf("listing checkpoint logs: %w", err)
 	}
 
 	logByRunner := make(map[int]entity.CheckpointLog, len(logs))
@@ -108,19 +113,19 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 			}
 			allRaces, err := s.races.List(ctx, *sess.EventID)
 			if err != nil {
-				return "", fmt.Errorf("listing races for moved runners: %w", err)
+				return portsvc.WinlinkExportResult{}, fmt.Errorf("listing races for moved runners: %w", err)
 			}
-			for _, race := range allRaces {
-				if race.ID == raceID {
+			for _, otherRace := range allRaces {
+				if otherRace.ID == raceID {
 					continue
 				}
-				raceRunners, err := s.runners.List(ctx, race.ID)
+				raceRunners, err := s.runners.List(ctx, otherRace.ID)
 				if err != nil {
-					return "", fmt.Errorf("listing runners for race %d: %w", race.ID, err)
+					return portsvc.WinlinkExportResult{}, fmt.Errorf("listing runners for race %d: %w", otherRace.ID, err)
 				}
 				for _, r := range raceRunners {
 					if movedBibSet[r.BibNumber] && r.Status != entity.StatusMoved {
-						movedToRace[r.BibNumber] = race.Name
+						movedToRace[r.BibNumber] = otherRace.Name
 					}
 				}
 			}
@@ -129,43 +134,81 @@ func (s *WinlinkService) Export(ctx context.Context, raceID int) (string, error)
 
 	blankLine, err := s.blankLineAfterHeader(ctx, raceID)
 	if err != nil {
-		return "", err
+		return portsvc.WinlinkExportResult{}, err
+	}
+
+	rowText := func(r entity.Runner) string {
+		if log, seen := logByRunner[r.ID]; seen {
+			return log.RecordedAt.In(s.loc).Format("15:04")
+		}
+		switch r.Status {
+		case entity.StatusDNS:
+			return "DNS"
+		case entity.StatusDNF:
+			return "DNF"
+		case entity.StatusMoved:
+			if raceName, ok := movedToRace[r.BibNumber]; ok {
+				return "CHG " + raceName
+			}
+			return "CHG"
+		default:
+			return "" // not yet seen at this checkpoint
+		}
+	}
+
+	// Split into the original locked roster (SortOrder <= RosterCount) and
+	// runners added afterward (transfers, late adds), which belong in the
+	// footer. RosterCount == 0 (a race never locked under this feature, or
+	// with no runners) puts everything in the original list — no footer.
+	var original, additions []entity.Runner
+	for _, r := range runners {
+		if race.RosterCount > 0 && r.SortOrder > race.RosterCount {
+			additions = append(additions, r)
+		} else {
+			original = append(original, r)
+		}
 	}
 
 	var sb strings.Builder
-	if cp.ColumnName != nil && *cp.ColumnName != "" {
-		sb.WriteString(*cp.ColumnName)
-	} else {
-		sb.WriteString(cp.DisplayName)
-	}
+	sb.WriteString(checkpointHeader(cp))
 	sb.WriteByte('\n')
 	if blankLine {
 		sb.WriteByte('\n')
 	}
 
-	for _, r := range runners {
-		if log, seen := logByRunner[r.ID]; seen {
-			sb.WriteString(log.RecordedAt.In(s.loc).Format("15:04"))
-		} else {
-			switch r.Status {
-			case entity.StatusDNS:
-				sb.WriteString("DNS")
-			case entity.StatusDNF:
-				sb.WriteString("DNF")
-			case entity.StatusMoved:
-				if raceName, ok := movedToRace[r.BibNumber]; ok {
-					sb.WriteString("CHG " + raceName)
-				} else {
-					sb.WriteString("CHG")
-				}
-			default:
-				// blank — runner not yet seen at this checkpoint
-			}
-		}
+	for _, r := range original {
+		sb.WriteString(rowText(r))
 		sb.WriteByte('\n')
 	}
 
-	return sb.String(), nil
+	// Footer: pad to the configured row count with blank lines when there
+	// are fewer additions than capacity, so the reserved rows stay in place
+	// on a pre-printed form even when unused. Anything beyond capacity is
+	// still written — never dropped — and reported as overflow.
+	footerOverflow := 0
+	for i := 0; i < race.WinlinkFooterRows; i++ {
+		if i < len(additions) {
+			sb.WriteString(rowText(additions[i]))
+		}
+		sb.WriteByte('\n')
+	}
+	if len(additions) > race.WinlinkFooterRows {
+		footerOverflow = len(additions) - race.WinlinkFooterRows
+		for _, r := range additions[race.WinlinkFooterRows:] {
+			sb.WriteString(rowText(r))
+			sb.WriteByte('\n')
+		}
+	}
+
+	// Closing footer marker: repeats the header text once more after the
+	// footer rows, so the operator can visually confirm the column is
+	// complete. Only emitted when a footer is actually configured.
+	if race.WinlinkFooterRows > 0 {
+		sb.WriteString(checkpointHeader(cp))
+		sb.WriteByte('\n')
+	}
+
+	return portsvc.WinlinkExportResult{Text: sb.String(), FooterOverflowCount: footerOverflow}, nil
 }
 
 // rowKind classifies a single pasted line, independent of whether it will be

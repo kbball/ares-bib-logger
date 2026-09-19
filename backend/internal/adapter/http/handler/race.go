@@ -74,3 +74,25 @@ func (h *Handler) lockRaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) setRaceWinlinkFooterRows(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid race id")
+		return
+	}
+
+	var body struct {
+		Rows int `json:"rows"`
+	}
+	if err := decode(r, &body); err != nil || body.Rows < 0 {
+		writeError(w, http.StatusBadRequest, "rows must be zero or a positive integer")
+		return
+	}
+
+	if err := h.races.SetWinlinkFooterRows(r.Context(), id, body.Rows); err != nil {
+		writeError(w, errStatus(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

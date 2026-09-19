@@ -66,7 +66,8 @@ func TestWinlinkService_Export_Format(t *testing.T) {
 	}
 
 	svc := newWinlinkSvc(runners, checkpoints, logs, sess)
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 
 	require.NoError(t, err)
 	// TrimSuffix removes exactly the final newline; the blank runner line remains.
@@ -100,7 +101,8 @@ func TestWinlinkService_Export_ColumnNameOverridesDisplayName(t *testing.T) {
 	logs := &mockCheckpointLogRepository{}
 
 	svc := newWinlinkSvc(runners, checkpoints, logs, sess)
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
@@ -127,7 +129,8 @@ func TestWinlinkService_Export_BlankColumnNameFallsBackToDisplayName(t *testing.
 	logs := &mockCheckpointLogRepository{}
 
 	svc := newWinlinkSvc(runners, checkpoints, logs, sess)
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
@@ -163,7 +166,8 @@ func TestWinlinkService_Export_MovedRunner(t *testing.T) {
 	logs := &mockCheckpointLogRepository{}
 
 	svc := newWinlinkSvc(runners, checkpoints, logs, sess, races)
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
@@ -171,6 +175,80 @@ func TestWinlinkService_Export_MovedRunner(t *testing.T) {
 	assert.Equal(t, "Aid Station 6", lines[0])
 	assert.Equal(t, "", lines[1])             // runner 100 not yet seen
 	assert.Equal(t, "CHG Marathon", lines[2]) // runner 101 moved to Marathon
+}
+
+func TestWinlinkService_Export_FooterPadsBlankRows(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6"}},
+	}
+	// Roster locked at 2 runners; one runner transferred in afterward at SortOrder 3.
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+			{ID: 2, RaceID: 1, BibNumber: 101, SortOrder: 2, Status: entity.StatusActive},
+			{ID: 3, RaceID: 1, BibNumber: 200, SortOrder: 3, Status: entity.StatusDNS},
+		},
+	}
+	races := &mockRaceRepository{
+		races: map[int]entity.Race{1: {ID: 1, EventID: 1, RosterCount: 2, WinlinkFooterRows: 3}},
+	}
+
+	svc := newWinlinkSvc(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races)
+	res, err := svc.Export(context.Background(), 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, res.FooterOverflowCount)
+	lines := strings.Split(strings.TrimSuffix(res.Text, "\n"), "\n")
+	// header + 2 original + 3 footer rows (1 filled, 2 padded blank) + closing footer marker
+	require.Len(t, lines, 7)
+	assert.Equal(t, "Aid Station 6", lines[0])
+	assert.Equal(t, "", lines[1])              // original runner 100, not seen
+	assert.Equal(t, "", lines[2])              // original runner 101, not seen
+	assert.Equal(t, "DNS", lines[3])           // footer addition, bib 200
+	assert.Equal(t, "", lines[4])              // padded blank footer row
+	assert.Equal(t, "", lines[5])              // padded blank footer row
+	assert.Equal(t, "Aid Station 6", lines[6]) // closing footer marker repeats the header
+}
+
+func TestWinlinkService_Export_FooterOverflow(t *testing.T) {
+	eventIDVal := 1
+	sess := &mockActiveSessionRepository{session: entity.ActiveSession{
+		EventID:     &eventIDVal,
+		Checkpoints: []entity.ActiveSessionCheckpoint{{RaceID: 1, CheckpointID: 5}},
+	}}
+	checkpoints := &mockCheckpointRepository{
+		checkpoints: map[int]entity.Checkpoint{5: {ID: 5, Code: "AS6", DisplayName: "Aid Station 6"}},
+	}
+	// Roster locked at 1 runner; three added afterward, but only 1 footer row configured.
+	runners := &mockRunnerRepository{
+		runners: []entity.Runner{
+			{ID: 1, RaceID: 1, BibNumber: 100, SortOrder: 1, Status: entity.StatusActive},
+			{ID: 2, RaceID: 1, BibNumber: 200, SortOrder: 2, Status: entity.StatusDNS},
+			{ID: 3, RaceID: 1, BibNumber: 201, SortOrder: 3, Status: entity.StatusDNF},
+			{ID: 4, RaceID: 1, BibNumber: 202, SortOrder: 4, Status: entity.StatusActive},
+		},
+	}
+	races := &mockRaceRepository{
+		races: map[int]entity.Race{1: {ID: 1, EventID: 1, RosterCount: 1, WinlinkFooterRows: 1}},
+	}
+
+	svc := newWinlinkSvc(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races)
+	res, err := svc.Export(context.Background(), 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.FooterOverflowCount)
+	lines := strings.Split(strings.TrimSuffix(res.Text, "\n"), "\n")
+	require.Len(t, lines, 6)                   // header + 1 original + 1 footer + 2 overflow + closing footer marker
+	assert.Equal(t, "", lines[1])              // original runner 100
+	assert.Equal(t, "DNS", lines[2])           // footer row 1, bib 200
+	assert.Equal(t, "DNF", lines[3])           // overflow, bib 201
+	assert.Equal(t, "", lines[4])              // overflow, bib 202, not seen
+	assert.Equal(t, "Aid Station 6", lines[5]) // closing footer marker repeats the header
 }
 
 func TestWinlinkService_Export_NoActiveCheckpoint(t *testing.T) {
@@ -397,7 +475,8 @@ func TestWinlinkService_Export_BlankLineAfterHeader_WhenEnabled(t *testing.T) {
 	events := &mockEventRepository{events: []entity.Event{{ID: 1, WinlinkBlankLineAfterHeader: true}}}
 
 	svc := service.NewWinlinkService(runners, checkpoints, &mockCheckpointLogRepository{}, sess, races, events, time.UTC)
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 	require.NoError(t, err)
 
 	lines := strings.Split(out, "\n")
@@ -420,7 +499,8 @@ func TestWinlinkService_Export_NoBlankLineAfterHeader_WhenDisabled(t *testing.T)
 	}
 	svc := newWinlinkSvc(runners, checkpoints, &mockCheckpointLogRepository{}, sess)
 
-	out, err := svc.Export(context.Background(), 1)
+	res, err := svc.Export(context.Background(), 1)
+	out := res.Text
 	require.NoError(t, err)
 
 	lines := strings.Split(out, "\n")

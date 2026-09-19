@@ -59,6 +59,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events/{eventID}/races", h.createRace)
 	mux.HandleFunc("DELETE /api/races/{id}", h.deleteRace)
 	mux.HandleFunc("PUT /api/races/{id}/lock-order", h.lockRaceOrder)
+	mux.HandleFunc("PUT /api/races/{id}/winlink-footer-rows", h.setRaceWinlinkFooterRows)
 
 	// Checkpoints
 	mux.HandleFunc("GET /api/races/{raceID}/checkpoints", h.listCheckpoints)

@@ -17,11 +17,11 @@ func NewRaceRepo(db *sql.DB) *RaceRepo { return &RaceRepo{db: db} }
 
 var _ portrepo.RaceRepository = (*RaceRepo)(nil)
 
-const raceCols = `id, event_id, name, roster_locked, order_locked, created_at`
+const raceCols = `id, event_id, name, roster_locked, order_locked, roster_count, winlink_footer_rows, created_at`
 
 func scanRace(s interface{ Scan(...any) error }) (entity.Race, error) {
 	var r entity.Race
-	err := s.Scan(&r.ID, &r.EventID, &r.Name, &r.RosterLocked, &r.OrderLocked, &r.CreatedAt)
+	err := s.Scan(&r.ID, &r.EventID, &r.Name, &r.RosterLocked, &r.OrderLocked, &r.RosterCount, &r.WinlinkFooterRows, &r.CreatedAt)
 	return r, err
 }
 
@@ -63,13 +63,19 @@ func (r *RaceRepo) Create(ctx context.Context, eventID int, name string) (entity
 	return race, nil
 }
 
-func (r *RaceRepo) LockRoster(ctx context.Context, id int) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE races SET roster_locked = true WHERE id = $1`, id)
+func (r *RaceRepo) LockRoster(ctx context.Context, id, rosterCount int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE races SET roster_locked = true, roster_count = $2 WHERE id = $1`, id, rosterCount)
 	return err
 }
 
 func (r *RaceRepo) LockOrder(ctx context.Context, id int) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE races SET order_locked = true WHERE id = $1`, id)
+	return err
+}
+
+func (r *RaceRepo) SetWinlinkFooterRows(ctx context.Context, id, rows int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE races SET winlink_footer_rows = $2 WHERE id = $1`, id, rows)
 	return err
 }
 

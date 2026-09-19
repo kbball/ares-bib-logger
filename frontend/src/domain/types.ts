@@ -12,6 +12,8 @@ export interface Race {
   Name: string
   RosterLocked: boolean
   OrderLocked: boolean
+  RosterCount: number
+  WinlinkFooterRows: number
   CreatedAt: string
 }
 

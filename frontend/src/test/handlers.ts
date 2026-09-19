@@ -17,6 +17,8 @@ export const mockRace: Race = {
   Name: 'GDR',
   RosterLocked: false,
   OrderLocked: false,
+  RosterCount: 0,
+  WinlinkFooterRows: 0,
   CreatedAt: '2026-06-14T00:00:00Z',
 }
 
@@ -103,6 +105,7 @@ export const handlers = [
   http.post('/api/events/:eventID/races', () => HttpResponse.json(mockRace, { status: 201 })),
   http.delete('/api/races/:id', () => new HttpResponse(null, { status: 204 })),
   http.put('/api/races/:id/lock-order', () => new HttpResponse(null, { status: 204 })),
+  http.put('/api/races/:id/winlink-footer-rows', () => new HttpResponse(null, { status: 204 })),
 
   // Checkpoints
   http.get('/api/races/:raceID/checkpoints', () =>

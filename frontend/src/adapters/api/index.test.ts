@@ -41,6 +41,11 @@ describe('Races', () => {
     const result = await api.lockRaceOrder(1)
     expect(result).toBeUndefined()
   })
+
+  it('setRaceWinlinkFooterRows sends PUT', async () => {
+    const result = await api.setRaceWinlinkFooterRows(1, 3)
+    expect(result).toBeUndefined()
+  })
 })
 
 describe('Checkpoints', () => {
@@ -145,8 +150,24 @@ describe('Session', () => {
 describe('Winlink', () => {
   it('exportWinlink returns text', async () => {
     const result = await api.exportWinlink(1)
-    expect(typeof result).toBe('string')
-    expect(result).toContain('AS1')
+    expect(typeof result.text).toBe('string')
+    expect(result.text).toContain('AS1')
+    expect(result.footerOverflowCount).toBe(0)
+  })
+
+  it('exportWinlink surfaces footer overflow header', async () => {
+    server.use(
+      http.get(
+        '/api/winlink/export/:raceID',
+        () =>
+          new HttpResponse('AS1\n10:00\n', {
+            status: 200,
+            headers: { 'X-Footer-Overflow-Count': '2' },
+          }),
+      ),
+    )
+    const result = await api.exportWinlink(1)
+    expect(result.footerOverflowCount).toBe(2)
   })
 
   it('importWinlink returns import result', async () => {
