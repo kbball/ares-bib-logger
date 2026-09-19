@@ -435,6 +435,7 @@ export default function DataEntryTab() {
               size="small"
               sx={{ width: 100 }}
               onChange={(e) => setStatusBib(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitStatus()}
               disabled={!hasActiveCheckpoint}
             />
             <FormControl size="small" sx={{ width: 90 }}>
