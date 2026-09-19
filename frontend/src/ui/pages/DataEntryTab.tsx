@@ -219,6 +219,60 @@ export default function DataEntryTab() {
     return cp ?? null
   }
 
+  // Per-race checkpoint-based stats, computed once and shared by the per-race
+  // cards and the Overall card's "Still to come" total (below) — the two must
+  // never disagree about what "still to come" means for a given race.
+  const raceStats = races.map((race) => {
+    const raceRunners = runners.filter((r) => r.RaceID === race.ID)
+    const cp = activeCheckpointFor(race.ID)
+    const raceLogs = logsByRace[race.ID] ?? []
+    const raceCPs = (checkpointsByRace[race.ID] ?? []).sort(
+      (a, b) => a.DisplayOrder - b.DisplayOrder,
+    )
+    // Runners with a real time log at the active checkpoint (DNS/DNF raw messages don't count as "through")
+    const throughSet = new Set(
+      raceLogs
+        .filter((l) => {
+          if (l.CheckpointID !== cp?.ID) return false
+          const raw = l.RawMessage?.toUpperCase()
+          return raw !== 'DNS' && raw !== 'DNF'
+        })
+        .map((l) => l.RunnerID),
+    )
+    // Exclusive three-way partition — all three sum to raceRunners.length
+    const through = raceRunners.filter((r) => throughSet.has(r.ID))
+    const dnsDnf = raceRunners.filter(
+      (r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'),
+    )
+    const stillToCome = raceRunners.filter(
+      (r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF',
+    )
+
+    // Projected next arrival — earliest among runners not yet through, if CP has a distance
+    let nextExpected: string | null = null
+    let nextExpectedBib: number | null = null
+    if (cp?.DistanceFromStart != null) {
+      const arrivals = stillToCome
+        .map((r) => {
+          const pace = computeRunnerPace(r, raceCPs, raceLogs)
+          const arrival = projectArrival(pace, cp.DistanceFromStart!)
+          return arrival ? { arrival, bib: r.BibNumber } : null
+        })
+        .filter((x): x is { arrival: Date; bib: number } => x !== null)
+      if (arrivals.length > 0) {
+        const earliest = arrivals.reduce((best, x) => (x.arrival < best.arrival ? x : best))
+        nextExpected = earliest.arrival.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        nextExpectedBib = earliest.bib
+      }
+    }
+
+    return { race, raceRunners, cp, through, dnsDnf, stillToCome, nextExpected, nextExpectedBib }
+  })
+
   return (
     <Box sx={{ maxWidth: 900 }}>
       <Typography variant="h5" gutterBottom>
@@ -260,11 +314,21 @@ export default function DataEntryTab() {
             const dnf = active.filter((r) => r.Status === 'DNF').length
             const finished = active.filter((r) => r.Status === 'FINISHED').length
             const onCourse = starters - dns - dnf - finished
+            // "Still to come" only means something for races with an active
+            // checkpoint set — races without one are left out of the total
+            // (like the per-race cards' "—"), not counted as zero.
+            const withCP = raceStats.filter((rs) => rs.cp)
+            const stillToComeTotal = withCP.reduce((sum, rs) => sum + rs.stillToCome.length, 0)
             return (
               <>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Starters: {starters}
                 </Typography>
+                <Tooltip title="Runners not yet logged at their race's active checkpoint, summed across races that have one set">
+                  <Typography variant="body2">
+                    Still to come: {withCP.length > 0 ? stillToComeTotal : '—'}
+                  </Typography>
+                </Tooltip>
                 <Typography variant="body2">On course: {onCourse}</Typography>
                 <Typography variant="body2">DNS: {dns}</Typography>
                 <Typography variant="body2">DNF: {dnf}</Typography>
@@ -278,55 +342,17 @@ export default function DataEntryTab() {
       {/* ── Race stats ── */}
       {races.length > 0 && (
         <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
-          {races.map((race) => {
-            const raceRunners = runners.filter((r) => r.RaceID === race.ID)
-            const cp = activeCheckpointFor(race.ID)
-            const raceLogs = logsByRace[race.ID] ?? []
-            const raceCPs = (checkpointsByRace[race.ID] ?? []).sort(
-              (a, b) => a.DisplayOrder - b.DisplayOrder,
-            )
-            // Runners with a real time log at the active checkpoint (DNS/DNF raw messages don't count as "through")
-            const throughSet = new Set(
-              raceLogs
-                .filter((l) => {
-                  if (l.CheckpointID !== cp?.ID) return false
-                  const raw = l.RawMessage?.toUpperCase()
-                  return raw !== 'DNS' && raw !== 'DNF'
-                })
-                .map((l) => l.RunnerID),
-            )
-            // Exclusive three-way partition — all three sum to raceRunners.length
-            const through = raceRunners.filter((r) => throughSet.has(r.ID))
-            const dnsDnf = raceRunners.filter(
-              (r) => !throughSet.has(r.ID) && (r.Status === 'DNS' || r.Status === 'DNF'),
-            )
-            const stillToCome = raceRunners.filter(
-              (r) => !throughSet.has(r.ID) && r.Status !== 'DNS' && r.Status !== 'DNF',
-            )
-
-            // Projected next arrival — earliest among runners not yet through, if CP has a distance
-            let nextExpected: string | null = null
-            let nextExpectedBib: number | null = null
-            if (cp?.DistanceFromStart != null) {
-              const arrivals = stillToCome
-                .map((r) => {
-                  const pace = computeRunnerPace(r, raceCPs, raceLogs)
-                  const arrival = projectArrival(pace, cp.DistanceFromStart!)
-                  return arrival ? { arrival, bib: r.BibNumber } : null
-                })
-                .filter((x): x is { arrival: Date; bib: number } => x !== null)
-              if (arrivals.length > 0) {
-                const earliest = arrivals.reduce((best, x) => (x.arrival < best.arrival ? x : best))
-                nextExpected = earliest.arrival.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                })
-                nextExpectedBib = earliest.bib
-              }
-            }
-
-            return (
+          {raceStats.map(
+            ({
+              race,
+              raceRunners,
+              cp,
+              through,
+              dnsDnf,
+              stillToCome,
+              nextExpected,
+              nextExpectedBib,
+            }) => (
               <Paper
                 key={race.ID}
                 sx={{ p: 1.5, flex: '1 1 160px', minWidth: { xs: '100%', sm: 160 } }}
@@ -382,8 +408,8 @@ export default function DataEntryTab() {
                   </Tooltip>
                 )}
               </Paper>
-            )
-          })}
+            ),
+          )}
         </Stack>
       )}
 

@@ -59,6 +59,24 @@ describe('DataEntryTab', () => {
     expect(within(card).getByText(/dns: 1/i)).toBeInTheDocument()
     expect(within(card).getByText(/dnf: 0/i)).toBeInTheDocument()
     expect(within(card).getByText(/finishers: 1/i)).toBeInTheDocument()
+    // Only race 1 has an active checkpoint in the default session (mockSession);
+    // race 2's runners are left out of the total rather than counted as zero.
+    // Race 1: mockRunner logged through (mockLog), mockRunner2 not yet seen = 1.
+    expect(within(card).getByText(/still to come: 1/i)).toBeInTheDocument()
+  })
+
+  it('Overall card shows "—" for Still to come when no race has an active checkpoint', async () => {
+    const race2 = { ...mockRace, ID: 2, Name: 'GDR2' }
+    server.use(
+      http.get('/api/session', () => HttpResponse.json({ EventID: 1, Checkpoints: [] })),
+      http.get('/api/events/:eventID/races', () => HttpResponse.json([mockRace, race2])),
+    )
+
+    render(<DataEntryTab />)
+    await waitFor(() => expect(screen.getByTestId('overall-stats-card')).toBeInTheDocument())
+
+    const card = screen.getByTestId('overall-stats-card')
+    expect(within(card).getByText(/still to come: —/i)).toBeInTheDocument()
   })
 
   it('shows the Log Bib form', async () => {
