@@ -9,4 +9,5 @@ Format: Keep a Changelog; versioning: Semantic Versioning.
 - `make test` runs `go vet` and the race detector; new `make cover` (80% gate), `make image` and `make smoke`.
 
 ### Added
+- **Run behind a reverse proxy under a path:** set `BASE_PATH` (for example `/bibs`) when a proxy such as Caddy serves the app at `https://host/bibs/` and strips the prefix. The server tells the page its prefix through `<base href>`, so assets, API calls, the live stream, the logo and page routes all work under it. Unset, the app serves at `/` as before.
 - A smoke test that runs the built image against a real Postgres container before it is published.
