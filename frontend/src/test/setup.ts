@@ -45,4 +45,6 @@ Object.defineProperty(window, 'localStorage', {
   writable: true,
 })
 
+// The first-run tour only appears for a browser that has never seen it; tests that want it clear this.
+beforeEach(() => window.localStorage.setItem('ares-bib-logger:tour-seen', '1'))
 afterEach(() => window.localStorage.clear())
