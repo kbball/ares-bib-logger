@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	ServerPort     int
+	BasePath       string // URL prefix when served behind a reverse proxy, e.g. "/bibs"; "" for root
 	LogLevel       string
 	Timezone       string
 	MeshTechnology string // "meshtastic" or "meshcore"
@@ -115,6 +116,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		ServerPort:     serverPort,
+		BasePath:       envStr("BASE_PATH", ""),
 		LogLevel:       envStr("LOG_LEVEL", "info"),
 		Timezone:       envStr("TIMEZONE", "Local"),
 		MeshTechnology: envStr("MESH_TECHNOLOGY", "meshtastic"),

@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  // Relative asset URLs: the server sets <base href> at runtime so the same
+  // build works at / and behind a reverse proxy prefix (BASE_PATH).
+  base: './',
   plugins: [react()],
   resolve: {
     alias: {

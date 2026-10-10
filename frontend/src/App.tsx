@@ -31,6 +31,7 @@ import GuideTab from './ui/pages/GuideTab'
 import WinlinkReminderBanner from './ui/components/WinlinkReminderBanner'
 import Tour from './ui/components/Tour'
 import { openTour } from './ui/components/tourState'
+import { basePath, withBase } from './adapters/basePath'
 import ExploreOutlinedIcon from '@mui/icons-material/ExploreOutlined'
 
 const TABS = [
@@ -210,7 +211,7 @@ function AppInner() {
         <Toolbar variant="dense">
           <Box
             component="img"
-            src="/logo.png"
+            src={withBase('/logo.png')}
             alt="ARES Bib Logger"
             sx={{ height: 40, width: 'auto', mr: 1.5 }}
           />
@@ -301,7 +302,7 @@ function AppInner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basePath}>
       <AppInner />
     </BrowserRouter>
   )
