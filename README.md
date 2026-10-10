@@ -186,9 +186,8 @@ ares-bib-logger/
 ├── .ai/                  # AI context — plan, specs, decisions
 │   └── PLAN.md           # Living project plan (work log + backlog + arch decisions)
 ├── .github/workflows/
-│   ├── ci.yml            # Lint + test on PRs to staging or main
-│   ├── staging.yml       # Lint + test + push :staging image on merge to staging
-│   └── release.yml       # Manual release: tag + push versioned image + :latest
+│   ├── ci.yml                # Go / Frontend / Image checks; publishes release and preview images
+│   └── cleanup-previews.yml  # Deletes pr-* preview images when a PR closes, plus a weekly sweep
 ├── backend/
 │   ├── cmd/server/       # Entry point (main.go)
 │   └── internal/
@@ -364,15 +363,16 @@ Set `LOG_LEVEL=debug` for verbose MQTT logs during setup.
 
 ## CI / CD
 
-Three GitHub Actions workflows implement a `feature → staging → main` pipeline:
+Two GitHub Actions workflows. `main` is protected and changes arrive by pull request.
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| **CI** | PR to `staging` or `main` | Runs lint + tests; required to pass before merge |
-| **Staging** | Push to `staging` | Runs lint + tests, then builds and pushes `ghcr.io/kbball/ares-bib-logger:staging` |
-| **Release** | Manual (`workflow_dispatch` from `main`) | Runs lint + tests, creates a `v<major>.<minor>` git tag, builds and pushes versioned image + `:latest` |
+| **CI** | PR, push to `main` | Jobs `Go` (gofmt, golangci-lint, vet, race tests, 80% coverage gate), `Frontend` (ESLint, type check, 80% coverage gate, build) and `Image` (builds the image, smoke-tests it against real Postgres, then publishes) |
+| **Clean up preview images** | PR closed, weekly | Deletes `pr-*` preview images from GHCR; releases are never touched |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full branch model and release process.
+Publishing: a push to `main` publishes `:latest`, `:sha-<commit>` and `:<VERSION>` (the version tag is written once; bump `VERSION` to publish a new one). A PR from this repository publishes `:pr-<number>` and `:<VERSION>-pr<number>.<commit>` only. The version comes from the `VERSION` file.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch model and release process.
 
 ## Development Guidelines
 

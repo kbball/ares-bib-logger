@@ -2,17 +2,9 @@
 
 ## Branch model
 
-```
-main ← staging ← feature/your-description
-```
+`main` is protected: nothing is committed to it directly. All work happens on a branch and reaches `main` through a pull request whose required checks (`Go`, `Frontend`, `Image`) pass.
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-only; every merge produces a versioned release |
-| `staging` | Integration branch; always deployable; the `staging` Docker image is rebuilt on every merge |
-| `feature/*` | All development work; always branch from `staging` |
-
-Use `fix/`, `feat/`, or `chore/` prefixes in place of `feature/` when appropriate.
+Name branches `feature/…`, `fix/…` or `chore/…`, always cut from `main`.
 
 ## Getting started
 
@@ -20,33 +12,31 @@ See [Developer Setup](README.md#developer-setup) in the README for prerequisites
 
 ## Making a change
 
-### 1. Branch from `staging`
+### 1. Branch from `main`
 
 ```bash
-git checkout staging
-git pull origin staging
+git checkout main
+git pull origin main
 git checkout -b feature/your-description
 ```
 
 ### 2. Develop and test locally
 
 ```bash
-make test    # backend + frontend tests
+make test    # vet + race detector, backend and frontend
+make cover   # the coverage gate CI enforces (80%)
 make lint    # golangci-lint + ESLint
 make fmt     # gofmt + Prettier
+make smoke   # build the image and run it against real Postgres
 ```
 
 The pre-commit hook (installed by `make install`) runs `fmt` and `lint` automatically on every commit.
 
-### 3. Open a PR targeting `staging`
+### 3. Open a pull request
 
-- **Target `staging`, not `main`** — PRs to `main` are reserved for staging → main promotions by maintainers.
-- CI (lint + test) must pass before merge.
-- At least one review is required.
-
-### 4. After merge
-
-On merge to `staging`, CI re-runs and the `staging`-tagged Docker image (`ghcr.io/kbball/ares-bib-logger:staging`) is rebuilt automatically. This is the pre-production image for validation before a release.
+- Target `main`. CI must pass and at least one review is required.
+- Add an entry under `## [Unreleased]` in `CHANGELOG.md` for any user-visible change.
+- A pull request from this repository publishes a **preview image** you can try before merging: `ghcr.io/kbball/ares-bib-logger:pr-<number>` (and `:<version>-pr<number>.<commit>`). It never moves `latest`. Previews are deleted when the PR closes.
 
 ## Commit messages
 
@@ -79,32 +69,16 @@ See [CLAUDE.md](CLAUDE.md) for the full rule set. Short version:
 - [ ] `make lint` passes
 - [ ] New code has test coverage
 - [ ] No hardcoded config values
-- [ ] PR targets `staging` (not `main`)
+- [ ] `CHANGELOG.md` updated for user-visible changes
+- [ ] `make cover` passes
 
 ## Releases (maintainers only)
 
-Releases follow `<major>.<minor>` versioning (e.g. `1.3`).
+The version lives in the `VERSION` file (semantic versioning, `1.4.0`) and is the single source: the Makefile, the Docker `VERSION` build argument and the binary's reported version all read it.
 
-### Promote staging → main
+To release:
 
-1. Open a PR from `staging` into `main`. CI must pass and the PR must be reviewed.
-2. Merge the PR.
+1. In a pull request, bump `VERSION` and move `## [Unreleased]` in `CHANGELOG.md` into a dated `## [x.y.z]` section.
+2. Merge it. CI on `main` builds the multi-arch image (`linux/amd64`, `linux/arm64`), runs the smoke test, and publishes `:latest`, `:sha-<commit>` and `:<VERSION>` to GHCR.
 
-### Trigger the release
-
-After merging, run the Release workflow from `main`:
-
-**GitHub UI:** Actions → Release → Run workflow → select `main` → enter version (e.g. `1.3`, no `v` prefix) → Run.
-
-**CLI:**
-```bash
-gh workflow run release.yml --ref main -f version=1.3
-```
-
-The workflow:
-- Verifies it is running on `main`
-- Runs lint and tests
-- Creates git tag `v1.3`
-- Builds a multi-arch image (`linux/amd64`, `linux/arm64`) and pushes `ghcr.io/kbball/ares-bib-logger:1.3` and `:latest` to GHCR
-
-> Always trigger the release from `main`. Selecting any other branch will fail the workflow's branch check.
+The version tag is written once and never replaced: if `:<VERSION>` already exists the run warns and skips it, so bump `VERSION` to publish a new version. Merging without a bump only moves `latest` and `sha-<commit>`.

@@ -1,6 +1,10 @@
 -include .env
 export
 
+VERSION := $(shell cat VERSION)
+COVER_MIN := 80
+IMAGE ?= ghcr.io/kbball/ares-bib-logger
+
 DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSL_MODE)
 MIGRATIONS_DIR=internal/adapter/repository/migrations
 
@@ -12,6 +16,7 @@ MIGRATIONS_DIR=internal/adapter/repository/migrations
         lint lint-backend lint-frontend \
         fmt fmt-backend fmt-frontend \
         migrate-up migrate-down migrate-create migrate-status \
+        cover image smoke \
         install install-tools install-hooks docker-build meshcore-build
 
 help:
@@ -26,6 +31,8 @@ help:
 	@echo "Testing"
 	@echo "  test                Run all tests"
 	@echo "  coverage            Run all tests with coverage reports"
+	@echo "  cover               Coverage gate (Go >= $(COVER_MIN)%, frontend thresholds), as CI runs it"
+	@echo "  smoke               Build the image and run it against real Postgres"
 	@echo ""
 	@echo "Quality"
 	@echo "  lint                Lint backend and frontend"
@@ -76,7 +83,7 @@ build-frontend:
 test: test-backend test-frontend
 
 test-backend:
-	cd backend && go test ./...
+	cd backend && go vet ./... && go test -p 1 -race ./...
 
 # Runs repository integration tests against the local DB (requires make db-up first).
 test-integration:
@@ -86,6 +93,13 @@ test-frontend:
 	cd frontend && npm test
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
+
+# The gate CI runs: fails below COVER_MIN (Go) and below the vite.config.ts thresholds (frontend).
+cover:
+	cd backend && go test -p 1 -coverprofile=coverage.out ./...
+	@cd backend && go tool cover -func=coverage.out | tail -1
+	@cd backend && go tool cover -func=coverage.out | awk -v min=$(COVER_MIN) '/^total:/ { sub("%","",$$3); if ($$3+0 < min) { print "coverage below " min "%"; exit 1 } }'
+	cd frontend && npm run cover
 
 coverage: coverage-backend coverage-frontend
 
@@ -144,8 +158,13 @@ install-hooks:
 	chmod +x .git/hooks/pre-commit
 	@echo "Pre-commit hook installed."
 
-docker-build:
-	docker build -t ares-bib-logger .
+docker-build: image
+
+image: ## build the Docker image, tagged with the VERSION file and latest
+	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest .
+
+smoke: image ## run the image against a real Postgres container (the check CI runs)
+	scripts/smoke-image.sh $(IMAGE):$(VERSION) $(VERSION)
 
 meshcore-build:
 	docker build -t ghcr.io/kbball/meshcore-mqtt:main ~/code/docker/meshcore-mqtt

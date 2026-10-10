@@ -25,9 +25,31 @@ import (
 	sseadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/application/service"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
+	"github.com/kevinball/ares-bib-logger/backend/internal/healthcheck"
 )
 
+// version is set at build time: -ldflags "-X main.version=1.2.3".
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "version":
+			fmt.Println(version)
+			return
+		case "healthcheck":
+			port := os.Getenv("SERVER_PORT")
+			if port == "" {
+				port = "8080"
+			}
+			if err := healthcheck.Run(context.Background(), port); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
@@ -35,6 +57,7 @@ func main() {
 	}
 
 	setupLogger(cfg)
+	slog.Info("starting", "version", version)
 
 	db, err := connectDB(cfg.DB)
 	if err != nil {
@@ -210,7 +233,7 @@ func runMigrations(db *sql.DB) error {
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+	_, _ = w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
 }
 
 // serveSPA serves a directory of static files and falls back to index.html
