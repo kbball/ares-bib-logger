@@ -1,157 +1,114 @@
-import { createTheme, alpha } from '@mui/material/styles'
+import { createTheme } from '@mui/material/styles'
 
 export type ColorMode = 'dark' | 'light'
 
-// ── Color primitives ──────────────────────────────────────────────────────────
-const brand = {
-  50: 'hsl(210, 100%, 95%)',
-  100: 'hsl(210, 100%, 92%)',
-  200: 'hsl(210, 100%, 80%)',
-  300: 'hsl(210, 100%, 65%)',
-  400: 'hsl(210, 98%,  48%)',
-  500: 'hsl(210, 98%,  42%)',
-  600: 'hsl(210, 98%,  55%)',
-  700: 'hsl(210, 100%, 35%)',
-  800: 'hsl(210, 100%, 16%)',
-  900: 'hsl(210, 100%, 21%)',
+// ── Design tokens ─────────────────────────────────────────────────────────────
+// Mirrors the Sweep Tracker app's theme tokens so the two apps look like siblings.
+const tokens = {
+  light: {
+    bg: '#e9ebef',
+    panel: '#ffffff',
+    border: '#e1e4e9',
+    text: '#14171f',
+    text2: '#4a5160',
+    text3: '#5b6272',
+    selected: '#eef2ff',
+    accent: '#2f5bea',
+    ok: '#17794a',
+    okBg: '#e3f6ea',
+    warn: '#8a5a00',
+    warnBg: '#fff1d6',
+    bad: '#a3122f',
+    badBg: '#fde6ea',
+    neutralBg: '#eef0f4',
+    shadow: '0 2px 12px rgba(20, 23, 31, .12)',
+  },
+  dark: {
+    bg: '#0b0e12',
+    panel: '#12161c',
+    border: '#262c36',
+    text: '#e8ecf1',
+    text2: '#aab2c0',
+    text3: '#9aa3b2',
+    selected: '#1a2233',
+    accent: '#2f5bea',
+    ok: '#5fd69a',
+    okBg: '#12301f',
+    warn: '#f2c15b',
+    warnBg: '#3a2c0c',
+    bad: '#ff8fa3',
+    badBg: '#3a1620',
+    neutralBg: '#222833',
+    shadow: '0 2px 12px rgba(0, 0, 0, .5)',
+  },
 }
 
-const gray = {
-  50: 'hsl(220, 35%, 97%)',
-  100: 'hsl(220, 30%, 94%)',
-  200: 'hsl(220, 20%, 88%)',
-  300: 'hsl(220, 20%, 80%)',
-  400: 'hsl(220, 20%, 65%)',
-  500: 'hsl(220, 20%, 42%)',
-  600: 'hsl(220, 20%, 35%)',
-  700: 'hsl(220, 20%, 25%)',
-  800: 'hsl(220, 30%,  6%)',
-  900: 'hsl(220, 35%,  3%)',
-}
+const FONT = '"DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif'
 
 // ── Theme factory ─────────────────────────────────────────────────────────────
 export function createAppTheme(mode: ColorMode) {
+  const t = tokens[mode]
   const dark = mode === 'dark'
 
   return createTheme({
     palette: {
       mode,
-      primary: {
-        main: dark ? brand[600] : brand[500],
-        light: brand[300],
-        dark: brand[700],
-        contrastText: dark ? gray[50] : '#fff',
-      },
-      background: {
-        default: dark ? gray[900] : gray[50],
-        paper: dark ? gray[800] : '#fff',
-      },
-      text: {
-        primary: dark ? 'hsl(0, 0%, 100%)' : gray[900],
-        secondary: dark ? gray[400] : gray[600],
-      },
-      divider: dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8),
+      primary: { main: t.accent, contrastText: '#fff' },
+      success: { main: t.ok },
+      warning: { main: t.warn },
+      error: { main: t.bad },
+      background: { default: t.bg, paper: t.panel },
+      text: { primary: t.text, secondary: t.text2, disabled: t.text3 },
+      divider: t.border,
       action: {
-        hover: dark ? alpha(gray[600], 0.2) : alpha(gray[200], 0.7),
-        selected: dark ? alpha(gray[600], 0.3) : alpha(gray[200], 0.9),
+        hover: t.selected,
+        selected: t.selected,
       },
     },
 
     typography: {
-      fontFamily: '"Inter", system-ui, sans-serif',
+      fontFamily: FONT,
       h1: { fontSize: '3rem', fontWeight: 600, lineHeight: 1.2 },
       h2: { fontSize: '2.25rem', fontWeight: 600, lineHeight: 1.2 },
       h3: { fontSize: '1.875rem', fontWeight: 600, lineHeight: 1.2 },
       h4: { fontSize: '1.5rem', fontWeight: 600, lineHeight: 1.3 },
-      h5: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.3 },
-      h6: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
-      subtitle1: { fontSize: '0.875rem', fontWeight: 600 },
-      subtitle2: { fontSize: '0.8125rem', fontWeight: 600 },
-      body1: { fontSize: '0.875rem' },
-      body2: { fontSize: '0.8125rem' },
+      h5: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.3 },
+      h6: { fontSize: '1.1rem', fontWeight: 600, lineHeight: 1.4 },
+      subtitle1: { fontSize: '0.9375rem', fontWeight: 600 },
+      subtitle2: { fontSize: '0.9375rem', fontWeight: 700 },
+      body1: { fontSize: '0.9375rem' },
+      body2: { fontSize: '0.875rem' },
       caption: { fontSize: '0.75rem' },
-      button: { fontSize: '0.875rem', fontWeight: 600, textTransform: 'none' },
+      button: { fontSize: '0.9375rem', fontWeight: 600, textTransform: 'none' },
     },
 
-    shape: { borderRadius: 8 },
-
-    shadows: dark
-      ? [
-          'none',
-          `0 1px 2px ${alpha(gray[900], 0.6)}`,
-          `0 2px 4px ${alpha(gray[900], 0.5)}`,
-          `0 4px 8px ${alpha(gray[900], 0.4)}`,
-          `0 6px 12px ${alpha(gray[900], 0.4)}`,
-          `0 8px 16px ${alpha(gray[900], 0.4)}`,
-          `0 10px 20px ${alpha(gray[900], 0.3)}`,
-          `0 12px 24px ${alpha(gray[900], 0.3)}`,
-          `0 14px 28px ${alpha(gray[900], 0.3)}`,
-          `0 16px 32px ${alpha(gray[900], 0.3)}`,
-          `0 18px 36px ${alpha(gray[900], 0.3)}`,
-          `0 20px 40px ${alpha(gray[900], 0.3)}`,
-          `0 22px 44px ${alpha(gray[900], 0.3)}`,
-          `0 24px 48px ${alpha(gray[900], 0.3)}`,
-          `0 26px 52px ${alpha(gray[900], 0.3)}`,
-          `0 28px 56px ${alpha(gray[900], 0.3)}`,
-          `0 30px 60px ${alpha(gray[900], 0.3)}`,
-          `0 32px 64px ${alpha(gray[900], 0.3)}`,
-          `0 34px 68px ${alpha(gray[900], 0.3)}`,
-          `0 36px 72px ${alpha(gray[900], 0.3)}`,
-          `0 38px 76px ${alpha(gray[900], 0.3)}`,
-          `0 40px 80px ${alpha(gray[900], 0.3)}`,
-          `0 42px 84px ${alpha(gray[900], 0.3)}`,
-          `0 44px 88px ${alpha(gray[900], 0.3)}`,
-          `0 46px 92px ${alpha(gray[900], 0.3)}`,
-        ]
-      : [
-          'none',
-          `0 1px 2px ${alpha(gray[900], 0.08)}`,
-          `0 2px 4px ${alpha(gray[900], 0.08)}`,
-          `0 4px 8px ${alpha(gray[900], 0.07)}`,
-          `0 6px 12px ${alpha(gray[900], 0.07)}`,
-          `0 8px 16px ${alpha(gray[900], 0.06)}`,
-          `0 10px 20px ${alpha(gray[900], 0.06)}`,
-          `0 12px 24px ${alpha(gray[900], 0.05)}`,
-          `0 14px 28px ${alpha(gray[900], 0.05)}`,
-          `0 16px 32px ${alpha(gray[900], 0.05)}`,
-          `0 18px 36px ${alpha(gray[900], 0.05)}`,
-          `0 20px 40px ${alpha(gray[900], 0.05)}`,
-          `0 22px 44px ${alpha(gray[900], 0.04)}`,
-          `0 24px 48px ${alpha(gray[900], 0.04)}`,
-          `0 26px 52px ${alpha(gray[900], 0.04)}`,
-          `0 28px 56px ${alpha(gray[900], 0.04)}`,
-          `0 30px 60px ${alpha(gray[900], 0.04)}`,
-          `0 32px 64px ${alpha(gray[900], 0.04)}`,
-          `0 34px 68px ${alpha(gray[900], 0.04)}`,
-          `0 36px 72px ${alpha(gray[900], 0.04)}`,
-          `0 38px 76px ${alpha(gray[900], 0.04)}`,
-          `0 40px 80px ${alpha(gray[900], 0.04)}`,
-          `0 42px 84px ${alpha(gray[900], 0.04)}`,
-          `0 44px 88px ${alpha(gray[900], 0.04)}`,
-          `0 46px 92px ${alpha(gray[900], 0.04)}`,
-        ],
+    shape: { borderRadius: 10 },
 
     components: {
-      // ── Paper / Card ──────────────────────────────────────────────────────
+      // ── Paper / Card: soft, rounded floating panels ───────────────────────
       MuiPaper: {
         defaultProps: { elevation: 0 },
         styleOverrides: {
           root: {
             backgroundImage: 'none',
-            border: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}`,
+            border: `1px solid ${t.border}`,
+            borderRadius: 18,
+            boxShadow: t.shadow,
           },
         },
       },
 
-      // ── AppBar ────────────────────────────────────────────────────────────
+      // ── AppBar: a rounded card floating above the page ────────────────────
       MuiAppBar: {
         defaultProps: { elevation: 0 },
         styleOverrides: {
           root: {
             backgroundImage: 'none',
-            backgroundColor: dark ? gray[900] : gray[100],
-            borderBottom: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}`,
-            color: dark ? 'hsl(0, 0%, 100%)' : gray[900],
+            backgroundColor: t.panel,
+            border: `1px solid ${t.border}`,
+            borderRadius: 18,
+            boxShadow: t.shadow,
+            color: t.text,
           },
         },
       },
@@ -160,83 +117,83 @@ export function createAppTheme(mode: ColorMode) {
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: {
-          root: {
-            borderRadius: 8,
-            padding: '6px 16px',
-            fontWeight: 600,
-          },
-          contained: {
-            background: dark ? brand[600] : brand[500],
-            '&:hover': { background: brand[700] },
-          },
+          root: { borderRadius: 10, padding: '6px 18px', minHeight: 40, fontWeight: 600 },
+          contained: { '&:hover': { filter: 'brightness(1.08)', backgroundColor: t.accent } },
           outlined: {
-            borderColor: dark ? alpha(gray[500], 0.5) : alpha(gray[400], 0.6),
-            '&:hover': {
-              borderColor: dark ? gray[400] : gray[600],
-              background: dark ? alpha(gray[600], 0.15) : alpha(gray[200], 0.5),
-            },
+            borderColor: t.border,
+            color: t.text,
+            backgroundColor: t.panel,
+            '&:hover': { borderColor: t.text3, backgroundColor: t.selected },
           },
+          text: { '&:hover': { backgroundColor: t.selected } },
         },
       },
 
       MuiIconButton: {
         styleOverrides: {
-          root: { borderRadius: 8 },
+          root: {
+            borderRadius: 12,
+            '&:hover': { backgroundColor: t.selected },
+          },
         },
       },
 
       // ── Inputs ────────────────────────────────────────────────────────────
       MuiOutlinedInput: {
         styleOverrides: {
-          notchedOutline: {
-            borderColor: dark ? alpha(gray[500], 0.35) : alpha(gray[400], 0.5),
-          },
           root: {
-            '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: dark ? gray[400] : gray[500],
-            },
+            borderRadius: 8,
+            backgroundColor: t.panel,
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: t.text3 },
           },
+          notchedOutline: { borderColor: t.border },
         },
       },
 
       MuiInputLabel: {
-        styleOverrides: {
-          root: { color: dark ? gray[400] : gray[600] },
-        },
+        styleOverrides: { root: { color: t.text2 } },
       },
 
-      // ── Select ────────────────────────────────────────────────────────────
-      MuiSelect: {
-        styleOverrides: {
-          root: {
-            '& .MuiOutlinedInput-notchedOutline': {
-              borderColor: dark ? alpha(gray[500], 0.35) : alpha(gray[400], 0.5),
-            },
-          },
-        },
-      },
-
-      // ── Chips ─────────────────────────────────────────────────────────────
+      // ── Chips: small square-ish badges with tinted fills ──────────────────
       MuiChip: {
         styleOverrides: {
-          root: { borderRadius: 6, fontWeight: 500 },
+          root: { borderRadius: 6, fontWeight: 600, fontSize: '0.75rem' },
+          colorSuccess: { backgroundColor: t.okBg, color: t.ok },
+          colorWarning: { backgroundColor: t.warnBg, color: t.warn },
+          colorError: { backgroundColor: t.badBg, color: t.bad },
+          colorDefault: { backgroundColor: t.neutralBg, color: t.text2 },
         },
       },
 
-      // ── Alerts ────────────────────────────────────────────────────────────
+      // ── Alerts: tinted fills, no border ───────────────────────────────────
       MuiAlert: {
-        styleOverrides: {
-          root: { borderRadius: 8 },
-        },
+        styleOverrides: { root: { borderRadius: 14 } },
+        variants: (
+          [
+            ['success', t.okBg, t.ok],
+            ['warning', t.warnBg, t.warn],
+            ['error', t.badBg, t.bad],
+            ['info', t.selected, t.text],
+          ] as const
+        ).map(([severity, bg, fg]) => ({
+          props: { severity, variant: 'standard' as const },
+          style: {
+            backgroundColor: bg,
+            color: fg,
+            '& .MuiAlert-icon': { color: severity === 'info' ? t.accent : fg },
+          },
+        })),
       },
 
-      // ── Dialog ────────────────────────────────────────────────────────────
+      // ── Dialog / Drawer ───────────────────────────────────────────────────
       MuiDialog: {
         styleOverrides: {
-          paper: {
-            border: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}`,
-            backgroundImage: 'none',
-          },
+          paper: { border: `1px solid ${t.border}`, backgroundImage: 'none', borderRadius: 18 },
+        },
+      },
+      MuiDrawer: {
+        styleOverrides: {
+          paper: { backgroundImage: 'none', borderRadius: 0, boxShadow: t.shadow },
         },
       },
 
@@ -245,12 +202,12 @@ export function createAppTheme(mode: ColorMode) {
         styleOverrides: {
           root: {
             '& .MuiTableCell-root': {
-              backgroundColor: dark ? alpha(gray[700], 0.5) : gray[100],
+              backgroundColor: t.neutralBg,
               fontWeight: 600,
               fontSize: '0.75rem',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
-              color: dark ? gray[300] : gray[600],
+              color: t.text2,
             },
           },
         },
@@ -258,44 +215,44 @@ export function createAppTheme(mode: ColorMode) {
       MuiTableRow: {
         styleOverrides: {
           root: {
-            '&:hover': { backgroundColor: dark ? alpha(gray[700], 0.3) : alpha(gray[100], 0.8) },
+            '&:hover': { backgroundColor: t.selected },
             '&:last-child td': { borderBottom: 0 },
           },
         },
       },
       MuiTableCell: {
         styleOverrides: {
-          root: {
-            borderBottom: `1px solid ${dark ? alpha(gray[600], 0.2) : alpha(gray[200], 0.9)}`,
-            padding: '8px 12px',
-          },
+          root: { borderBottom: `1px solid ${t.border}`, padding: '8px 12px' },
         },
       },
 
-      // ── Divider ───────────────────────────────────────────────────────────
       MuiDivider: {
-        styleOverrides: {
-          root: { borderColor: dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8) },
-        },
+        styleOverrides: { root: { borderColor: t.border } },
       },
 
-      // ── Tabs ──────────────────────────────────────────────────────────────
+      // ── Tabs: pills instead of an underline ───────────────────────────────
       MuiTabs: {
         styleOverrides: {
-          root: {
-            borderBottom: `1px solid ${dark ? alpha(gray[600], 0.3) : alpha(gray[300], 0.8)}`,
-          },
+          root: { minHeight: 48, padding: '0 8px 8px' },
+          indicator: { display: 'none' },
         },
       },
       MuiTab: {
         styleOverrides: {
           root: {
             fontWeight: 500,
-            fontSize: '0.875rem',
+            fontSize: '0.9375rem',
             textTransform: 'none',
             minHeight: 40,
-            padding: '8px 16px',
-            '&.Mui-selected': { fontWeight: 600 },
+            padding: '8px 14px',
+            borderRadius: 10,
+            color: t.text2,
+            '&:hover': { backgroundColor: t.selected },
+            '&.Mui-selected': {
+              fontWeight: 600,
+              color: t.text,
+              backgroundColor: t.selected,
+            },
           },
         },
       },
@@ -304,13 +261,8 @@ export function createAppTheme(mode: ColorMode) {
       MuiCssBaseline: {
         styleOverrides: {
           body: {
-            backgroundColor: dark ? gray[900] : gray[50],
-            scrollbarColor: `${dark ? gray[600] : gray[300]} transparent`,
-            '&::-webkit-scrollbar': { width: 8 },
-            '&::-webkit-scrollbar-thumb': {
-              background: dark ? gray[600] : gray[300],
-              borderRadius: 4,
-            },
+            backgroundColor: t.bg,
+            scrollbarColor: `${dark ? '#3a4150' : '#c4c9d4'} transparent`,
           },
         },
       },

@@ -29,6 +29,9 @@ import RunnersTab from './ui/pages/RunnersTab'
 import AdminTab from './ui/pages/AdminTab'
 import GuideTab from './ui/pages/GuideTab'
 import WinlinkReminderBanner from './ui/components/WinlinkReminderBanner'
+import Tour from './ui/components/Tour'
+import { openTour } from './ui/components/tourState'
+import ExploreOutlinedIcon from '@mui/icons-material/ExploreOutlined'
 
 const TABS = [
   { label: 'Data Entry', path: '/data-entry' },
@@ -203,7 +206,7 @@ function AppInner() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AppBar position="static">
+      <AppBar position="static" sx={{ mx: 2, mt: 2, width: 'auto' }}>
         <Toolbar variant="dense">
           <Box
             component="img"
@@ -211,10 +214,15 @@ function AppInner() {
             alt="ARES Bib Logger"
             sx={{ height: 40, width: 'auto', mr: 1.5 }}
           />
-          <Typography variant="h6" sx={{ mr: 2 }}>
+          <Typography variant="h6" sx={{ mr: 2, letterSpacing: '-0.01em', fontWeight: 700 }}>
             ARES Bib Logger
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
+          <Tooltip title="Take the tour">
+            <IconButton onClick={openTour} size="small" color="inherit" aria-label="Take the tour">
+              <ExploreOutlinedIcon />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Help for this tab">
             <IconButton
               onClick={() => setHelpOpen(true)}
@@ -235,16 +243,16 @@ function AppInner() {
           value={tab}
           onChange={(_, v) => navigate(TABS[v as number].path)}
           textColor="inherit"
-          indicatorColor="secondary"
           variant="scrollable"
         >
-          {TABS.map(({ label }) => (
-            <Tab key={label} label={label} />
+          {TABS.map(({ label, path }) => (
+            <Tab key={label} id={`tab-${path.slice(1)}`} label={label} />
           ))}
         </Tabs>
       </AppBar>
 
       <WinlinkReminderBanner />
+      <Tour />
 
       <Box sx={{ p: 2 }}>
         {tab === 0 && <DataEntryTab />}
