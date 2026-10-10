@@ -21,7 +21,7 @@ The user is a team lead for an ARES (Amateur Radio Emergency Service) group that
 6. Throughout the race (approximately every 20–30 minutes), the station's time column is copied from the spreadsheet into Winlink (radio email) and transmitted to other stations.
 7. Other stations send their Winlink updates back — the receiving station pastes the column into the corresponding aid station column in the spreadsheet to track runners across the whole course.
 
-**Deployment model:** Each station runs this app locally on a laptop. There is no shared database between stations — Winlink is the only mechanism to share information between stations. The app is entirely self-contained per station.
+**Deployment model:** Each station runs this app locally on a laptop. There is no shared database between stations — Winlink is the only mechanism to share information between stations. The app is entirely self-contained per station. At events each station runs the full stack (this app, sweep tracker, a MeshCore gateway) on its own go-box or laptop, deployed with [aredn-go-box](https://github.com/kbball/aredn-go-box); Winlink and voice through the team's ham repeaters remain the reliable path and MeshCore capture is supplemental.
 
 ---
 
@@ -314,7 +314,7 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - **Backend**: All domain entities, port interfaces, application services, Postgres repos (golang-migrate), HTTP handlers, MQTT adapter, Winlink import/export, roster importer; archive event, lock checkpoint order, DNS/DNF Winlink import, pace/projected arrival (migration 000003 + full stack), Change Runner Status, Event export/import, Winlink import upsert
 - **Frontend**: Material UI, six tabs (Data Entry, Runners, Winlink Import, Winlink Export, Admin, Guide), SSE real-time updates, light/dark toggle, runner detail modal, responsive layout, context-sensitive help panel, tooltips on all actions, URL-based tab routing (React Router), Winlink export email subject, bulk checkpoint import, logo
 - **Testing**: Frontend 163 tests / 89% branch coverage (Vitest + RTL + MSW); backend all packages >90% (handler 97.5%, repo 97.3%, service 93.8%, mqtt 92.7%, sse 94.4%, config 93.6%); thresholds enforced in both stacks
-- **CI/CD**: GitHub Actions lint+test on PR, build+push to GHCR on merge; docker-compose.operator.yml for operators; pre-commit hooks (fmt + lint); README split into Operator/Developer tracks
+- **CI/CD**: GitHub Actions `Go` / `Frontend` / `Image` checks on every PR and on `main` (80% coverage gates, image smoke test against real Postgres); a merge to `main` publishes `latest`, `sha-<commit>` and the `VERSION` tag (written once), a PR from this repo publishes a `pr-<n>` preview that is cleaned up on close; `VERSION` file is the single version source; docker-compose.operator.yml for operators; pre-commit hooks (fmt + lint); README split into Operator/Developer tracks. (The earlier `staging` branch flow and manual Release workflow are gone.)
 - **Bug fixes**: Winlink blank-line positional shift (single-digit-hour time parsing); Docker timezone (TIMEZONE env var, WinlinkService); SSE flusher/write-deadline; Data Entry SSE closure stale state; null Checkpoints crash on Winlink tabs; MUI out-of-range Select warnings (session load race); HTML nesting (Typography/Chip); GHA test timing races
 
 **v1.1 — 2026-08-23**
@@ -376,6 +376,12 @@ Three sections, grouped into two collapsed-by-default accordions: **Setup** (Act
 - Admin gained a setup guide (`application/setup.ts` for the pure step logic, `ui/components/SetupGuide.tsx` for the panel): event → races → checkpoints → roster → lock order (optional) → active checkpoint → share (optional), each marked done / to do / waiting with a Go button that opens the Setup accordion and scrolls to the section. It sits in a sticky column to the right of the form on wide screens and above it on narrow ones.
 - First-run tour (`ui/components/Tour.tsx`, steps in `tourState.ts`): shown once per browser (`ares-bib-logger:tour-seen` in localStorage), replayable from the compass icon in the app bar. Each step navigates to its page and spotlights its target; Admin steps first open the Setup accordion via a window event.
 
+**Unreleased — 2026-10-10**
+
+- `BASE_PATH` env var: the server rewrites `index.html`'s `<base href>` and the frontend uses it for the router basename, API calls, the SSE stream and the logo, so the app can sit behind a reverse proxy that strips a prefix (the go-box serves it at `/bibs/`). `backend/internal/adapter/spa` serves the frontend; `frontend/src/adapters/basePath.ts` reads the prefix.
+- CI, versioning and releases brought in line with sweep-tracker (see CI/CD above): `VERSION` file, distroless multi-arch image with a `healthcheck` subcommand, `GET /health` reports the version, `make cover` / `make smoke`, CHANGELOG.md, preview images.
+- Event channel convention: station radios carry 0 sweeps, 1 aid station logging, 2 station chat, 3 all-race chat. This app listens to, and replies on, the single channel in `MESHCORE_CHANNEL_INDEX` (go-box sets 1); the per-station secret on that index is what keeps one station's reports out of another's logger. No code change was needed.
+
 ## Backlog
 
 Ordered by priority (2026-08-23):
@@ -424,6 +430,11 @@ Ordered by priority (2026-08-23):
 - `missing` — stricter search-and-rescue variant: logged at the previous checkpoint with an implausibly long gap and no log at this one
 - `first <n>` / `leader` — first N bibs through this checkpoint
 - Not yet implemented — captured here for future work; each needs a reply-length cap given mesh packet size limits, same as `search`
+
+### 6. Open items (2026-10-10)
+- Embed the built frontend in the Go binary (`go:embed`) instead of serving `frontend/dist` from disk, so the image is one self-contained binary (the layout rules want this; today the Dockerfile copies `frontend/dist` beside the binary).
+- Hardware check: on the real gateway, a bib sent on channel 1 is logged and the `LOGGED: n` reply goes back on channel 1 (not another channel); messages on channels 2 and 3 are ignored.
+- Cut the next release: bump `VERSION` (1.3.2 is already published) and move `[Unreleased]` in CHANGELOG.md into a dated section.
 
 ### User Testing — MQTT Gateway and Mesh Messaging ✅ COMPLETE
 - [x] End-to-end user test of the full MQTT / Meshtastic path: Meshtastic node → gateway → Mosquitto broker → backend subscriber → bib logging
