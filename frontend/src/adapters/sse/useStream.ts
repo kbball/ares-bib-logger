@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { withBase } from '../basePath'
 import type { SSEEvent } from '../../domain/types'
 
 type Handler<T> = (payload: T) => void
@@ -18,7 +19,7 @@ export function useStream(handlers: StreamHandlers) {
   })
 
   useEffect(() => {
-    const es = new EventSource('/api/stream')
+    const es = new EventSource(withBase('/api/stream'))
 
     es.onmessage = (e: MessageEvent) => {
       const event = JSON.parse(e.data) as SSEEvent

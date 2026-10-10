@@ -213,6 +213,7 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SERVER_PORT` | `8080` | HTTP server port |
+| `BASE_PATH` | _(empty)_ | URL prefix when served behind a reverse proxy that strips it, e.g. `/bibs`. The server tells the page its prefix through `<base href>`, so assets, API calls and routes all live under it. Leave empty to serve at `/` |
 | `LOG_LEVEL` | `info` | Log level (`debug` / `info` / `warn` / `error`) |
 | `TIMEZONE` | `Local` | IANA timezone for Winlink time parsing/formatting (e.g. `America/New_York`). Must match the local timezone of the event venue. |
 | `DB_HOST` | `localhost` | Postgres host |

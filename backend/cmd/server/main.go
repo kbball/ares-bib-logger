@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,6 +21,7 @@ import (
 	meshcoreadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/meshcore"
 	mqttadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/mqtt"
 	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/repository"
+	"github.com/kevinball/ares-bib-logger/backend/internal/adapter/spa"
 	sseadapter "github.com/kevinball/ares-bib-logger/backend/internal/adapter/sse"
 	"github.com/kevinball/ares-bib-logger/backend/internal/application/service"
 	"github.com/kevinball/ares-bib-logger/backend/internal/config"
@@ -140,7 +140,7 @@ func main() {
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.Handle("GET /api/stream", broker)
 	h.Register(mux)
-	mux.Handle("/", serveSPA("frontend/dist"))
+	mux.Handle("/", spa.Handler(os.DirFS("frontend/dist"), cfg.BasePath))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
@@ -234,20 +234,4 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
-}
-
-// serveSPA serves a directory of static files and falls back to index.html
-// for any path that doesn't match a real file (SPA client-side routing).
-func serveSPA(dir string) http.Handler {
-	root := os.DirFS(dir)
-	fileServer := http.FileServerFS(root)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := fs.Stat(root, r.URL.Path[1:])
-		if err != nil {
-			// Not a real file — serve index.html so the SPA router handles it.
-			http.ServeFileFS(w, r, root, "index.html")
-			return
-		}
-		fileServer.ServeHTTP(w, r)
-	})
 }

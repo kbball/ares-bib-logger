@@ -13,7 +13,7 @@ import (
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"SERVER_PORT", "LOG_LEVEL",
+		"SERVER_PORT", "LOG_LEVEL", "BASE_PATH",
 		"DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_SSL_MODE",
 		"MQTT_ENABLED", "MQTT_HOST", "MQTT_PORT", "MQTT_REGION",
 		"MQTT_CHANNEL_NUM", "MQTT_CHANNEL_NAME", "MQTT_GATEWAY_NODE_ID",
@@ -37,6 +37,7 @@ func TestLoad_Defaults(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 8080, cfg.ServerPort)
+	assert.Equal(t, "", cfg.BasePath)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "localhost", cfg.DB.Host)
 	assert.Equal(t, 5432, cfg.DB.Port)
@@ -57,6 +58,7 @@ func TestLoad_Overrides(t *testing.T) {
 	clearEnv(t)
 	setRequired(t)
 	t.Setenv("SERVER_PORT", "9090")
+	t.Setenv("BASE_PATH", "/bibs")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("DB_HOST", "db-host")
 	t.Setenv("DB_PORT", "5433")
@@ -72,6 +74,7 @@ func TestLoad_Overrides(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
+	assert.Equal(t, "/bibs", cfg.BasePath)
 	assert.Equal(t, 9090, cfg.ServerPort)
 	assert.Equal(t, "debug", cfg.LogLevel)
 	assert.Equal(t, "db-host", cfg.DB.Host)
