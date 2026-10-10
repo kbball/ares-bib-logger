@@ -84,6 +84,12 @@ make fmt
 - If it's unclear whether a task warrants a new branch (e.g. a one-line typo fix), ask before proceeding.
 - Do not create a new branch if one was already created for this task/session — reuse it.
 
+## Versioning and CI
+
+- The version is the `VERSION` file (semver); the Makefile, Docker `VERSION` build arg and `-X main.version` all read it. The server reports it in `GET /health`.
+- Every user-visible change gets a `CHANGELOG.md` entry under `[Unreleased]`. To release, bump `VERSION` and cut `[Unreleased]` into a dated section.
+- CI (`.github/workflows/ci.yml`) jobs `Go`, `Frontend` and `Image` are the required checks. Coverage must stay above 80%. `make cover` and `make smoke` run the same gates locally.
+
 ## Plan File
 
 `.ai/PLAN.md` is the source of truth for project progress. Keep it updated:
