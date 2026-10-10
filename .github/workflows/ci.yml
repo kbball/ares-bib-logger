@@ -69,52 +69,6 @@ jobs:
       - name: Production build
         run: npm run build
 
-  image: postgres:17-alpine
-        env:
-          POSTGRES_PASSWORD: pw
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      TEST_DATABASE_URL: postgres://postgres:pw@localhost:5432/postgres?sslmode=disable
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then echo "Not gofmt-formatted:"; echo "$unformatted"; exit 1; fi
-      - name: Preview cleanup script tests
-        run: scripts/prune-previews.test.sh
-      - name: Vet and test (with the race detector)
-        run: make test
-      - name: Coverage gate (at least 80%)
-        run: make cover
-
-  web:
-    name: Frontend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - name: Type check, tests and coverage gate (at least 80%)
-        run: npm run cover
-      - name: Production build
-        run: npm run build
-
   image:
     name: Image
     needs: [go, web]
