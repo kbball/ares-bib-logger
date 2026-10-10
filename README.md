@@ -36,7 +36,7 @@ Built for the NW-GA ARES team supporting the **GA Death Race (GDR)** and **GA Je
 |-------|-----------|
 | Backend | Go 1.24, `log/slog`, `golang-migrate` |
 | Frontend | TypeScript, React 19, Vite |
-| Database | PostgreSQL 16 |
+| Database | PostgreSQL (16 in the bundled compose files; 17 on the go-box) |
 | Messaging | Mosquitto MQTT (local Docker service) |
 | Container | Docker / docker-compose |
 
@@ -133,6 +133,25 @@ docker compose -f docker-compose.operator.yml down
 
 > **Data persistence:** Postgres data survives container restarts via a named Docker volume. To wipe all data (e.g. between events), run `docker compose -f docker-compose.operator.yml down -v`.
 
+#### The image
+
+Images are published to GitHub Container Registry as `ghcr.io/kbball/ares-bib-logger`, for amd64 and arm64:
+
+| Tag | Meaning |
+|---|---|
+| `1.3.2` | That release: the version in the `VERSION` file. Written once and never replaced. |
+| `latest` | The newest build of `main`. |
+| `sha-abc1234` | A specific commit on `main`. |
+| `pr-34`, `1.3.2-pr34.abc1234` | A preview of pull request 34, to try a change before it is merged. Never `latest`, never a release. |
+
+The image is distroless and runs as a non-root user. `GET /health` returns `{"status":"ok","version":"…"}`, and the image has a built-in health check (`server healthcheck`), so `docker ps` shows whether it is up.
+
+---
+
+### Deploying at an event (the go-box)
+
+At an event the bib logger runs on the field server together with the other tools, set up by [aredn-go-box](https://github.com/kbball/aredn-go-box). Enable its `bib-logger` stack and it brings the shared Postgres and MQTT broker, the MeshCore bridge and a launcher page. It is served at `https://<host>/bibs/` (the stack sets `BASE_PATH=/bibs`) and shares the broker with the other apps. That repo's README covers setup, per-site settings and troubleshooting. The operator setup above is for running the bib logger on its own, for example on a laptop with Docker.
+
 ---
 
 ### Developer Setup
@@ -141,7 +160,7 @@ docker compose -f docker-compose.operator.yml down
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Go 1.24+
-- Node.js 20+
+- Node.js 24+
 - [golangci-lint](https://golangci-lint.run/) and [golang-migrate CLI](https://github.com/golang-migrate/migrate) (installed via `make install-tools`)
 
 ```bash
@@ -222,7 +241,7 @@ All runtime config is via environment variables (12-factor). Copy `.env.example`
 | `DB_USER` | `postgres` | Database user |
 | `DB_PASSWORD` | *(required)* | Database password |
 | `DB_SSL_MODE` | `disable` | SSL mode (`disable` / `require` / `verify-full`) |
-| `MQTT_ENABLED` | `false` | Set to `true` to enable mesh radio integration |
+| `MQTT_ENABLED` | `true` | Mesh radio integration. Set to `false` for manual-entry-only mode. (`.env.example` ships it as `false` so a fresh checkout boots without a broker.) |
 | `MESH_TECHNOLOGY` | `meshtastic` | Which mesh radio to use: `meshtastic` or `meshcore` |
 | `MQTT_HOST` | `localhost` | Mosquitto broker host (shared by both technologies) |
 | `MQTT_PORT` | `1883` | Mosquitto broker port (shared by both technologies) |
